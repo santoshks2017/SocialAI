@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, useSearchParams } from 'react-router-dom';
+import PlatformPreview from '../components/PlatformPreview';
 import { creativeService, postService } from '../services/creative';
 import type { AIGenerationResponse, CaptionVariant } from '../services/creative';
 import { useToast } from '../components/ui/Toast';
@@ -1345,75 +1346,21 @@ export default function CreatePost() {
                     </div>
                   </div>
 
-                  <div className="bg-white flex-1 flex flex-col">
-                    {/* Post header — uses real dealer name (M5) */}
-                    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-stone-100">
-                      <div className="w-9 h-9 bg-orange-600 rounded-full flex items-center justify-center shrink-0 shadow-inner">
-                        <span className="text-[10px] font-black text-white">{dealerInitials}</span>
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-black text-stone-900 leading-none">{dealerDisplayName}</p>
-                        <p className="text-[9px] font-medium text-stone-400 leading-none mt-1">
-                          {activePlatformPreview === 'facebook'
-                            ? 'Facebook'
-                            : activePlatformPreview === 'instagram'
-                            ? 'Instagram'
-                            : 'Google Business Profile'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Creative image */}
-                    <div className="w-full aspect-square bg-stone-100 overflow-hidden relative">
-                      {urlGeneratedImage && mediaTab === 'url' ? (
-                        <img src={urlGeneratedImage} alt="Generated" className="w-full h-full object-cover" />
-                      ) : aiImageUrls[selectedDesign] && mediaTab === 'ai' ? (
-                        <img src={aiImageUrls[selectedDesign]!} alt="Creative" className="w-full h-full object-cover" />
-                      ) : uploadedImageUrl && mediaTab === 'upload' ? (
-                        <img src={uploadedImageUrl} alt="Uploaded" className="w-full h-full object-cover" />
-                      ) : (isGeneratingImages || isGenerating) ? (
-                        <div className={`w-full h-full bg-gradient-to-br ${TEMPLATE_THEMES[Math.min(selectedDesign, 2)]?.gradient ?? 'from-stone-900 to-stone-800'} flex items-center justify-center`}>
-                          <Sparkles className="w-8 h-8 text-white/60 animate-pulse" />
-                        </div>
-                      ) : prompt ? (
-                        <div className={`w-full h-full bg-gradient-to-br ${TEMPLATE_THEMES[Math.min(selectedDesign, 2)]?.gradient ?? 'from-stone-900 to-stone-800'} flex flex-col items-center justify-center p-6`}>
-                          <p className="text-white text-[12px] font-bold text-center leading-snug">
-                            {prompt.slice(0, 60)}{prompt.length > 60 ? '…' : ''}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="w-full h-full bg-stone-100 flex flex-col gap-2 items-center justify-center">
-                          <ImagePlus className="w-8 h-8 text-stone-300" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Caption */}
-                    <div className="px-4 py-3 flex-1">
-                      {caption ? (
-                        <p className="text-[10px] text-stone-700 leading-relaxed line-clamp-4 font-medium">{caption}</p>
-                      ) : (
-                        <div className="space-y-1.5 mt-1">
-                          <div className="h-2 bg-stone-200 rounded-full w-full" />
-                          <div className="h-2 bg-stone-200 rounded-full w-4/5" />
-                          <div className="h-2 bg-stone-200 rounded-full w-3/5" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action bar */}
-                    <div className="flex items-center gap-4 px-4 py-2.5 border-t border-stone-100 mt-auto">
-                      {activePlatformPreview === 'instagram' ? (
-                        <><span className="text-[14px]">♡</span><span className="text-[14px]">💬</span><span className="text-[14px]">↗</span></>
-                      ) : (
-                        <><span className="text-[10px] font-semibold text-stone-500">👍 Like</span><span className="text-[10px] font-semibold text-stone-500">💬 Comment</span><span className="text-[10px] font-semibold text-stone-500">↗ Share</span></>
-                      )}
-                    </div>
-
-                    <div className="flex justify-center py-2.5 pb-3 bg-stone-50">
-                      <div className="w-20 h-1 bg-stone-300 rounded-full" />
-                    </div>
-                  </div>
+                  <PlatformPreview
+                    platform={activePlatformPreview}
+                    dealerName={dealerDisplayName}
+                    dealerInitials={dealerInitials}
+                    caption={caption}
+                    imageUrl={
+                      mediaTab === 'url' && urlGeneratedImage ? urlGeneratedImage :
+                      mediaTab === 'ai' && aiImageUrls[selectedDesign] ? aiImageUrls[selectedDesign]! :
+                      mediaTab === 'upload' && uploadedImageUrl ? uploadedImageUrl :
+                      null
+                    }
+                    isGenerating={isGenerating || isGeneratingImages}
+                    promptText={prompt}
+                    selectedDesign={selectedDesign}
+                  />
                 </div>
               </div>
             </div>
