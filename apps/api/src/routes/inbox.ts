@@ -2,7 +2,20 @@ import type { FastifyInstance } from "fastify"
 import axios from "axios"
 import { prisma } from "../db/prisma.js"
 import type { InboxMessage } from "../generated/client/index.js"
-import { generateInboxReply } from "../services/openai.js"
+import { generateInboxReply as groqGenerateInboxReply, isGroqAvailable } from "../services/groq.js"
+import { generateInboxReply as openaiGenerateInboxReply } from "../services/openai.js"
+
+async function generateReplyAI(
+  messageText: string,
+  sentiment: string,
+  dealer: { name: string; city: string; brands: string[]; phone: string; whatsapp: string; language_preferences: string[] },
+  messageType: "comment" | "dm" | "review",
+): Promise<string> {
+  if (isGroqAvailable()) {
+    try { return await groqGenerateInboxReply(messageText, sentiment, dealer, messageType) } catch {}
+  }
+  return openaiGenerateInboxReply(messageText, sentiment, dealer, messageType)
+}
 import { replyToGmbReview } from "../services/gmb.js"
 
 const META_GRAPH_BASE = "https://graph.facebook.com/v19.0"
@@ -314,7 +327,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
       })
       if (!dealer) return reply.code(404).send({ error: "Dealer not found" })
 
-      const suggestedReply = await generateInboxReply(
+      const suggestedReply = await generateReplyAI(
         message.message_text,
         message.sentiment ?? "neutral",
         {

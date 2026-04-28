@@ -39,7 +39,6 @@ export function startMetricsWorker() {
         },
       });
 
-      console.log(`[metrics-worker] updated ${platform} metrics for post ${post_id}`);
     },
     { connection: redisConnection, concurrency: 10 },
   );
@@ -48,7 +47,6 @@ export function startMetricsWorker() {
     console.error(`[metrics-worker] failed job ${job?.id}:`, err.message);
   });
 
-  console.log('[metrics-worker] started');
   return worker;
 }
 

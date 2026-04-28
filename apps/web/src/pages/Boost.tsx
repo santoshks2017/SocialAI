@@ -3,6 +3,7 @@ import { Zap, TrendingUp, Pause, Square, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { boostService } from '../services/boost';
 import { postService } from '../services/creative';
+import { useDealerProfile } from '../contexts/DealerProfileContext';
 
 type CampaignStatus = 'active' | 'paused' | 'completed' | 'draft';
 
@@ -270,6 +271,7 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
 }
 
 export default function BoostPage() {
+  const { profile: dealerProfile } = useDealerProfile();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [showBoostModal, setShowBoostModal] = useState(false);
   const [launched, setLaunched] = useState(false);
@@ -333,7 +335,7 @@ export default function BoostPage() {
         dailyBudget: data.dailyBudget,
         durationDays: data.durationDays,
         targeting: {
-          location: { city: 'Mumbai', latitude: 19.076, longitude: 72.877, radius: data.radius },
+          location: { city: dealerProfile?.city ?? 'India', radius: data.radius },
           ageMin: data.ageMin,
           ageMax: data.ageMax,
           gender: 'all',

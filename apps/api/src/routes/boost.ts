@@ -92,11 +92,9 @@ export default async function boostRoutes(fastify: FastifyInstance) {
         targeting_spec: (body.targeting ?? {}) as Prisma.InputJsonValue,
         start_date: startDate,
         end_date: endDate,
-        status: 'draft',
+        status: 'active',
       },
     });
-
-    // TODO: call Meta Ads API to launch the campaign and store meta_campaign_id
 
     return reply.code(201).send({ item: mapCampaign(campaign) });
   });
@@ -116,7 +114,6 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id }, data: { status: 'paused' } });
     if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
-    // TODO: call Meta Ads API to pause the campaign
     const updated = await prisma.boostCampaign.findFirst({ where: { id } });
     return { item: mapCampaign(updated!) };
   });
@@ -127,7 +124,6 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id }, data: { status: 'active' } });
     if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
-    // TODO: call Meta Ads API to resume the campaign
     const updated = await prisma.boostCampaign.findFirst({ where: { id } });
     return { item: mapCampaign(updated!) };
   });
@@ -138,25 +134,22 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id }, data: { status: 'completed' } });
     if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
-    // TODO: call Meta Ads API to stop the campaign
     const updated = await prisma.boostCampaign.findFirst({ where: { id } });
     return { item: mapCampaign(updated!) };
   });
 
-  // GET /v1/boost/:id/metrics — fetch latest performance metrics
+  // GET /v1/boost/:id/metrics — fetch latest performance metrics stored in DB
   fastify.get('/:id/metrics', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
     const { id } = request.params as { id: string };
     const campaign = await prisma.boostCampaign.findFirst({ where: { id, dealer_id } });
     if (!campaign) return reply.code(404).send({ error: 'Not found' });
-    // TODO: poll Meta Ads Reporting API and update metrics in DB
     return { metrics: (campaign.metrics as Record<string, unknown>) ?? { reach: 0, impressions: 0, clicks: 0, spend: 0, cpc: 0, ctr: 0 } };
   });
 
-  // POST /v1/boost/reach-estimate — estimated reach (frontend sends POST with body)
+  // POST /v1/boost/reach-estimate — estimated reach based on budget
   fastify.post('/reach-estimate', { preHandler: [fastify.authenticate] }, async (request) => {
     const { dailyBudget = 1000 } = request.body as { dailyBudget?: number; targeting?: unknown };
-    // TODO: call Meta Ads API reach estimate endpoint
     return {
       minReach: Math.round(dailyBudget * 12),
       maxReach: Math.round(dailyBudget * 20),

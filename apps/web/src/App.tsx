@@ -2,13 +2,14 @@ import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate,
 import {
   Car, Plus, MessageSquare, Bell,
   Calendar, BarChart2, Package, Zap, Settings, Link2,
-  ChevronRight, Send, RefreshCw, Star, Check, Sparkles,
+  ChevronRight, RefreshCw, Star, Check, Sparkles,
   LayoutDashboard, Video, LogOut, Menu, X, LayoutList,
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import api from './services/api';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DealerProfileProvider } from './contexts/DealerProfileContext';
 
 import CreatePost from './pages/CreatePost';
 import CalendarPage from './pages/Calendar';
@@ -340,6 +341,21 @@ function SuggestedPostCard({ data }: { data: DashboardData | null }) {
 
 function InboxPreview({ stats }: { stats?: DashboardData['stats'] }) {
   const pendingCount = stats?.inboxPending ?? 0;
+  const [msg, setMsg] = useState<null | { customerName: string; platform: string; messageText: string; aiSuggestedReply?: string; receivedAt: string }>(null);
+
+  useEffect(() => {
+    api.get<{ items: Array<{ customerName: string; platform: string; messageText: string; aiSuggestedReply?: string; receivedAt: string }> }>('/inbox', { pageSize: '1', isRead: 'false' })
+      .then((r) => setMsg(r.items[0] ?? null))
+      .catch(() => {});
+  }, []);
+
+  const platformLabel = (p: string) => p === 'google' ? 'Google Review' : p === 'instagram' ? 'Instagram' : 'Facebook';
+  const timeAgo = (iso: string) => {
+    const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+    return h < 1 ? 'Just now' : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+  };
+  const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
       <div className="px-5 py-3.5 flex items-center justify-between border-b border-slate-50">
@@ -356,38 +372,40 @@ function InboxPreview({ stats }: { stats?: DashboardData['stats'] }) {
         </NavLink>
       </div>
       <div className="p-4">
-        <div className="flex gap-3">
-          <div className="w-9 h-9 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">PS</div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-semibold text-sm text-slate-900">Priya Sharma</span>
-              <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">Google Review</span>
-              <span className="text-[10px] text-slate-400 ml-auto">2h ago</span>
+        {msg ? (
+          <div className="flex gap-3">
+            <div className="w-9 h-9 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
+              {initials(msg.customerName)}
             </div>
-            <div className="flex gap-0.5 mb-1.5">
-              {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="w-3 h-3 text-yellow-400 fill-yellow-400" />)}
-            </div>
-            <p className="text-xs text-slate-500 mb-2.5 leading-relaxed line-clamp-2">
-              "Excellent service! Got my new Brezza delivered on time. The sales team was very helpful."
-            </p>
-            <div className="bg-teal-50 border border-teal-100 rounded-xl p-2.5 mb-2.5">
-              <p className="text-[10px] font-bold text-teal-600 mb-1 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> AI Suggested Reply
-              </p>
-              <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                Thank you so much, Priya! We're thrilled about your experience. Enjoy your new Brezza! 🚗
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <NavLink to="/inbox" className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
-                <Check className="w-3 h-3" /> Approve & Send
-              </NavLink>
-              <NavLink to="/inbox" className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 font-medium hover:bg-slate-50 transition-colors">
-                Edit
-              </NavLink>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="font-semibold text-sm text-slate-900">{msg.customerName}</span>
+                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{platformLabel(msg.platform)}</span>
+                <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(msg.receivedAt)}</span>
+              </div>
+              <p className="text-xs text-slate-500 mb-2.5 leading-relaxed line-clamp-2">"{msg.messageText}"</p>
+              {msg.aiSuggestedReply && (
+                <div className="bg-teal-50 border border-teal-100 rounded-xl p-2.5 mb-2.5">
+                  <p className="text-[10px] font-bold text-teal-600 mb-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> AI Suggested Reply
+                  </p>
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{msg.aiSuggestedReply}</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <NavLink to="/inbox" className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+                  <Check className="w-3 h-3" /> {msg.aiSuggestedReply ? 'Approve & Send' : 'Open Inbox'}
+                </NavLink>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="text-center py-4">
+            <MessageSquare className="w-7 h-7 text-slate-200 mx-auto mb-2" />
+            <p className="text-xs text-slate-400 font-medium">No pending reviews</p>
+            <NavLink to="/inbox" className="text-xs text-orange-500 font-semibold hover:text-orange-600 mt-1 inline-block">View Inbox</NavLink>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -613,6 +631,7 @@ function AppRoutes() {
   };
 
   return (
+    <DealerProfileProvider>
     <Routes>
       {/* Public routes — /login always redirects to dashboard */}
       <Route path="/login" element={<Navigate to="/" replace />} />
@@ -634,6 +653,7 @@ function AppRoutes() {
       <Route path="/settings" element={<RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </DealerProfileProvider>
   );
 }
 

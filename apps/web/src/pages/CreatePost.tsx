@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, useSearchParams } from 'react-router-dom';
 import PlatformPreview from '../components/PlatformPreview';
+import { useDealerProfile } from '../contexts/DealerProfileContext';
 import { creativeService, postService } from '../services/creative';
 import type { AIGenerationResponse, CaptionVariant } from '../services/creative';
 import { useToast } from '../components/ui/Toast';
@@ -179,15 +180,10 @@ export default function CreatePost() {
   const [uploadingVideoImage, setUploadingVideoImage] = useState(false);
   const videoImageRef = useRef<HTMLInputElement>(null);
 
-  const [dealerName, setDealerName] = useState<string | null>(null);
-  useEffect(() => {
-    api.get<{ success: boolean; dealer?: { name?: string } }>('/dealer/profile')
-      .then((res) => { if (res.dealer?.name) setDealerName(res.dealer.name); })
-      .catch(() => {});
-  }, []);
+  const { profile: dealerProfile } = useDealerProfile();
 
   // Dealer display name — prefer dealer profile name, fall back to auth user name
-  const dealerDisplayName = dealerName ?? user?.name ?? 'Your Dealership';
+  const dealerDisplayName = dealerProfile?.name ?? user?.name ?? 'Your Dealership';
   const dealerInitials = dealerDisplayName
     .split(' ')
     .map((w) => w[0])

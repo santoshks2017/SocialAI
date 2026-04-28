@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Search, Send, AlertTriangle, Check, Star, Sparkles, TrendingUp, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Send, AlertTriangle, Check, Star, Sparkles, TrendingUp, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, RefreshCw, CheckCheck } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { inboxService, leadService } from '../services/inbox';
 
@@ -54,16 +54,20 @@ function ReviewCard({
   onToggle,
   onSend,
   onCreateLead,
+  onGenerateReply,
   sent,
   leadCreated,
+  generatingReply,
 }: {
   msg: Message;
   expanded: boolean;
   onToggle: () => void;
   onSend: (id: string, text: string) => void;
   onCreateLead: (id: string) => void;
+  onGenerateReply: (id: string) => void;
   sent: boolean;
   leadCreated: boolean;
+  generatingReply: boolean;
 }) {
   const [editingReply, setEditingReply] = useState(false);
   const [replyText, setReplyText] = useState(msg.suggestedReply);
@@ -135,6 +139,20 @@ function ReviewCard({
         <div className="mx-5 mb-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl p-3">
           <Check className="w-4 h-4 text-green-600" />
           <p className="text-xs text-green-700 font-semibold">Lead created successfully</p>
+        </div>
+      )}
+
+      {/* Generate reply when no AI reply exists */}
+      {expanded && !sent && !msg.suggestedReply && msg.tag !== 'spam' && (
+        <div className="mx-5 mb-4">
+          <button
+            onClick={() => onGenerateReply(msg.id)}
+            disabled={generatingReply}
+            className="flex items-center gap-1.5 text-xs font-bold bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${generatingReply ? 'animate-pulse' : ''}`} />
+            {generatingReply ? 'Generating…' : 'Generate AI Reply'}
+          </button>
         </div>
       )}
 
@@ -224,12 +242,14 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | Platform>('all');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set(['1']));
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [leadCreatedIds, setLeadCreatedIds] = useState<Set<string>>(new Set());
+  const [generatingReplyIds, setGeneratingReplyIds] = useState<Set<string>>(new Set());
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const { addToast } = useToast();
 
-  useEffect(() => {
+  const fetchMessages = useCallback(() => {
     inboxService.list({ pageSize: 50 }).then((res) => {
       const mapped: Message[] = res.items.map((item) => ({
         id: item.id,
@@ -245,8 +265,14 @@ export default function InboxPage() {
         suggestedReply: item.aiSuggestedReply ?? '',
       }));
       setMessages(mapped);
-    }).catch(console.error);
+    }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchMessages]);
 
   const filtered = messages.filter((m) => {
     const matchSearch = !searchQuery
@@ -263,7 +289,7 @@ export default function InboxPage() {
       if (next.has(id)) next.delete(id);
       else next.add(id);
       if (!messages.find((m) => m.id === id)?.isRead) {
-        inboxService.markRead(id).catch(console.error);
+        inboxService.markRead(id).catch(() => {});
         setMessages((prev2) => prev2.map((m) => m.id === id ? { ...m, isRead: true } : m));
       }
       return next;
@@ -273,6 +299,31 @@ export default function InboxPage() {
   const handleSend = (id: string, text: string) => {
     inboxService.sendReply(id, text).catch(console.error);
     setSentIds((prev) => new Set(prev).add(id));
+  };
+
+  const handleGenerateReply = async (id: string) => {
+    setGeneratingReplyIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await inboxService.generateReply(id);
+      setMessages((prev) => prev.map((m) => m.id === id ? { ...m, suggestedReply: res.suggestedReply } : m));
+    } catch {
+      addToast({ type: 'error', title: 'Failed to generate reply', message: 'Please try again.' });
+    } finally {
+      setGeneratingReplyIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    setMarkingAllRead(true);
+    try {
+      await inboxService.markAllRead();
+      setMessages((prev) => prev.map((m) => ({ ...m, isRead: true })));
+      addToast({ type: 'success', title: 'Marked all read' });
+    } catch {
+      addToast({ type: 'error', title: 'Failed', message: 'Please try again.' });
+    } finally {
+      setMarkingAllRead(false);
+    }
   };
 
   const handleCreateLead = async (id: string) => {
@@ -310,7 +361,7 @@ export default function InboxPage() {
           <h1 className="text-2xl font-extrabold text-stone-900">Review &amp; Comment Inbox</h1>
           <p className="text-sm text-stone-500 mt-0.5">All customer feedback across platforms — respond with AI assistance</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
             <input
@@ -320,8 +371,20 @@ export default function InboxPage() {
               className="pl-9 pr-4 py-2 text-sm border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white w-52"
             />
           </div>
-          <button className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 border border-stone-200 rounded-xl px-3 py-2 bg-white hover:bg-stone-50 transition-colors font-medium">
-            <MoreHorizontal className="w-4 h-4" /> Sort
+          {pendingCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              disabled={markingAllRead}
+              className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 border border-stone-200 rounded-xl px-3 py-2 bg-white hover:bg-stone-50 transition-colors font-medium disabled:opacity-50"
+            >
+              <CheckCheck className="w-4 h-4" /> Mark All Read
+            </button>
+          )}
+          <button
+            onClick={fetchMessages}
+            className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 border border-stone-200 rounded-xl px-3 py-2 bg-white hover:bg-stone-50 transition-colors font-medium"
+          >
+            <RefreshCw className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -397,8 +460,10 @@ export default function InboxPage() {
                   onToggle={() => toggleExpand(msg.id)}
                   onSend={handleSend}
                   onCreateLead={handleCreateLead}
+                  onGenerateReply={handleGenerateReply}
                   sent={sentIds.has(msg.id)}
                   leadCreated={leadCreatedIds.has(msg.id)}
+                  generatingReply={generatingReplyIds.has(msg.id)}
                 />
               ))}
             </div>

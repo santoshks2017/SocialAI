@@ -33,6 +33,48 @@ const STATUS_DOT: Record<PostStatus, string> = {
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+// Major Indian festivals — month is 0-indexed
+const FESTIVALS: { year: number; month: number; day: number; name: string; emoji: string }[] = [
+  { year: 2025, month: 0, day: 26, name: 'Republic Day', emoji: '🇮🇳' },
+  { year: 2025, month: 2, day: 14, name: 'Holi', emoji: '🎨' },
+  { year: 2025, month: 3, day: 14, name: 'Baisakhi', emoji: '🌾' },
+  { year: 2025, month: 3, day: 18, name: 'Eid al-Fitr', emoji: '🌙' },
+  { year: 2025, month: 3, day: 29, name: 'Akshaya Tritiya', emoji: '✨' },
+  { year: 2025, month: 5, day: 7, name: 'Eid al-Adha', emoji: '🌙' },
+  { year: 2025, month: 7, day: 15, name: 'Independence Day', emoji: '🇮🇳' },
+  { year: 2025, month: 8, day: 2, name: 'Ganesh Chaturthi', emoji: '🐘' },
+  { year: 2025, month: 9, day: 2, name: 'Gandhi Jayanti', emoji: '🕊️' },
+  { year: 2025, month: 9, day: 2, name: 'Dussehra', emoji: '🎯' },
+  { year: 2025, month: 9, day: 20, name: 'Dhanteras', emoji: '🪙' },
+  { year: 2025, month: 9, day: 21, name: 'Diwali', emoji: '🪔' },
+  { year: 2025, month: 11, day: 25, name: 'Christmas', emoji: '🎄' },
+  { year: 2025, month: 11, day: 31, name: 'New Year Eve', emoji: '🎊' },
+  { year: 2026, month: 0, day: 1, name: 'New Year', emoji: '🎉' },
+  { year: 2026, month: 0, day: 14, name: 'Makar Sankranti', emoji: '🪁' },
+  { year: 2026, month: 0, day: 26, name: 'Republic Day', emoji: '🇮🇳' },
+  { year: 2026, month: 1, day: 26, name: 'Maha Shivratri', emoji: '🔱' },
+  { year: 2026, month: 2, day: 4, name: 'Holi', emoji: '🎨' },
+  { year: 2026, month: 2, day: 20, name: 'Eid al-Fitr', emoji: '🌙' },
+  { year: 2026, month: 3, day: 14, name: 'Baisakhi', emoji: '🌾' },
+  { year: 2026, month: 3, day: 28, name: 'Akshaya Tritiya', emoji: '✨' },
+  { year: 2026, month: 4, day: 12, name: 'Buddha Purnima', emoji: '☮️' },
+  { year: 2026, month: 7, day: 9, name: 'Raksha Bandhan', emoji: '🧡' },
+  { year: 2026, month: 7, day: 15, name: 'Independence Day', emoji: '🇮🇳' },
+  { year: 2026, month: 7, day: 16, name: 'Janmashtami', emoji: '🪈' },
+  { year: 2026, month: 9, day: 2, name: 'Gandhi Jayanti', emoji: '🕊️' },
+  { year: 2026, month: 9, day: 9, name: 'Dussehra', emoji: '🎯' },
+  { year: 2026, month: 9, day: 20, name: 'Dhanteras', emoji: '🪙' },
+  { year: 2026, month: 9, day: 21, name: 'Diwali', emoji: '🪔' },
+  { year: 2026, month: 11, day: 25, name: 'Christmas', emoji: '🎄' },
+  { year: 2026, month: 11, day: 31, name: 'New Year Eve', emoji: '🎊' },
+];
+
+function getFestivalsForDate(date: Date) {
+  return FESTIVALS.filter(
+    (f) => f.year === date.getFullYear() && f.month === date.getMonth() && f.day === date.getDate(),
+  );
+}
+
 function PlatformBadge({ label }: { label: string }) {
   const colors: Record<string, string> = {
     FB: 'bg-blue-100 text-blue-700',
@@ -332,6 +374,11 @@ export default function CalendarPage() {
                     <p className={`text-lg font-bold mt-0.5 ${todayCol ? 'text-blue-600' : 'text-gray-800'}`}>
                       {date.getDate()}
                     </p>
+                    {getFestivalsForDate(date).map((f) => (
+                      <p key={f.name} className="text-[9px] text-orange-600 font-semibold leading-tight truncate" title={f.name}>
+                        {f.emoji} {f.name}
+                      </p>
+                    ))}
                   </div>
                   <div className="p-1.5 space-y-1.5">
                     {posts.map((post) => (
@@ -387,7 +434,7 @@ export default function CalendarPage() {
                 >
                   {inMonth && cellDate && (
                     <>
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-0.5">
                         <p className={`text-xs font-semibold ${todayCell ? 'text-blue-600' : 'text-gray-700'}`}>{dayNum + 1}</p>
                         <NavLink
                           to={`/create?date=${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, '0')}-${String(cellDate.getDate()).padStart(2, '0')}`}
@@ -396,6 +443,11 @@ export default function CalendarPage() {
                           <Plus className="w-3 h-3" />
                         </NavLink>
                       </div>
+                      {getFestivalsForDate(cellDate).map((f) => (
+                        <p key={f.name} className="text-[8px] text-orange-500 font-bold leading-tight truncate mb-0.5" title={f.name}>
+                          {f.emoji} {f.name}
+                        </p>
+                      ))}
                       <div className="flex flex-wrap gap-0.5">
                         {posts.slice(0, 3).map((p) => (
                           <button

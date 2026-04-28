@@ -14,8 +14,8 @@ async function sendOtp(phone: string, otp: string): Promise<void> {
   const provider = process.env["OTP_PROVIDER"]
 
   if (!provider || process.env["NODE_ENV"] === "development") {
-    // Dev mode: log OTP and accept '1234' as universal code
-    console.log(`[OTP] ${phone} → ${otp} (dev mode, use 1234 to bypass)`)
+    // Dev mode: accept '1234' as universal bypass code
+    console.log(`[OTP] ${phone} → ****** (dev mode)`)
     return
   }
 
