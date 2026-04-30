@@ -323,11 +323,15 @@ export default function CreatePost() {
     setImageLoadingStates([true, true, true]);
     setIsGeneratingImages(true);
     let pending = slots.length;
+
+    // Pass subject image when available so the 3-layer compositor can isolate it
+    const subjectId = mediaTab === 'upload' ? (uploadedImageId ?? undefined) : undefined;
+    const subjectUrl = mediaTab === 'url' && urlGeneratedImage ? urlGeneratedImage : undefined;
+
     slots.forEach((v, i) => {
-      // Add template-specific style hint so each variant generates a visually distinct image
       const styleHints = ['bold high-contrast dramatic lighting', 'minimal clean white background', 'warm lifestyle family setting'];
       const styledPrompt = `${currentPrompt} — ${styleHints[i] ?? ''}`;
-      generateBrandedCreative(v.caption_text, styledPrompt, i)
+      generateBrandedCreative(v.caption_text, styledPrompt, i, subjectId, subjectUrl)
         .then((url) => { setAiImageUrls((prev) => { const n = [...prev]; n[i] = url; return n; }); })
         .catch(() => {})
         .finally(() => {

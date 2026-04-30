@@ -86,6 +86,40 @@ async function generateWithCloudflare(imagePrompt: string): Promise<string> {
 }
 
 /**
+ * 3-layer backend creative: AI background + optional subject isolation + SVG branding overlay.
+ * This is the highest quality path — uses sharp for precise layer compositing.
+ */
+async function generateLayeredWithBackend(
+  headline: string,
+  subjectImageId?: string,
+  subjectImageUrl?: string,
+): Promise<string> {
+  const token = localStorage.getItem('access_token');
+  const res = await fetch(`${API_BASE_URL}/creatives/generate-layered`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      headline,
+      ...(subjectImageId ? { subject_image_id: subjectImageId } : {}),
+      ...(subjectImageUrl ? { subject_image_url: subjectImageUrl } : {}),
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
+    throw new Error(err.error?.message ?? `Layered generation failed (${res.status})`);
+  }
+
+  const data = await res.json() as { url: string };
+  if (!data.url) throw new Error('No URL returned from layered generation');
+  return data.url;
+}
+
+/**
  * Backend branded creative: Cloudflare SDXL image → Sharp template composite.
  * Returns a CDN/storage URL to the fully branded creative (with dealer overlay).
  * Throws if the backend returns 503 (CF not configured) so callers can fall back.
@@ -158,19 +192,32 @@ function generateSvgPlaceholder(captionText: string, variantIndex: number): stri
  * Generates a fully branded creative for a given caption variant.
  *
  * Priority chain:
- *   1. Backend branded (Cloudflare SDXL + Sharp template) — best quality, fully branded
+ *   0. 3-layer backend (AI background + subject isolation + SVG branding) — highest quality
+ *   1. Backend branded (Cloudflare SDXL + Sharp template) — good quality, fully branded
  *   2. Pollinations.ai (free, no API key, high quality) — primary free fallback
  *   3. Puter.js (client-side DALL-E) — secondary free fallback
  *   4. Cloudflare raw (backend SDXL, base64) — requires backend token
  *   5. SVG placeholder — always works, no network required
+ *
+ * @param subjectImageId - filename from /v1/upload/image to use as Layer 1 subject
+ * @param subjectImageUrl - external URL to use as Layer 1 subject
  */
 export async function generateBrandedCreative(
   captionText: string,
   userPrompt: string,
   variantIndex: number,
+  subjectImageId?: string,
+  subjectImageUrl?: string,
 ): Promise<string> {
   const headline = buildHeadline(captionText, userPrompt);
   const templateIndex = Math.min(variantIndex, 2) as 0 | 1 | 2;
+
+  // 0. 3-layer compositor (AI background + optional subject + SVG branding overlay)
+  try {
+    return await generateLayeredWithBackend(headline, subjectImageId, subjectImageUrl);
+  } catch (e) {
+    console.warn('[ImageGen] Layered generation failed, trying branded:', e);
+  }
 
   // 1. Try backend branded (CF SDXL + template overlay)
   try {

@@ -28,6 +28,11 @@ import {
   generateImage as cfGenerateImage,
   isCloudflareAvailable,
 } from "../services/cloudflareAI.js"
+import { removeBackground } from "../services/backgroundRemoval.js"
+import {
+  compositeLayered,
+  type DealerBranding,
+} from "../services/layeredCompositor.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -485,6 +490,107 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           error: {
             code: "AI_ERROR",
             message: "Creative generation failed. Please try again.",
+          },
+        })
+      }
+    },
+  )
+
+  // POST /v1/creatives/generate-layered  (3-layer: subject + AI background + SVG branding)
+  fastify.post(
+    "/generate-layered",
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string
+      const body = request.body as {
+        headline: string
+        template_index?: 0 | 1 | 2
+        /** Filename from POST /v1/upload/image — becomes Layer 1 subject */
+        subject_image_id?: string
+        /** External URL to fetch as Layer 1 subject */
+        subject_image_url?: string
+      }
+
+      if (!body.headline?.trim()) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "headline is required" },
+        })
+      }
+
+      const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
+      if (!dealer)
+        return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Dealer not found" } })
+
+      const branding: DealerBranding = {
+        name: dealer.name,
+        city: dealer.city,
+        phone: dealer.contact_phone ?? dealer.phone,
+        whatsapp: dealer.whatsapp_number ?? dealer.contact_phone ?? dealer.phone,
+        primaryColor: dealer.primary_color ?? "#f97316",
+      }
+
+      try {
+        // ── Layer 2: background ───────────────────────────────────────────────
+        let backgroundBuffer: Buffer
+        if (isCloudflareAvailable()) {
+          const bgPrompt =
+            `Professional automotive background for Indian car dealership. ` +
+            `${body.headline.slice(0, 100)}. ` +
+            `Cinematic lighting, photorealistic, 4K, no cars, no text, clean scene, ` +
+            `showroom or scenic outdoor road setting.`
+          try {
+            backgroundBuffer = await cfGenerateImage(bgPrompt.slice(0, 500))
+          } catch {
+            backgroundBuffer = await generateGradientBackground(branding.primaryColor)
+          }
+        } else {
+          backgroundBuffer = await generateGradientBackground(branding.primaryColor)
+        }
+
+        // ── Layer 1: subject (optional) ───────────────────────────────────────
+        let subjectBuffer: Buffer | undefined
+        if (body.subject_image_id) {
+          try {
+            const rawBuf = await readFile(path.join(ORIGINALS_DIR, body.subject_image_id))
+            subjectBuffer = await removeBackground(rawBuf)
+          } catch {
+            // skip layer 1 if file read fails
+          }
+        } else if (body.subject_image_url) {
+          try {
+            const res = await fetch(body.subject_image_url, { signal: AbortSignal.timeout(20_000) })
+            if (res.ok) {
+              const rawBuf = Buffer.from(await res.arrayBuffer())
+              subjectBuffer = await removeBackground(rawBuf)
+            }
+          } catch {
+            // skip layer 1 if fetch fails
+          }
+        }
+
+        // ── Composite all layers ──────────────────────────────────────────────
+        const { finalBuffer } = await compositeLayered({
+          backgroundBuffer,
+          ...(subjectBuffer !== undefined ? { subjectBuffer } : {}),
+          dealer: branding,
+          headline: body.headline,
+        })
+
+        const filePrefix = randomUUID()
+        const filename = `${filePrefix}_layered.jpg`
+        const url = await uploadFile(finalBuffer, `creatives/${filename}`, "image/jpeg", CREATIVES_DIR)
+
+        return {
+          url,
+          has_subject: !!subjectBuffer,
+          template_name: "Layered Creative",
+        }
+      } catch (err) {
+        fastify.log.error(err, "Layered creative generation failed")
+        return reply.code(500).send({
+          error: {
+            code: "AI_ERROR",
+            message: "Layered creative generation failed. Please try again.",
           },
         })
       }
