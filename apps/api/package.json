@@ -32,7 +32,8 @@
     "sharp": "^0.34.5",
     "@cardeko/scraper": "*",
     "@cardeko/pattern-engine": "*",
-    "@cardeko/render-engine": "*"
+    "@cardeko/render-engine": "*",
+    "@cardeko/template-engine": "*"
   },
   "devDependencies": {
     "@types/ioredis": "^4.28.10",
