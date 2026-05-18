@@ -114,7 +114,8 @@ export function createContactShadow(
 }
 
 export function applySceneMatch(car: fabric.FabricImage, lighting: LightingProfile) {
-  const f: fabric.BaseFilter<string,Record<string,unknown>>[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const f: any[] = [];
   const ts = 0.22;
   if (lighting.warmth > 0.05)  f.push(new fabric.filters.BlendColor({color:'#FFB060',mode:'tint',alpha:lighting.warmth*ts}));
   if (lighting.warmth < -0.05) f.push(new fabric.filters.BlendColor({color:'#5080B0',mode:'tint',alpha:Math.abs(lighting.warmth)*ts}));
