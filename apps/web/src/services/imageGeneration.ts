@@ -268,3 +268,47 @@ export async function generateImage(captionText: string, userPrompt: string): Pr
 
   return await generateWithCloudflare(imagePrompt);
 }
+
+// ── Canvas Studio: scene background generation ────────────────────────────────
+import type { CarPose, SceneVariant } from '../components/CreatePost/CanvasStudio/types';
+import { extractSceneMetadata } from '../components/CreatePost/CanvasStudio/sceneAnalysis';
+import { generateProceduralScene, pickSceneStyle } from '../components/CreatePost/CanvasStudio/proceduralScene';
+
+export async function generateSceneBackgrounds(
+  brief: string,
+  model: string,
+  poses: CarPose[],
+): Promise<SceneVariant[]> {
+  const token = localStorage.getItem('access_token');
+
+  let rawScenes: Array<{ url: string; pose: string }>;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/creatives/generate-scenes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ brief, model, poses }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) throw new Error(`generate-scenes ${res.status}`);
+    const data = await res.json() as { scenes: Array<{ url: string; pose: string }> };
+    rawScenes = data.scenes;
+  } catch (e) {
+    console.warn('[SceneGen] Backend failed, using procedural fallback:', e);
+    const style = pickSceneStyle(brief);
+    rawScenes = await Promise.all(
+      poses.map(async (pose) => ({ url: await generateProceduralScene(pose, style), pose }))
+    );
+  }
+
+  return Promise.all(
+    rawScenes.map(async ({ url, pose }) => {
+      const p = pose as CarPose;
+      const meta = await extractSceneMetadata(url, p);
+      return { sceneUrl: url, pose: p, bounds: meta.bounds, lighting: meta.lighting, usedAI: true } satisfies SceneVariant;
+    })
+  );
+}
