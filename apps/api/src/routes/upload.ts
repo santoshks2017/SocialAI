@@ -17,11 +17,18 @@ const VIDEO_EXTS = new Set(['.mp4', '.mov', '.avi', '.webm', '.mkv']);
 
 export default async function uploadRoutes(fastify: FastifyInstance) {
   // POST /v1/upload/image
-  // Auth is optional — demo users without a real JWT can still upload
+  // Auth is optional — demo users without a real JWT can still upload.
+  // Only attempt verification when an Authorization header is actually present;
+  // otherwise the jwtVerify() path would send 401 and block anonymous uploads.
   fastify.post('/image', async (request, reply) => {
-    // Attempt auth silently; continue even if it fails
-    try { await fastify.authenticate(request, reply); } catch { /* allow anonymous */ }
-    if (reply.sent) return; // authenticate already sent a response (shouldn't happen with try/catch but guard)
+    if (request.headers.authorization) {
+      try { await fastify.authenticate(request, reply); } catch { /* ignore verify errors */ }
+      if (reply.sent) return;
+    } else if (process.env['NODE_ENV'] !== 'production') {
+      // Dev-only: set a dev user so downstream code can reference request.user
+      try { await fastify.authenticate(request, reply); } catch { /* DB may not be running — proceed */ }
+      if (reply.sent) return;
+    }
 
     const data = await request.file();
     if (!data) return reply.code(400).send({ error: 'No file provided' });
@@ -49,8 +56,13 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
 
   // POST /v1/upload/video
   fastify.post('/video', async (request, reply) => {
-    try { await fastify.authenticate(request, reply); } catch { /* allow anonymous */ }
-    if (reply.sent) return;
+    if (request.headers.authorization) {
+      try { await fastify.authenticate(request, reply); } catch { /* ignore verify errors */ }
+      if (reply.sent) return;
+    } else if (process.env['NODE_ENV'] !== 'production') {
+      try { await fastify.authenticate(request, reply); } catch { /* proceed */ }
+      if (reply.sent) return;
+    }
 
     const data = await request.file();
     if (!data) return reply.code(400).send({ error: 'No file provided' });

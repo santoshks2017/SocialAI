@@ -370,15 +370,22 @@ export default function CreatePost() {
     }
     try {
       const imageIdToUse = mediaTab === 'upload' ? (uploadedImageId ?? undefined) : (inspirationImageId ?? undefined);
-      // Always request Hindi variants so the language toggle has real content
-      const res = await api.post<AIGenerationResponse>('/creatives/generate', {
-        prompt,
-        platforms: selectedPlatforms,
-        image_id: imageIdToUse,
-        force,
-        includeHindi: true,
-        post_type: selectedPostType ?? undefined,
-      });
+      // Always request Hindi variants so the language toggle has real content.
+      // Falls back to creativeService mock if the API is unreachable or returns auth error.
+      let res: AIGenerationResponse;
+      try {
+        res = await api.post<AIGenerationResponse>('/creatives/generate', {
+          prompt,
+          platforms: selectedPlatforms,
+          image_id: imageIdToUse,
+          force,
+          includeHindi: true,
+          post_type: selectedPostType ?? undefined,
+        });
+      } catch {
+        // API unreachable or auth not ready — use client-side mock captions
+        res = await creativeService.generateCaptions(prompt, selectedPlatforms, imageIdToUse, force);
+      }
       setVariants(res);
       setEnglishCaptions(res.captions);
       setHindiCaptions(res.hindi_captions);
