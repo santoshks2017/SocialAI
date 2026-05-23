@@ -89,6 +89,9 @@ export default function Onboarding() {
       setDealershipName(profile.name || '');
       setCity(profile.city || '');
       setState(profile.state || '');
+      if (profile.showroom_type && profile.showroom_type.length > 0) {
+        setShowroomType(profile.showroom_type[0]);
+      }
       if (profile.brands && profile.brands.length > 0) {
         const matchingOem = OEMs.find(o => profile.brands.includes(o.name));
         if (matchingOem) {
@@ -127,13 +130,15 @@ export default function Onboarding() {
         name: dealershipName,
         city,
         state,
-        brands: [oemName]
+        brands: [oemName],
+        showroom_type: [showroomType]
       });
       reload();
       addToast({ type: 'success', title: 'Profile Updated', message: 'Dealership details saved successfully.' });
       setStep(2);
-    } catch (err) {
-      addToast({ type: 'error', title: 'Error Saving Profile', message: 'Could not save profile details.' });
+    } catch (err: any) {
+      const errMsg = err?.message || 'Could not save profile details.';
+      addToast({ type: 'error', title: 'Error Saving Profile', message: errMsg });
     } finally {
       setLoading(false);
     }
@@ -252,7 +257,7 @@ export default function Onboarding() {
     try {
       await api.post('/dealer/onboarding/complete');
       reload();
-      addToast({ type: 'success', title: 'Welcome Aboard!', message: 'Onboarding completed. Welcome to SocialGenie!' });
+      addToast({ type: 'success', title: 'Welcome Aboard!', message: 'Onboarding completed. Welcome to CarDekho Social AI!' });
       navigate('/');
     } catch (err) {
       console.error(err);
@@ -303,10 +308,10 @@ export default function Onboarding() {
         {/* Header Branding */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 mb-3">
-            <span className="font-black text-white text-xl">SG</span>
+            <span className="font-black text-white text-xl">CD</span>
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white/95">
-            Social<span className="text-orange-400">Genie</span> Onboarding
+            CarDekho <span className="text-orange-400">Social AI</span> Onboarding
           </h1>
           <p className="text-slate-400 text-xs mt-1">Configure your workspace for AI automation</p>
         </div>
@@ -438,7 +443,14 @@ export default function Onboarding() {
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t border-slate-800/80">
+                <div className="flex justify-between pt-4 border-t border-slate-800/80">
+                  <Button 
+                    variant="secondary"
+                    className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
+                    onClick={() => setStep(2)}
+                  >
+                    Skip
+                  </Button>
                   <Button 
                     className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2 shadow-lg shadow-orange-500/10"
                     onClick={handleProfileSubmit}
@@ -506,7 +518,7 @@ export default function Onboarding() {
                 </div>
 
                 <div className="flex justify-between pt-4 border-t border-slate-800/80">
-                  <Button variant="secondary" onClick={() => setStep(1)} className="text-white hover:bg-slate-800 border-slate-800">
+                  <Button variant="secondary" onClick={() => setStep(1)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back
                   </Button>
                   <Button 
@@ -611,7 +623,7 @@ export default function Onboarding() {
                           <p className="text-white/70 text-[9px]">Experience Luxury and Performance today.</p>
                         </div>
                         <div className="flex items-center justify-between border-t border-white/10 pt-2 mt-2">
-                          <span className="text-[9px] text-white/80 font-bold">Exclusively At {dealershipName || 'SocialGenie'}</span>
+                          <span className="text-[9px] text-white/80 font-bold">Exclusively At {dealershipName || 'CarDekho Social AI'}</span>
                           <span className="text-[9px] bg-white text-slate-900 px-2 py-0.5 rounded-full font-bold">Book Test Drive</span>
                         </div>
                       </div>
@@ -621,9 +633,21 @@ export default function Onboarding() {
                 </div>
 
                 <div className="flex justify-between pt-4 border-t border-slate-800/80">
-                  <Button variant="secondary" onClick={() => setStep(2)} className="text-white hover:bg-slate-800 border-slate-800">
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => setStep(2)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
+                      <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                    </Button>
+                    <Button 
+                      variant="secondary"
+                      className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
+                      onClick={() => {
+                        setStep(4);
+                        triggerAiGeneration();
+                      }}
+                    >
+                      Skip
+                    </Button>
+                  </div>
                   <Button 
                     className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
                     onClick={handleBrandIdentitySubmit}
@@ -713,9 +737,19 @@ export default function Onboarding() {
                 )}
 
                 <div className="flex justify-between pt-4 border-t border-slate-800/80">
-                  <Button variant="secondary" onClick={() => setStep(3)} className="text-white hover:bg-slate-800 border-slate-800">
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => setStep(3)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
+                      <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                    </Button>
+                    <Button 
+                      variant="secondary"
+                      className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
+                      onClick={() => setStep(5)}
+                      disabled={aiLoading}
+                    >
+                      Skip
+                    </Button>
+                  </div>
                   <Button 
                     className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
                     onClick={handlePostSelection}
@@ -742,7 +776,7 @@ export default function Onboarding() {
                 <div className="space-y-2 max-w-md mx-auto">
                   <h2 className="text-2xl font-extrabold text-white">🎉 Dealership Onboarded!</h2>
                   <p className="text-slate-400 text-sm">
-                    {dealershipName} is completely set up on SocialGenie. Your brand profile is ready and first post draft has been scheduled.
+                    {dealershipName} is completely set up on CarDekho Social AI. Your brand profile is ready and first post draft has been scheduled.
                   </p>
                 </div>
 

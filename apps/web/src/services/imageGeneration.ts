@@ -27,10 +27,69 @@ export function buildImagePrompt(captionText: string, userPrompt: string): strin
 }
 
 /**
+ * Dynamically loads the Puter.js script and awaits its availability on the window object.
+ * This prevents Puter.js from opening automatic socket connections on boot/unrelated pages.
+ */
+async function loadPuterScript(): Promise<void> {
+  if (window.puter) return;
+
+  return new Promise<void>((resolve, reject) => {
+    const src = 'https://js.puter.com/v2/';
+    
+    // Check if script element already exists
+    let script = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+
+    const checkPuter = () => {
+      if (window.puter?.ai?.txt2img) {
+        resolve();
+        return true;
+      }
+      return false;
+    };
+
+    if (checkPuter()) return;
+
+    // Check periodically for window.puter initialization
+    const interval = setInterval(() => {
+      if (checkPuter()) {
+        clearInterval(interval);
+      }
+    }, 50);
+
+    script.addEventListener('load', () => {
+      if (checkPuter()) {
+        clearInterval(interval);
+      }
+    });
+
+    script.addEventListener('error', () => {
+      clearInterval(interval);
+      reject(new Error('Failed to load Puter.js script'));
+    });
+
+    // Timeout after 15 seconds
+    setTimeout(() => {
+      clearInterval(interval);
+      if (!window.puter?.ai?.txt2img) {
+        reject(new Error('Puter.js script load timeout'));
+      }
+    }, 15000);
+  });
+}
+
+/**
  * Primary: Puter.js client-side image generation — no API key, no billing.
  * Returns a data URL or blob URL from the generated HTMLImageElement.
  */
 async function generateWithPuter(imagePrompt: string): Promise<string> {
+  await loadPuterScript();
+
   if (!window.puter?.ai?.txt2img) throw new Error('Puter.js not loaded');
 
   const imgEl = await window.puter.ai.txt2img(imagePrompt);

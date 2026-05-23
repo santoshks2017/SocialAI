@@ -3,7 +3,7 @@ import {
   Car, Plus, MessageSquare, Bell,
   Calendar, BarChart2, Package, Zap, Settings, Link2,
   ChevronRight, Send, RefreshCw, Check, Sparkles,
-  LayoutDashboard, Video, LogOut, Menu, X, LayoutList,
+  LayoutDashboard, LogOut, Menu, X, LayoutList,
   Shield, ArrowLeftRight
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
@@ -26,21 +26,13 @@ import PostsPage from './pages/PostsPage';
 import Onboarding from './pages/Onboarding';
 import BillingPage from './pages/BillingPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import ConnectProfilesPage from './pages/ConnectProfilesPage';
 import type { UserInfo } from './lib/permissions';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-<<<<<<< HEAD
-  { to: '/',                 icon: LayoutDashboard, label: 'Dashboard',  exact: true },
-  { to: '/posts',            icon: LayoutList,      label: 'Posts'                  },
-  { to: '/calendar',         icon: Calendar,        label: 'Calendar'               },
-  { to: '/inventory',        icon: Package,         label: 'Inventory'              },
-  { to: '/create?mode=video',icon: Video,           label: 'AI Video'               },
-  { to: '/analytics',        icon: BarChart2,       label: 'Analytics'              },
-  { to: '/inbox',            icon: MessageSquare,   label: 'Inbox'                  },
-  { to: '/boost',            icon: Zap,             label: 'Boost'                  },
-  { to: '/accounts',         icon: Link2,           label: 'Accounts'               },
-=======
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard',  exact: true },
   { to: '/posts',     icon: LayoutList,      label: 'Posts'                  },
   { to: '/calendar',  icon: Calendar,        label: 'Calendar'               },
@@ -51,10 +43,9 @@ const NAV_ITEMS = [
   { to: '/accounts',  icon: Link2,           label: 'Accounts'               },
 ];
 
-const COMING_SOON_ITEMS = [
-  { icon: Video,   label: 'AI Video'  },
->>>>>>> razorpay-billing-integration-setup
-];
+// const COMING_SOON_ITEMS = [
+//   { icon: Video,   label: 'AI Video'  },
+// ];
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
@@ -147,11 +138,11 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
             onClick={onClose}
             className={({ isActive }) =>
               `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
-                isActive ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white hover:bg-white/5'
+                isActive ? 'bg-orange-50 text-orange-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`
             }
           >
-            <Shield className="w-[18px] h-[18px] flex-shrink-0 text-red-400 group-hover:text-red-300" />
+            <Shield className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${location.pathname === '/admin' ? 'text-red-650' : 'text-red-500 group-hover:text-red-650'}`} />
             Admin Panel
           </NavLink>
         )}
@@ -161,11 +152,11 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
           onClick={onClose}
           className={({ isActive }) =>
             `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
-              isActive ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white hover:bg-white/5'
+              isActive ? 'bg-orange-50 text-orange-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`
           }
         >
-          <Zap className="w-[18px] h-[18px] flex-shrink-0 text-orange-400 group-hover:text-orange-300" />
+          <Zap className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${location.pathname === '/billing' ? 'text-orange-600' : 'text-orange-500 group-hover:text-orange-600'}`} />
           Billing & Plans
         </NavLink>
 
@@ -178,7 +169,7 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
             }`
           }
         >
-          <Settings className="w-[18px] h-[18px] flex-shrink-0 text-slate-400 group-hover:text-slate-600" />
+          <Settings className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${location.pathname === '/settings' ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
           Settings
         </NavLink>
 
@@ -641,15 +632,6 @@ function AppLayout({ children, fullBleed }: { children: React.ReactNode; fullBle
   };
 
   return (
-<<<<<<< HEAD
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <div className="flex-1 flex flex-col lg:pl-[220px] min-w-0">
-        <MobileTopBar onMenuOpen={() => setMobileOpen(true)} />
-        <main className={`flex-1 min-h-0 ${fullBleed ? 'overflow-hidden flex flex-col' : 'overflow-y-auto p-5 md:p-7'}`}>
-          {children}
-        </main>
-=======
     <div className="flex flex-col h-screen overflow-hidden bg-[#f1f5f9]">
       {/* Impersonation Banner */}
       {isImpersonating && (
@@ -675,7 +657,6 @@ function AppLayout({ children, fullBleed }: { children: React.ReactNode; fullBle
             {children}
           </main>
         </div>
->>>>>>> razorpay-billing-integration-setup
       </div>
     </div>
   );
@@ -683,6 +664,8 @@ function AppLayout({ children, fullBleed }: { children: React.ReactNode; fullBle
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, token, isInitializing } = useAuth();
+  const location = useLocation();
+
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -690,8 +673,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  // No login page — demo session is always auto-issued; render children regardless
-  if (!user && !token) return <>{children}</>;
+  if (!user || !token) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -706,8 +690,9 @@ function AppRoutes() {
   return (
     <DealerProfileProvider>
     <Routes>
-      {/* Public routes — /login always redirects to dashboard */}
-      <Route path="/login" element={<Navigate to="/" replace />} />
+      {/* Public routes */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage onLogin={handleLogin} />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
 
@@ -722,13 +707,9 @@ function AppRoutes() {
       <Route path="/analytics" element={<RequireAuth><AppLayout><AnalyticsPage /></AppLayout></RequireAuth>} />
       <Route path="/boost" element={<RequireAuth><AppLayout><BoostPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts" element={<RequireAuth><AppLayout><AccountsPage /></AppLayout></RequireAuth>} />
-<<<<<<< HEAD
-      <Route path="/accounts/create" element={<Navigate to="/accounts" replace />} />
-=======
-      <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectAccountPage /></AppLayout></RequireAuth>} />
+      <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectProfilesPage /></AppLayout></RequireAuth>} />
       <Route path="/billing" element={<RequireAuth><AppLayout><BillingPage /></AppLayout></RequireAuth>} />
       <Route path="/admin" element={<RequireAuth><AppLayout><AdminDashboard /></AppLayout></RequireAuth>} />
->>>>>>> razorpay-billing-integration-setup
       <Route path="/settings" element={<RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -45,6 +45,12 @@ export const authService = {
   verifyOtp: (phone: string, otp: string) =>
     api.post<DemoLoginResponse>('/auth/otp/verify', { phone, otp }),
 
+  sendEmailOtp: (email: string) =>
+    api.post<{ success: boolean; message: string }>('/auth/email-otp/send', { email }),
+
+  verifyEmailOtp: (email: string, otp: string) =>
+    api.post<DemoLoginResponse>('/auth/email-otp/verify', { email, otp }),
+
   loginDemo: () =>
     api.post<DemoLoginResponse>('/auth/demo'),
 

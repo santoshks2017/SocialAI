@@ -31,13 +31,10 @@ import generatePostRoutes from './routes/generatePost.js';
 import generateFromUrlRoutes from './routes/generateFromUrl.js';
 import platformAccountRoutes from './routes/platformAccounts.js';
 import cronRoutes from './routes/cron.js';
-<<<<<<< HEAD
 import analyticsRoutes from './routes/analytics.js';
 import modelLibraryRoutes from './routes/modelLibrary.js';
-=======
 import billingRoutes from './routes/billing.js';
 import adminRoutes from './routes/admin.js';
->>>>>>> razorpay-billing-integration-setup
 import { UPLOADS_ROOT } from './routes/upload.js';
 
 // Vercel sets this automatically in its environment
@@ -127,13 +124,10 @@ fastify.register(generatePostRoutes,{ prefix: '/v1' });
 fastify.register(generateFromUrlRoutes, { prefix: '/v1' });
 fastify.register(platformAccountRoutes, { prefix: '/v1/platform-accounts' });
 fastify.register(cronRoutes,            { prefix: '/v1/cron' });
-<<<<<<< HEAD
 fastify.register(analyticsRoutes,       { prefix: '/v1/analytics' });
 fastify.register(modelLibraryRoutes,    { prefix: '/v1/model-library' });
-=======
 fastify.register(billingRoutes,         { prefix: '/v1/billing' });
 fastify.register(adminRoutes,           { prefix: '/v1/admin' });
->>>>>>> razorpay-billing-integration-setup
 
 fastify.get('/v1/health', async () => ({
   status: 'ok',

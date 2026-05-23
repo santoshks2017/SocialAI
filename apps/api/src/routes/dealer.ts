@@ -21,8 +21,12 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
   // PUT /v1/dealer/profile
   fastify.put('/profile', {
     preHandler: [fastify.authenticate],
-  }, async (request, _reply) => {
+  }, async (request, reply) => {
     const dealer_id = request.user.dealer_id!;
+    if (!dealer_id) {
+      return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: 'No dealer associated with this user account.' } });
+    }
+
     const body = request.body as {
       name?: string;
       city?: string;
@@ -37,28 +41,40 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       logo_url?: string;
       font?: string;
       address?: string;
+      showroom_type?: string[];
     };
 
-    const updated = await prisma.dealer.update({
-      where: { id: dealer_id },
-      data: {
-        ...(body.name !== undefined ? { name: body.name } : {}),
-        ...(body.city !== undefined ? { city: body.city } : {}),
-        ...(body.state !== undefined ? { state: body.state } : {}),
-        ...(body.brands !== undefined ? { brands: body.brands } : {}),
-        ...(body.contact_phone !== undefined ? { contact_phone: body.contact_phone } : {}),
-        ...(body.whatsapp_number !== undefined ? { whatsapp_number: body.whatsapp_number } : {}),
-        ...(body.primary_color !== undefined ? { primary_color: body.primary_color } : {}),
-        ...(body.secondary_color !== undefined ? { secondary_color: body.secondary_color } : {}),
-        ...(body.language_preferences !== undefined ? { language_preferences: body.language_preferences } : {}),
-        ...(body.region !== undefined ? { region: body.region } : {}),
-        ...(body.logo_url !== undefined ? { logo_url: body.logo_url } : {}),
-        ...(body.font !== undefined ? { font: body.font } : {}),
-        ...(body.address !== undefined ? { address: body.address } : {}),
-      },
-    });
+    try {
+      const updated = await prisma.dealer.update({
+        where: { id: dealer_id },
+        data: {
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.city !== undefined ? { city: body.city } : {}),
+          ...(body.state !== undefined ? { state: body.state } : {}),
+          ...(body.brands !== undefined ? { brands: body.brands } : {}),
+          ...(body.contact_phone !== undefined ? { contact_phone: body.contact_phone } : {}),
+          ...(body.whatsapp_number !== undefined ? { whatsapp_number: body.whatsapp_number } : {}),
+          ...(body.primary_color !== undefined ? { primary_color: body.primary_color } : {}),
+          ...(body.secondary_color !== undefined ? { secondary_color: body.secondary_color } : {}),
+          ...(body.language_preferences !== undefined ? { language_preferences: body.language_preferences } : {}),
+          ...(body.region !== undefined ? { region: body.region } : {}),
+          ...(body.logo_url !== undefined ? { logo_url: body.logo_url } : {}),
+          ...(body.font !== undefined ? { font: body.font } : {}),
+          ...(body.address !== undefined ? { address: body.address } : {}),
+          ...(body.showroom_type !== undefined ? { showroom_type: body.showroom_type } : {}),
+        },
+      });
 
-    return { success: true, profile: updated };
+      return { success: true, profile: updated };
+    } catch (err: any) {
+      fastify.log.error(err, 'Failed to update dealer profile');
+      return reply.code(500).send({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: err.message || 'Could not update profile details.'
+        }
+      });
+    }
   });
 
   // POST /v1/dealer/onboarding/complete

@@ -23,24 +23,22 @@ function FacebookIcon() {
   );
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   const navigate = useNavigate();
   const { loginDemo } = useAuth();
   
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignUp = () => {
     setLoading('google');
     setError('');
-    // Redirect browser to Google login endpoint
     window.location.href = `${API_BASE_URL}/auth/google`;
   };
 
-  const handleFacebookSignIn = () => {
+  const handleFacebookSignUp = () => {
     setLoading('facebook');
     setError('');
-    // Redirect browser to Facebook login endpoint
     window.location.href = `${API_BASE_URL}/auth/facebook-login`;
   };
 
@@ -65,8 +63,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Background design elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[30%] w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-10%] left-[10%] w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[-10%] right-[30%] w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[10%] w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px]" />
       </div>
 
       <div className="relative w-full max-w-md z-10">
@@ -76,7 +74,7 @@ export default function LoginPage() {
             <span className="font-extrabold text-white text-2xl tracking-tighter">CD</span>
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight font-display">
-            Welcome back to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-400">CarDekho Social AI</span>
+            Start with <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-400">CarDekho Social AI</span>
           </h1>
           <p className="text-slate-400 text-xs mt-1 text-center font-medium">
             AI-powered social media automation for auto dealers
@@ -85,9 +83,9 @@ export default function LoginPage() {
 
         {/* Auth Box */}
         <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-2xl shadow-slate-950/80">
-          <h2 className="text-white font-bold text-lg mb-1">Sign In</h2>
+          <h2 className="text-white font-bold text-lg mb-1">Create Account</h2>
           <p className="text-slate-400 text-xs mb-6">
-            Access your dealership command center
+            Register your dealership in seconds
           </p>
 
           {error && (
@@ -96,10 +94,10 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="space-y-4">
-            {/* Google Sign In */}
+          <div className="space-y-4 font-sans">
+            {/* Google Sign Up */}
             <button
-              onClick={handleGoogleSignIn}
+              onClick={handleGoogleSignUp}
               disabled={loading !== null}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-900 font-bold text-xs transition-all duration-300 cursor-pointer disabled:opacity-50 shadow-sm border border-slate-200"
             >
@@ -108,12 +106,12 @@ export default function LoginPage() {
               ) : (
                 <GoogleIcon />
               )}
-              <span className="flex-1 text-left">Login with Gmail</span>
+              <span className="flex-1 text-left">Signup with Gmail</span>
             </button>
 
-            {/* Facebook Sign In */}
+            {/* Facebook Sign Up */}
             <button
-              onClick={handleFacebookSignIn}
+              onClick={handleFacebookSignUp}
               disabled={loading !== null}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold text-xs transition-all duration-300 cursor-pointer disabled:opacity-50 shadow-sm"
             >
@@ -122,14 +120,14 @@ export default function LoginPage() {
               ) : (
                 <FacebookIcon />
               )}
-              <span className="flex-1 text-left">Login with Facebook</span>
+              <span className="flex-1 text-left">Signup with Facebook</span>
             </button>
 
-            {/* Signup Redirect */}
+            {/* Login Redirect */}
             <p className="text-center text-xs text-slate-500 mt-2">
-              New dealer?{' '}
-              <Link to="/signup" className="text-orange-400 font-bold hover:underline">
-                Create an account
+              Already have an account?{' '}
+              <Link to="/login" className="text-orange-400 font-bold hover:underline">
+                Sign in
               </Link>
             </p>
 

@@ -10,6 +10,9 @@ interface AuthContextType {
   isLoading: boolean;
   isInitializing: boolean;
   login: (phone: string, otp: string) => Promise<UserInfo>;
+  loginEmailOtp: (email: string, otp: string) => Promise<UserInfo>;
+  sendEmailOtp: (email: string) => Promise<void>;
+  loginDemo: () => Promise<UserInfo>;
   loginWithToken: (token: string, refresh: string, user: UserInfo) => void;
   logout: () => void;
 }
@@ -24,8 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { return JSON.parse(stored) as UserInfo; } catch { return null; }
   });
   const [isLoading, setIsLoading] = useState(false);
-  // True while the initial demo-login attempt is in flight (prevents redirect loop on first render)
-  const [isInitializing, setIsInitializing] = useState(() => !localStorage.getItem('access_token'));
+  const isInitializing = false;
 
   const loginWithToken = useCallback((accessToken: string, refreshToken: string, userInfo: UserInfo) => {
     localStorage.setItem('access_token', accessToken);
@@ -55,38 +57,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loginWithToken]);
 
+  const sendEmailOtp = useCallback(async (email: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      await authService.sendEmailOtp(email);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loginEmailOtp = useCallback(async (email: string, otp: string): Promise<UserInfo> => {
+    setIsLoading(true);
+    try {
+      const res = await authService.verifyEmailOtp(email, otp);
+      const userInfo: UserInfo = {
+        id: res.user.id,
+        name: res.user.name,
+        role: res.user.role as UserInfo['role'],
+        dealer_id: res.user.dealer_id,
+        permissions: res.user.permissions as UserInfo['permissions'],
+        onboarding_completed: res.user.onboarding_completed,
+        onboarding_step: res.user.onboarding_step,
+      };
+      loginWithToken(res.token, res.refreshToken, userInfo);
+      return userInfo;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [loginWithToken]);
+
+  const loginDemo = useCallback(async (): Promise<UserInfo> => {
+    setIsLoading(true);
+    try {
+      const res = await authService.loginDemo();
+      const userInfo: UserInfo = {
+        id: res.user.id,
+        name: res.user.name,
+        role: res.user.role as UserInfo['role'],
+        dealer_id: res.user.dealer_id,
+        permissions: res.user.permissions as UserInfo['permissions'],
+        onboarding_completed: res.user.onboarding_completed,
+        onboarding_step: res.user.onboarding_step,
+      };
+      loginWithToken(res.token, res.refreshToken, userInfo);
+      return userInfo;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [loginWithToken]);
+
   const logout = useCallback(() => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_info');
     setToken(null);
     setUser(null);
-  }, []);
-
-  // On first load with no real token (demo mode), try to get a real JWT from the API.
-  // If the API is unreachable we continue in pure-mock mode — no error shown to user.
-  useEffect(() => {
-    if (token) { setIsInitializing(false); return; }
-    authService.loginDemo()
-      .then((res) => {
-        const userInfo: UserInfo = {
-          id: res.user.id,
-          name: res.user.name,
-          role: res.user.role as UserInfo['role'],
-          dealer_id: res.user.dealer_id,
-          permissions: res.user.permissions as UserInfo['permissions'],
-          onboarding_completed: res.user.onboarding_completed,
-          onboarding_step: res.user.onboarding_step,
-        };
-        localStorage.setItem('access_token', res.token);
-        localStorage.setItem('refresh_token', res.refreshToken);
-        localStorage.setItem('user_info', JSON.stringify(userInfo));
-        setToken(res.token);
-        setUser(userInfo);
-      })
-      .catch(() => { /* API unreachable — stay in mock-demo mode */ })
-      .finally(() => setIsInitializing(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Validate/refresh token on mount
@@ -137,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, user]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isInitializing, login, loginWithToken, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isInitializing, login, loginEmailOtp, sendEmailOtp, loginDemo, loginWithToken, logout }}>
       {children}
     </AuthContext.Provider>
   );

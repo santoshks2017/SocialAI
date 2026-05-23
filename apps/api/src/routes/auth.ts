@@ -252,6 +252,156 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // POST /v1/auth/email-otp/send
+  fastify.post("/email-otp/send", async (request, reply) => {
+    const { email } = request.body as { email?: string }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_INPUT",
+          message: "Valid email is required",
+        },
+      })
+    }
+
+    const cleanEmail = email.toLowerCase().trim()
+    const otp = generateOtp()
+    await setOtp(cleanEmail, otp)
+
+    // Log the OTP code so the developer can see it in development console
+    console.log(`[EMAIL OTP] ${cleanEmail} → ${otp}`)
+
+    return { success: true, message: `OTP sent to ${cleanEmail}` }
+  })
+
+  // POST /v1/auth/email-otp/verify
+  fastify.post("/email-otp/verify", async (request, reply) => {
+    const { email, otp } = request.body as { email?: string; otp?: string }
+    if (!email || !otp) {
+      return reply.code(400).send({
+        error: {
+          code: "INVALID_INPUT",
+          message: "email and otp are required",
+        },
+      })
+    }
+
+    const cleanEmail = email.toLowerCase().trim()
+    const isDev = process.env["NODE_ENV"] === "development"
+    const storedOtp = await getOtp(cleanEmail)
+    const valid = (isDev && (otp === "1234" || otp === "123456")) || (storedOtp && storedOtp === otp)
+
+    if (!valid) {
+      return reply.code(400).send({
+        error: { code: "INVALID_OTP", message: "Incorrect or expired OTP" },
+      })
+    }
+
+    await deleteOtp(cleanEmail)
+
+    // Check if user exists
+    const existingUser = await prisma.dealerUser.findFirst({
+      where: { email: cleanEmail },
+    })
+
+    if (existingUser && !existingUser.is_active) {
+      return reply.code(403).send({
+        error: {
+          code: "ACCOUNT_INACTIVE",
+          message: "Your account is inactive. Ask your admin to re-enable it.",
+        },
+      })
+    }
+
+    let dealerUser = existingUser
+    let dealer = existingUser?.dealer_id
+      ? await prisma.dealer.findUnique({
+          where: { id: existingUser.dealer_id },
+        })
+      : null
+
+    // Register user if they do not exist
+    if (!dealerUser) {
+      const syntheticPhoneDealer = `email_dealer_${cleanEmail}`
+      const syntheticPhoneUser = `email_user_${cleanEmail}`
+      const emailPrefix = cleanEmail.split("@")[0] || "User"
+
+      dealer = await prisma.dealer.upsert({
+        where: { phone: syntheticPhoneDealer },
+        create: { phone: syntheticPhoneDealer, name: emailPrefix + " Dealership", city: "", onboarding_step: 1 },
+        update: {},
+      })
+      dealerUser = await prisma.dealerUser.create({
+        data: {
+          phone: syntheticPhoneUser,
+          email: cleanEmail,
+          name: emailPrefix,
+          role: ROLES.ADMIN,
+          dealer_id: dealer.id,
+          is_active: true,
+        },
+      })
+    }
+
+    const permissions = resolvePermissions(
+      dealerUser.role,
+      dealerUser.permissions as Record<string, boolean> | null,
+    )
+    const payload: JwtUser = {
+      dealer_user_id: dealerUser.id,
+      dealer_id: dealerUser.dealer_id,
+      role: dealerUser.role as Role,
+      phone: dealerUser.phone,
+      permissions,
+    }
+    const token = fastify.jwt.sign(payload, {
+      expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
+    })
+    const refreshToken = fastify.jwt.sign(payload, {
+      expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
+    })
+
+    const crypto = await import("crypto")
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+    await prisma.userSession.create({
+      data: {
+        dealer_user_id: dealerUser.id,
+        token_hash: tokenHash,
+        ip_address: request.ip,
+        user_agent: request.headers["user-agent"] ?? null,
+        expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // Match token expiry
+      },
+    })
+
+    if (dealerUser.dealer_id) {
+      await prisma.activityLog.create({
+        data: {
+          dealer_id: dealerUser.dealer_id,
+          dealer_user_id: dealerUser.id,
+          action: "auth.login",
+          entity_type: "dealer_user",
+          entity_id: dealerUser.id,
+          ip_address: request.ip,
+          user_agent: request.headers["user-agent"] ?? null,
+        },
+      })
+    }
+
+    return {
+      token,
+      refreshToken,
+      user: {
+        id: dealerUser.id,
+        name: dealerUser.name,
+        role: dealerUser.role,
+        dealer_id: dealerUser.dealer_id,
+        permissions,
+        onboarding_completed: dealer?.onboarding_completed ?? false,
+        onboarding_step: dealer?.onboarding_step ?? 1,
+      },
+    }
+  })
+
   // POST /v1/auth/demo — issues a JWT for a sandboxed demo dealer, no OTP required
   fastify.post("/demo", async (_request, reply) => {
     const demoPhone = "+0000000001"
@@ -558,60 +708,201 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // ─── Google OAuth ──────────────────────────────────────────────────────────
 
   const GOOGLE_SCOPES = [
-    'https://www.googleapis.com/auth/business.manage',
     'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/userinfo.email',
   ].join(' ');
 
   fastify.get('/google', async (request, reply) => {
     const GOOGLE_CLIENT_ID = process.env['GOOGLE_CLIENT_ID'];
-    const GOOGLE_REDIRECT_URI = process.env['GOOGLE_REDIRECT_URI'];
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
+    const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
+    const GOOGLE_REDIRECT_URI_AUTH = `${API_BASE_URL}/v1/auth/google/callback`;
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
 
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_REDIRECT_URI) {
-      fastify.log.error('[Google OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_REDIRECT_URI');
+    if (!GOOGLE_CLIENT_ID) {
+      if (process.env['NODE_ENV'] !== 'production') {
+        fastify.log.info('[Google OAuth] Missing GOOGLE_CLIENT_ID in development, redirecting to mock login screen');
+        reply.type('text/html');
+        return `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Mock Google Sign-In (Development)</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #0f172a; color: #f8fafc; margin: 0; }
+              .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; width: 100%; max-width: 400px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3); border: 1px solid #334155; }
+              h2 { margin-top: 0; font-weight: 600; font-size: 1.5rem; color: #f97316; margin-bottom: 0.5rem; }
+              p { color: #94a3b8; font-size: 0.875rem; margin-bottom: 1.5rem; line-height: 1.5; }
+              label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #cbd5e1; font-weight: 500; }
+              input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #475569; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 1.25rem; font-size: 1rem; }
+              input:focus { outline: none; border-color: #f97316; }
+              button { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: none; background: #ea580c; color: #fff; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 1rem; }
+              button:hover { background: #d97706; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>Mock Google Authentication</h2>
+              <p>Because <code>GOOGLE_CLIENT_ID</code> is not configured in your backend <code>.env</code>, you are running in local sandbox mode. Enter any name and email to simulate Google authentication.</p>
+              <form method="GET" action="/v1/auth/google/mock-callback">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" value="Demo Developer" required />
+                <label for="email">Google Email Address</label>
+                <input type="email" id="email" name="email" value="developer@cardeko.com" required />
+                <button type="submit">Sign In as Mock User</button>
+              </form>
+            </div>
+          </body>
+          </html>
+        `;
+      }
+      fastify.log.error('[Google OAuth] Missing GOOGLE_CLIENT_ID');
       return reply.redirect(`${FRONTEND_URL}/oauth/callback?error=server_config&platform=google`);
     }
 
-    const { access_token } = request.query as { access_token?: string };
-    const dealerId = extractDealerFromToken(access_token);
-    if (!dealerId) {
-      fastify.log.warn('[Google OAuth] No valid access_token in query — dealer cannot be identified');
-    }
-    const state = dealerId ? encodeOAuthState(dealerId) : 'anonymous';
-
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
-    authUrl.searchParams.set('redirect_uri', GOOGLE_REDIRECT_URI);
+    authUrl.searchParams.set('redirect_uri', GOOGLE_REDIRECT_URI_AUTH);
     authUrl.searchParams.set('scope', GOOGLE_SCOPES);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('state', 'signin');
 
-    fastify.log.info(`[Google OAuth] Initiating flow for dealer=${dealerId ?? 'unknown'}`);
+    fastify.log.info('[Google OAuth] Initiating standard user login flow');
     return reply.redirect(authUrl.toString());
   });
 
+  fastify.get('/google/mock-callback', async (request, reply) => {
+    const { email, name } = request.query as { email?: string; name?: string };
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+
+    if (process.env['NODE_ENV'] === 'production') {
+      return reply.status(403).send({ error: 'Mock login is disabled in production' });
+    }
+
+    if (!email) {
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=no_email_returned`);
+    }
+
+    try {
+      const cleanEmail = email.toLowerCase().trim();
+
+      // Check if user exists
+      let dealerUser = await prisma.dealerUser.findFirst({
+        where: { email: cleanEmail },
+      });
+
+      if (dealerUser && !dealerUser.is_active) {
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=account_inactive`);
+      }
+
+      let dealer = dealerUser?.dealer_id
+        ? await prisma.dealer.findUnique({
+            where: { id: dealerUser.dealer_id },
+          })
+        : null;
+
+      // Register user if they do not exist
+      if (!dealerUser) {
+        const syntheticPhoneDealer = `email_dealer_${cleanEmail}`;
+        const syntheticPhoneUser = `email_user_${cleanEmail}`;
+        const emailPrefix = cleanEmail.split("@")[0] || "User";
+        const displayName = name || emailPrefix;
+
+        dealer = await prisma.dealer.upsert({
+          where: { phone: syntheticPhoneDealer },
+          create: {
+            phone: syntheticPhoneDealer,
+            name: displayName + " Dealership",
+            city: "",
+            onboarding_step: 1
+          },
+          update: {},
+        });
+
+        dealerUser = await prisma.dealerUser.create({
+          data: {
+            phone: syntheticPhoneUser,
+            email: cleanEmail,
+            name: displayName,
+            role: ROLES.ADMIN,
+            dealer_id: dealer.id,
+            is_active: true,
+          },
+        });
+      }
+
+      const permissions = resolvePermissions(
+        dealerUser.role,
+        dealerUser.permissions as Record<string, boolean> | null,
+      );
+      const payload: JwtUser = {
+        dealer_user_id: dealerUser.id,
+        dealer_id: dealerUser.dealer_id,
+        role: dealerUser.role as Role,
+        phone: dealerUser.phone,
+        permissions,
+      };
+
+      const token = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
+      });
+      const refreshToken = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
+      });
+
+      const crypto = await import("crypto");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      await prisma.userSession.create({
+        data: {
+          dealer_user_id: dealerUser.id,
+          token_hash: tokenHash,
+          ip_address: request.ip,
+          user_agent: request.headers["user-agent"] ?? null,
+          expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // Match token expiry
+        },
+      });
+
+      if (dealerUser.dealer_id) {
+        await prisma.activityLog.create({
+          data: {
+            dealer_id: dealerUser.dealer_id,
+            dealer_user_id: dealerUser.id,
+            action: "auth.login",
+            entity_type: "dealer_user",
+            entity_id: dealerUser.id,
+            ip_address: request.ip,
+            user_agent: request.headers["user-agent"] ?? null,
+          },
+        });
+      }
+
+      return reply.redirect(
+        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
+      );
+    } catch (err) {
+      fastify.log.error(err, '[Google OAuth Mock] Callback failed with unexpected error');
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=google`);
+    }
+  });
+
   fastify.get('/google/callback', async (request, reply) => {
-    const { code, error: gError, state } = request.query as { code?: string; error?: string; state?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
+    const { code, error: gError } = request.query as { code?: string; error?: string };
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
+    const GOOGLE_REDIRECT_URI_AUTH = `${API_BASE_URL}/v1/auth/google/callback`;
 
     if (gError || !code) {
       fastify.log.warn(`[Google OAuth] Callback error: ${gError ?? 'no_code'}`);
-      return reply.redirect(`${FRONTEND_URL}/oauth/callback?error=${encodeURIComponent(gError ?? 'no_code')}&platform=google`);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=${encodeURIComponent(gError ?? 'no_code')}&platform=google`);
     }
-
-    const dealerId = (state && state !== 'anonymous') ? decodeOAuthState(state) : null;
-    fastify.log.info(`[Google OAuth] Callback received for dealer=${dealerId ?? 'unknown'}`);
 
     const GOOGLE_CLIENT_ID = process.env['GOOGLE_CLIENT_ID'];
     const GOOGLE_CLIENT_SECRET = process.env['GOOGLE_CLIENT_SECRET'];
-    const GOOGLE_REDIRECT_URI = process.env['GOOGLE_REDIRECT_URI'];
 
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
       fastify.log.error('[Google OAuth] Missing server config in callback');
-      return reply.redirect(`${FRONTEND_URL}/oauth/callback?error=server_config&platform=google`);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=server_config&platform=google`);
     }
 
     try {
@@ -622,7 +913,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
           code,
           client_id: GOOGLE_CLIENT_ID,
           client_secret: GOOGLE_CLIENT_SECRET,
-          redirect_uri: GOOGLE_REDIRECT_URI,
+          redirect_uri: GOOGLE_REDIRECT_URI_AUTH,
           grant_type: 'authorization_code',
         }),
       });
@@ -631,72 +922,435 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       if (!tokenData.access_token) {
         fastify.log.error({ tokenData }, '[Google OAuth] Token exchange failed — no access_token returned');
-        return reply.redirect(`${FRONTEND_URL}/accounts?error=token_exchange_failed`);
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed`);
       }
       const accessToken = tokenData.access_token;
-      const refreshToken = tokenData.refresh_token;
-      // Google access tokens expire in ~1 hour
-      const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
-      // Fetch Google Business Profile accounts
-      const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+      // Fetch user profile from google userinfo API
+      const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      const accountsData = await accountsRes.json() as { accounts?: Array<{ name: string; accountName?: string }> };
-      const accounts = accountsData.accounts ?? [];
+      const googleUser = await userinfoRes.json() as { sub: string; name: string; email: string; picture?: string };
 
-      fastify.log.info(`[Google OAuth] Found ${accounts.length} GBP accounts for dealer=${dealerId ?? 'unknown'}`);
-
-      const userId = dealerId ?? 'anonymous';
-      let savedCount = 0;
-
-      for (const account of accounts) {
-        const accountId = account.name.replace('accounts/', '');
-
-        // Fetch locations under this account
-        const locationsRes = await fetch(
-          `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        const locData = await locationsRes.json() as { locations?: Array<{ name: string; title?: string }> };
-        const locations = locData.locations ?? [];
-
-        for (const loc of locations) {
-          const locId = loc.name.replace('locations/', '');
-          await saveAccount({
-            userId,
-            platform: 'google',
-            accountId: `${accountId}/${locId}`,
-            accountName: loc.title || account.accountName || `Location ${locId}`,
-            accessToken,
-            refreshToken,
-            tokenExpiry,
-          });
-          savedCount++;
-          fastify.log.info(`[Google OAuth] Saved GMB location: ${loc.title ?? locId} → dealer=${userId}`);
-        }
-
-        // If no locations, save the account itself
-        if (locations.length === 0) {
-          await saveAccount({
-            userId,
-            platform: 'google',
-            accountId,
-            accountName: account.accountName || `Google Business ${accountId}`,
-            accessToken,
-            refreshToken,
-            tokenExpiry,
-          });
-          savedCount++;
-          fastify.log.info(`[Google OAuth] Saved GMB account (no locations): ${accountId} → dealer=${userId}`);
-        }
+      if (!googleUser.email) {
+        fastify.log.error({ googleUser }, '[Google OAuth] Userinfo returned no email address');
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=no_email_returned`);
       }
 
-      fastify.log.info(`[Google OAuth] Complete: ${savedCount} locations saved for dealer=${userId}`);
-      return reply.redirect(`${FRONTEND_URL}/oauth/callback?success=1&google=${savedCount}&platform=google`);
+      const cleanEmail = googleUser.email.toLowerCase().trim();
+
+      // Check if user exists
+      let dealerUser = await prisma.dealerUser.findFirst({
+        where: { email: cleanEmail },
+      });
+
+      if (dealerUser && !dealerUser.is_active) {
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=account_inactive`);
+      }
+
+      let dealer = dealerUser?.dealer_id
+        ? await prisma.dealer.findUnique({
+            where: { id: dealerUser.dealer_id },
+          })
+        : null;
+
+      // Register user if they do not exist
+      if (!dealerUser) {
+        const syntheticPhoneDealer = `email_dealer_${cleanEmail}`;
+        const syntheticPhoneUser = `email_user_${cleanEmail}`;
+        const emailPrefix = cleanEmail.split("@")[0] || "User";
+        const displayName = googleUser.name || emailPrefix;
+
+        dealer = await prisma.dealer.upsert({
+          where: { phone: syntheticPhoneDealer },
+          create: {
+            phone: syntheticPhoneDealer,
+            name: displayName + " Dealership",
+            city: "",
+            onboarding_step: 1
+          },
+          update: {},
+        });
+
+        dealerUser = await prisma.dealerUser.create({
+          data: {
+            phone: syntheticPhoneUser,
+            email: cleanEmail,
+            name: displayName,
+            role: ROLES.ADMIN,
+            dealer_id: dealer.id,
+            is_active: true,
+          },
+        });
+      }
+
+      const permissions = resolvePermissions(
+        dealerUser.role,
+        dealerUser.permissions as Record<string, boolean> | null,
+      );
+      const payload: JwtUser = {
+        dealer_user_id: dealerUser.id,
+        dealer_id: dealerUser.dealer_id,
+        role: dealerUser.role as Role,
+        phone: dealerUser.phone,
+        permissions,
+      };
+
+      const token = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
+      });
+      const refreshToken = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
+      });
+
+      const crypto = await import("crypto");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      await prisma.userSession.create({
+        data: {
+          dealer_user_id: dealerUser.id,
+          token_hash: tokenHash,
+          ip_address: request.ip,
+          user_agent: request.headers["user-agent"] ?? null,
+          expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // Match token expiry
+        },
+      });
+
+      if (dealerUser.dealer_id) {
+        await prisma.activityLog.create({
+          data: {
+            dealer_id: dealerUser.dealer_id,
+            dealer_user_id: dealerUser.id,
+            action: "auth.login",
+            entity_type: "dealer_user",
+            entity_id: dealerUser.id,
+            ip_address: request.ip,
+            user_agent: request.headers["user-agent"] ?? null,
+          },
+        });
+      }
+
+      return reply.redirect(
+        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
+      );
     } catch (err) {
       fastify.log.error(err, '[Google OAuth] Callback failed with unexpected error');
-      return reply.redirect(`${FRONTEND_URL}/oauth/callback?error=token_exchange_failed&platform=google`);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=google`);
+    }
+  });
+
+  // ─── Facebook User Login OAuth ──────────────────────────────────────────────
+
+  fastify.get('/facebook-login', async (request, reply) => {
+    const META_APP_ID = process.env['META_APP_ID'];
+    const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
+    const FB_LOGIN_REDIRECT_URI = `${API_BASE_URL}/v1/auth/facebook-login/callback`;
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+
+    if (!META_APP_ID) {
+      if (process.env['NODE_ENV'] !== 'production') {
+        fastify.log.info('[FB Login] Missing META_APP_ID in development, redirecting to mock login screen');
+        reply.type('text/html');
+        return `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Mock Facebook Sign-In (Development)</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #0f172a; color: #f8fafc; margin: 0; }
+              .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; width: 100%; max-width: 400px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3); border: 1px solid #334155; }
+              h2 { margin-top: 0; font-weight: 600; font-size: 1.5rem; color: #3b5998; margin-bottom: 0.5rem; }
+              p { color: #94a3b8; font-size: 0.875rem; margin-bottom: 1.5rem; line-height: 1.5; }
+              label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #cbd5e1; font-weight: 500; }
+              input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #475569; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 1.25rem; font-size: 1rem; }
+              input:focus { outline: none; border-color: #3b5998; }
+              button { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: none; background: #3b5998; color: #fff; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 1rem; }
+              button:hover { background: #2d4373; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>Mock Facebook Authentication</h2>
+              <p>Because <code>META_APP_ID</code> is not configured in your backend <code>.env</code>, you are running in local sandbox mode. Enter any name and email to simulate Facebook authentication.</p>
+              <form method="GET" action="/v1/auth/facebook-login/mock-callback">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" value="Demo FB User" required />
+                <label for="email">Facebook Email Address</label>
+                <input type="email" id="email" name="email" value="fb-developer@cardeko.com" required />
+                <button type="submit">Sign In as Mock FB User</button>
+              </form>
+            </div>
+          </body>
+          </html>
+        `;
+      }
+      fastify.log.error('[FB Login] Missing META_APP_ID');
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=server_config&platform=facebook`);
+    }
+
+    const authUrl = new URL('https://www.facebook.com/v18.0/dialog/oauth');
+    authUrl.searchParams.set('client_id', META_APP_ID);
+    authUrl.searchParams.set('redirect_uri', FB_LOGIN_REDIRECT_URI);
+    authUrl.searchParams.set('scope', 'email,public_profile');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('state', 'signin');
+
+    fastify.log.info('[FB Login] Initiating Facebook user login flow');
+    return reply.redirect(authUrl.toString());
+  });
+
+  fastify.get('/facebook-login/callback', async (request, reply) => {
+    const { code, error: fbError } = request.query as { code?: string; error?: string };
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
+    const FB_LOGIN_REDIRECT_URI = `${API_BASE_URL}/v1/auth/facebook-login/callback`;
+
+    if (fbError || !code) {
+      fastify.log.warn(`[FB Login] Callback error: ${fbError ?? 'no_code'}`);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=${encodeURIComponent(fbError ?? 'no_code')}&platform=facebook`);
+    }
+
+    const META_APP_ID = process.env['META_APP_ID'];
+    const META_APP_SECRET = process.env['META_APP_SECRET'];
+
+    if (!META_APP_ID || !META_APP_SECRET) {
+      fastify.log.error('[FB Login] Missing server config in callback');
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=server_config&platform=facebook`);
+    }
+
+    try {
+      // Exchange code for user access token
+      const tokenUrl = new URL('https://graph.facebook.com/v18.0/oauth/access_token');
+      tokenUrl.searchParams.set('client_id', META_APP_ID);
+      tokenUrl.searchParams.set('client_secret', META_APP_SECRET);
+      tokenUrl.searchParams.set('redirect_uri', FB_LOGIN_REDIRECT_URI);
+      tokenUrl.searchParams.set('code', code);
+
+      const tokenRes = await fetch(tokenUrl.toString());
+      const tokenData = await tokenRes.json() as { access_token?: string; error?: { message?: string } };
+
+      if (!tokenData.access_token) {
+        fastify.log.error({ tokenData }, '[FB Login] Token exchange failed — no access_token returned');
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=facebook`);
+      }
+      const accessToken = tokenData.access_token;
+
+      // Fetch user profile from Facebook graph API
+      const userinfoRes = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name,email&access_token=${accessToken}`);
+      const fbUser = await userinfoRes.json() as { id: string; name: string; email?: string };
+
+      const email = fbUser.email || `fb_user_${fbUser.id}@facebook.com`;
+      const cleanEmail = email.toLowerCase().trim();
+
+      // Check if user exists
+      let dealerUser = await prisma.dealerUser.findFirst({
+        where: { email: cleanEmail },
+      });
+
+      if (dealerUser && !dealerUser.is_active) {
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=account_inactive`);
+      }
+
+      let dealer = dealerUser?.dealer_id
+        ? await prisma.dealer.findUnique({
+            where: { id: dealerUser.dealer_id },
+          })
+        : null;
+
+      // Register user if they do not exist
+      if (!dealerUser) {
+        const syntheticPhoneDealer = `email_dealer_${cleanEmail}`;
+        const syntheticPhoneUser = `email_user_${cleanEmail}`;
+        const emailPrefix = cleanEmail.split("@")[0] || "User";
+        const displayName = fbUser.name || emailPrefix;
+
+        dealer = await prisma.dealer.upsert({
+          where: { phone: syntheticPhoneDealer },
+          create: {
+            phone: syntheticPhoneDealer,
+            name: displayName + " Dealership",
+            city: "",
+            onboarding_step: 1
+          },
+          update: {},
+        });
+
+        dealerUser = await prisma.dealerUser.create({
+          data: {
+            phone: syntheticPhoneUser,
+            email: cleanEmail,
+            name: displayName,
+            role: ROLES.ADMIN,
+            dealer_id: dealer.id,
+            is_active: true,
+          },
+        });
+      }
+
+      const permissions = resolvePermissions(
+        dealerUser.role,
+        dealerUser.permissions as Record<string, boolean> | null,
+      );
+      const payload: JwtUser = {
+        dealer_user_id: dealerUser.id,
+        dealer_id: dealerUser.dealer_id,
+        role: dealerUser.role as Role,
+        phone: dealerUser.phone,
+        permissions,
+      };
+
+      const token = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
+      });
+      const refreshToken = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
+      });
+
+      const crypto = await import("crypto");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      await prisma.userSession.create({
+        data: {
+          dealer_user_id: dealerUser.id,
+          token_hash: tokenHash,
+          ip_address: request.ip,
+          user_agent: request.headers["user-agent"] ?? null,
+          expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // Match token expiry
+        },
+      });
+
+      if (dealerUser.dealer_id) {
+        await prisma.activityLog.create({
+          data: {
+            dealer_id: dealerUser.dealer_id,
+            dealer_user_id: dealerUser.id,
+            action: "auth.login",
+            entity_type: "dealer_user",
+            entity_id: dealerUser.id,
+            ip_address: request.ip,
+            user_agent: request.headers["user-agent"] ?? null,
+          },
+        });
+      }
+
+      return reply.redirect(
+        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
+      );
+    } catch (err) {
+      fastify.log.error(err, '[FB Login] Callback failed with unexpected error');
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=facebook`);
+    }
+  });
+
+  fastify.get('/facebook-login/mock-callback', async (request, reply) => {
+    const { email, name } = request.query as { email?: string; name?: string };
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+
+    if (process.env['NODE_ENV'] === 'production') {
+      return reply.status(403).send({ error: 'Mock login is disabled in production' });
+    }
+
+    if (!email) {
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=no_email_returned`);
+    }
+
+    try {
+      const cleanEmail = email.toLowerCase().trim();
+
+      // Check if user exists
+      let dealerUser = await prisma.dealerUser.findFirst({
+        where: { email: cleanEmail },
+      });
+
+      if (dealerUser && !dealerUser.is_active) {
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=account_inactive`);
+      }
+
+      let dealer = dealerUser?.dealer_id
+        ? await prisma.dealer.findUnique({
+            where: { id: dealerUser.dealer_id },
+          })
+        : null;
+
+      // Register user if they do not exist
+      if (!dealerUser) {
+        const syntheticPhoneDealer = `email_dealer_${cleanEmail}`;
+        const syntheticPhoneUser = `email_user_${cleanEmail}`;
+        const emailPrefix = cleanEmail.split("@")[0] || "User";
+        const displayName = name || emailPrefix;
+
+        dealer = await prisma.dealer.upsert({
+          where: { phone: syntheticPhoneDealer },
+          create: {
+            phone: syntheticPhoneDealer,
+            name: displayName + " Dealership",
+            city: "",
+            onboarding_step: 1
+          },
+          update: {},
+        });
+
+        dealerUser = await prisma.dealerUser.create({
+          data: {
+            phone: syntheticPhoneUser,
+            email: cleanEmail,
+            name: displayName,
+            role: ROLES.ADMIN,
+            dealer_id: dealer.id,
+            is_active: true,
+          },
+        });
+      }
+
+      const permissions = resolvePermissions(
+        dealerUser.role,
+        dealerUser.permissions as Record<string, boolean> | null,
+      );
+      const payload: JwtUser = {
+        dealer_user_id: dealerUser.id,
+        dealer_id: dealerUser.dealer_id,
+        role: dealerUser.role as Role,
+        phone: dealerUser.phone,
+        permissions,
+      };
+
+      const token = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
+      });
+      const refreshToken = fastify.jwt.sign(payload, {
+        expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
+      });
+
+      const crypto = await import("crypto");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      await prisma.userSession.create({
+        data: {
+          dealer_user_id: dealerUser.id,
+          token_hash: tokenHash,
+          ip_address: request.ip,
+          user_agent: request.headers["user-agent"] ?? null,
+          expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // Match token expiry
+        },
+      });
+
+      if (dealerUser.dealer_id) {
+        await prisma.activityLog.create({
+          data: {
+            dealer_id: dealerUser.dealer_id,
+            dealer_user_id: dealerUser.id,
+            action: "auth.login",
+            entity_type: "dealer_user",
+            entity_id: dealerUser.id,
+            ip_address: request.ip,
+            user_agent: request.headers["user-agent"] ?? null,
+          },
+        });
+      }
+
+      return reply.redirect(
+        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
+      );
+    } catch (err) {
+      fastify.log.error(err, '[FB Login Mock] Callback failed with unexpected error');
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=facebook`);
     }
   });
 }

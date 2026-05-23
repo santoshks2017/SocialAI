@@ -45,11 +45,8 @@ model Dealer {
   activity_logs        ActivityLog[]
   dealer_users         DealerUser[]
   inspiration_handles  InspirationHandle[]
-<<<<<<< HEAD
   social_connections   SocialConnection[]
-=======
   subscription         Subscription?
->>>>>>> razorpay-billing-integration-setup
 }
 
 // ─── Role-based user accounts ───────────────────────────────────────────────
@@ -328,7 +325,6 @@ model PlatformAccount {
   @@index([userId])
 }
 
-<<<<<<< HEAD
 model AutoReplyRule {
   id              String             @id @default(uuid())
   dealer_id       String
@@ -386,7 +382,8 @@ model SocialConnection {
 
   @@unique([dealer_id, platform])
   @@map("social_connections")
-=======
+}
+
 model Subscription {
   id                     String    @id @default(uuid())
   dealer_id              String    @unique
@@ -398,6 +395,4 @@ model Subscription {
   currentPeriodEnd       DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
->>>>>>> razorpay-billing-integration-setup
 }
-

@@ -100,6 +100,7 @@ export default function SettingsPage() {
   const [font, setFont] = useState('Arial');
   const [address, setAddress] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [showroomType, setShowroomType] = useState('new');
 
   // Team tab state
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -258,6 +259,7 @@ export default function SettingsPage() {
       name: string; city: string; contact_phone?: string; whatsapp_number?: string;
       primary_color?: string; brands?: string[]; language_preferences?: string[]; region?: string;
       logo_url?: string; font?: string; address?: string;
+      showroom_type?: string[];
     } }>('/dealer/profile').then((res) => {
       const p = res.profile;
       setDealerName(p.name);
@@ -271,6 +273,7 @@ export default function SettingsPage() {
       if (p.logo_url) setLogoUrl(p.logo_url);
       if (p.font) setFont(p.font);
       if (p.address) setAddress(p.address);
+      if (p.showroom_type?.length) setShowroomType(p.showroom_type[0]);
     }).catch(console.error);
   }, []);
 
@@ -411,6 +414,7 @@ export default function SettingsPage() {
       logo_url: logoUrl,
       font,
       address,
+      showroom_type: [showroomType],
     })
       .then(() => {
         addToast({ type: 'success', title: 'Settings Saved', message: 'Your dealership profile has been updated successfully.' });
@@ -466,6 +470,18 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Dealership Name</label>
                 <input value={dealerName} onChange={(e) => setDealerName(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Showroom Type</label>
+                <select 
+                  value={showroomType} 
+                  onChange={(e) => setShowroomType(e.target.value)} 
+                  className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                >
+                  <option value="new">New Cars Showroom</option>
+                  <option value="pre-owned">True Value / Certified Used Cars</option>
+                  <option value="multi-brand">Multi-brand Car Dealership</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">City</label>

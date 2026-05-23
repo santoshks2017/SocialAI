@@ -16,6 +16,7 @@ export interface DealerProfile {
   primary_color?: string;
   secondary_color?: string;
   language_preferences: string[];
+  showroom_type?: string[];
   onboarding_completed?: boolean;
 }
 
