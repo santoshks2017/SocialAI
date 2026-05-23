@@ -98,8 +98,13 @@ async function request<T>(
     const data = await response.json();
 
     if (!response.ok) {
+      const errorMessage = typeof data.message === 'string'
+        ? data.message
+        : (data.error && typeof data.error === 'string'
+          ? data.error
+          : (data.error?.message || 'An error occurred'));
       throw new ApiError(
-        data.message || data.error || 'An error occurred',
+        errorMessage,
         response.status,
         data
       );

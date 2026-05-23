@@ -42,6 +42,7 @@ model Dealer {
   activity_logs        ActivityLog[]
   dealer_users         DealerUser[]
   inspiration_handles  InspirationHandle[]
+  subscription         Subscription?
 }
 
 // ─── Role-based user accounts ───────────────────────────────────────────────
@@ -318,3 +319,17 @@ model PlatformAccount {
   @@unique([userId, platform, accountId])
   @@index([userId])
 }
+
+model Subscription {
+  id                     String    @id @default(uuid())
+  dealer_id              String    @unique
+  dealer                 Dealer    @relation(fields: [dealer_id], references: [id], onDelete: Cascade)
+  razorpaySubscriptionId String?   @unique
+  status                 String    @default("created") // created, authenticated, active, cancelled, halted, completed, expired
+  planId                 String    // e.g. "plan_starter_monthly", "plan_growth_monthly"
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+

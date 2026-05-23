@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 
 import { registerJwt } from './plugins/jwt.js';
 import { registerActivityLog } from './plugins/activityLog.js';
+import { registerPlanGate } from './plugins/planGate.js';
 import { startPublishWorker } from './workers/publishWorker.js';
 import { startMetricsWorker } from './workers/metricsWorker.js';
 
@@ -30,6 +31,8 @@ import generatePostRoutes from './routes/generatePost.js';
 import generateFromUrlRoutes from './routes/generateFromUrl.js';
 import platformAccountRoutes from './routes/platformAccounts.js';
 import cronRoutes from './routes/cron.js';
+import billingRoutes from './routes/billing.js';
+import adminRoutes from './routes/admin.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 
 // Vercel sets this automatically in its environment
@@ -79,6 +82,25 @@ if (!IS_VERCEL) {
 
 await registerJwt(fastify);
 await registerActivityLog(fastify);
+await registerPlanGate(fastify);
+
+// Support raw body for webhook signature validation
+fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request, body, done) => {
+  if (request.url.includes('/webhook')) {
+    (request as any).rawBody = body;
+  }
+  try {
+    if (body.length === 0) {
+      done(null, null);
+      return;
+    }
+    const json = JSON.parse(body.toString());
+    done(null, json);
+  } catch (err: any) {
+    err.statusCode = 400;
+    done(err, null);
+  }
+});
 
 // Routes
 fastify.register(authRoutes,      { prefix: '/v1/auth' });
@@ -100,6 +122,8 @@ fastify.register(generatePostRoutes,{ prefix: '/v1' });
 fastify.register(generateFromUrlRoutes, { prefix: '/v1' });
 fastify.register(platformAccountRoutes, { prefix: '/v1/platform-accounts' });
 fastify.register(cronRoutes,            { prefix: '/v1/cron' });
+fastify.register(billingRoutes,         { prefix: '/v1/billing' });
+fastify.register(adminRoutes,           { prefix: '/v1/admin' });
 
 fastify.get('/v1/health', async () => ({
   status: 'ok',

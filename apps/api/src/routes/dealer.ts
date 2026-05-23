@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
+import { getUpcomingFestivals } from '../services/festivalCalendar.js';
+
 
 
 
@@ -89,6 +91,12 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7);
 
+    // Fetch dealer's profile to resolve their city/state for regional festivals
+    const dealer = await prisma.dealer.findUnique({
+      where: { id: dealer_id },
+      select: { city: true, state: true },
+    });
+
     const [
       postsThisMonth,
       postsLastMonth,
@@ -98,7 +106,6 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       inboxPending,
       negativeReviews,
       recentPosts,
-      upcomingFestivals,
       activeBoosts,
     ] = await Promise.all([
       prisma.post.count({ where: { dealer_id, created_at: { gte: monthStart } } }),
@@ -114,11 +121,6 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
         take: 5,
         select: { id: true, prompt_text: true, platforms: true, status: true, scheduled_at: true, published_at: true, created_at: true },
       }),
-      prisma.festival.findMany({
-        where: { date: { gte: now }, is_active: true },
-        orderBy: { date: 'asc' },
-        take: 3,
-      }),
       prisma.boostCampaign.findMany({
         where: { dealer_id, status: 'active' },
         orderBy: { created_at: 'desc' },
@@ -126,6 +128,8 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
         select: { id: true, daily_budget: true, duration_days: true, total_spent: true, end_date: true, metrics: true, post_id: true },
       }),
     ]);
+
+    const upcomingFestivals = getUpcomingFestivals(dealer?.city, dealer?.state, 3);
 
     const totalReach = reachAgg.reduce((sum, p) => {
       const m = p.metrics as Record<string, unknown> | null;
@@ -148,5 +152,23 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       upcomingFestivals,
       activeBoosts,
     };
+  });
+
+  // GET /v1/dealer/festivals — list upcoming festivals with regional filter
+  fastify.get('/festivals', {
+    preHandler: [fastify.authenticate],
+  }, async (request) => {
+    const dealer_id = request.user.dealer_id!;
+    const dealer = await prisma.dealer.findUnique({
+      where: { id: dealer_id },
+      select: { city: true, state: true },
+    });
+    const { limit = '10' } = request.query as { limit?: string };
+    const upcoming = getUpcomingFestivals(
+      dealer?.city,
+      dealer?.state,
+      parseInt(limit, 10) || 10
+    );
+    return { success: true, festivals: upcoming };
   });
 }

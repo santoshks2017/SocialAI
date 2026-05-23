@@ -58,6 +58,62 @@ const EMPTY_FORM = {
   price: 0, condition: 'new' as Condition, color: '', fuel_type: '', stock_count: 1,
 };
 
+function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+  const lines: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          cell += '"';
+          i++; // Skip double quote
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        row.push(cell.trim());
+        cell = '';
+      } else if (char === '\n' || char === '\r') {
+        row.push(cell.trim());
+        cell = '';
+        if (row.length > 0 && row.some(c => c !== '')) {
+          lines.push(row);
+        }
+        row = [];
+        if (char === '\r' && nextChar === '\n') {
+          i++; // Skip newline
+        }
+      } else {
+        cell += char;
+      }
+    }
+  }
+  
+  if (cell || row.length > 0) {
+    row.push(cell.trim());
+    if (row.length > 0 && row.some(c => c !== '')) {
+      lines.push(row);
+    }
+  }
+
+  if (lines.length === 0) return { headers: [], rows: [] };
+  const headers = lines[0].map(h => h.trim());
+  const rows = lines.slice(1);
+  return { headers, rows };
+}
+
 export default function InventoryPage() {
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -70,11 +126,227 @@ export default function InventoryPage() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // CSV Import States
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<Array<{ row: number; field: string; message: string }>>([]);
+  const [validationWarnings, setValidationWarnings] = useState<Array<{ row: number; field: string; message: string }>>([]);
+  const [parsedItems, setParsedItems] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [vehicleForm, setVehicleForm] = useState(EMPTY_FORM);
   const [vehicleSaving, setVehicleSaving] = useState(false);
   const { addToast } = useToast();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const processFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        const { headers, rows } = parseCsv(text);
+        if (headers.length === 0) {
+          addToast({ type: 'error', title: 'Empty File', message: 'The CSV file appears to be empty.' });
+          return;
+        }
+        setCsvHeaders(headers);
+        setCsvRows(rows);
+        
+        // Auto-detect mappings based on header names
+        const initialMapping: Record<string, string> = {};
+        const targets = [
+          { key: 'make', terms: ['make', 'brand', 'company', 'manufacturer'] },
+          { key: 'model', terms: ['model', 'name'] },
+          { key: 'variant', terms: ['variant', 'trim', 'version'] },
+          { key: 'year', terms: ['year', 'mfg', 'manufacture'] },
+          { key: 'price', terms: ['price', 'cost', 'selling'] },
+          { key: 'condition', terms: ['condition', 'new/used', 'status_new'] },
+          { key: 'color', terms: ['color', 'colour'] },
+          { key: 'fuel_type', terms: ['fuel', 'type'] },
+          { key: 'transmission', terms: ['transmission', 'gear'] },
+          { key: 'mileage_km', terms: ['mileage', 'km', 'kms', 'odometer'] },
+          { key: 'stock_count', terms: ['stock', 'qty', 'quantity', 'count'] },
+        ];
+
+        targets.forEach((target) => {
+          const found = headers.find((h) =>
+            target.terms.some((term) => h.toLowerCase().includes(term))
+          );
+          initialMapping[target.key] = found || '';
+        });
+
+        setColumnMapping(initialMapping);
+        setUploadStep('mapping');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleValidate = () => {
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+    const warnings: Array<{ row: number; field: string; message: string }> = [];
+    const itemsToInsert: any[] = [];
+
+    if (csvRows.length === 0) {
+      addToast({ type: 'error', title: 'No Data', message: 'No rows found to validate.' });
+      return;
+    }
+
+    csvRows.forEach((row, idx) => {
+      const rowNum = idx + 2; // index 0 is row 2 in csv file
+      
+      const getValue = (fieldKey: string) => {
+        const csvColName = columnMapping[fieldKey];
+        if (!csvColName) return undefined;
+        const colIdx = csvHeaders.indexOf(csvColName);
+        return colIdx !== -1 ? row[colIdx] : undefined;
+      };
+
+      const make = getValue('make')?.trim();
+      const model = getValue('model')?.trim();
+      const variant = getValue('variant')?.trim();
+      const yearStr = getValue('year')?.trim();
+      const priceStr = getValue('price')?.trim();
+      const conditionStr = getValue('condition')?.trim()?.toLowerCase();
+      const color = getValue('color')?.trim();
+      const fuelType = getValue('fuel_type')?.trim();
+      const transmission = getValue('transmission')?.trim();
+      const mileageStr = getValue('mileage_km')?.trim();
+      const stockStr = getValue('stock_count')?.trim();
+
+      // Validations
+      if (!make) {
+        errors.push({ row: rowNum, field: 'Make', message: 'Make/Brand is required.' });
+      }
+      if (!model) {
+        errors.push({ row: rowNum, field: 'Model', message: 'Model is required.' });
+      }
+
+      let year = 0;
+      if (!yearStr) {
+        errors.push({ row: rowNum, field: 'Year', message: 'Year is required.' });
+      } else {
+        year = Number(yearStr);
+        if (isNaN(year) || year < 1980 || year > new Date().getFullYear() + 1) {
+          errors.push({ row: rowNum, field: 'Year', message: `Year must be a number between 1980 and ${new Date().getFullYear() + 1}.` });
+        }
+      }
+
+      let price = 0;
+      if (!priceStr) {
+        errors.push({ row: rowNum, field: 'Price', message: 'Price is required.' });
+      } else {
+        price = Number(priceStr);
+        if (isNaN(price) || price < 0) {
+          errors.push({ row: rowNum, field: 'Price', message: 'Price must be a valid positive number.' });
+        }
+      }
+
+      // Warnings / Defaults
+      let condition: 'new' | 'used' = 'used';
+      if (conditionStr) {
+        if (conditionStr.includes('new') || conditionStr === 'n') {
+          condition = 'new';
+        } else if (conditionStr.includes('used') || conditionStr.includes('pre') || conditionStr === 'u') {
+          condition = 'used';
+        } else {
+          warnings.push({ row: rowNum, field: 'Condition', message: `Invalid value "${conditionStr}". Defaulted to "used".` });
+        }
+      } else {
+        warnings.push({ row: rowNum, field: 'Condition', message: 'Missing. Defaulted to "used".' });
+      }
+
+      let stockCount = 1;
+      if (stockStr) {
+        const parsedStock = Number(stockStr);
+        if (!isNaN(parsedStock) && parsedStock >= 0) {
+          stockCount = Math.floor(parsedStock);
+        } else {
+          warnings.push({ row: rowNum, field: 'Stock Count', message: 'Invalid value. Defaulted to 1.' });
+        }
+      }
+
+      let mileageKm: number | undefined = undefined;
+      if (mileageStr) {
+        const parsedMileage = Number(mileageStr);
+        if (!isNaN(parsedMileage) && parsedMileage >= 0) {
+          mileageKm = Math.floor(parsedMileage);
+        } else {
+          warnings.push({ row: rowNum, field: 'Mileage', message: 'Invalid value. Left empty.' });
+        }
+      }
+
+      if (!color) {
+        warnings.push({ row: rowNum, field: 'Color', message: 'Color is missing.' });
+      }
+      if (!fuelType) {
+        warnings.push({ row: rowNum, field: 'Fuel Type', message: 'Fuel Type is missing.' });
+      }
+
+      itemsToInsert.push({
+        make: make || '',
+        model: model || '',
+        variant: variant || null,
+        year,
+        price,
+        condition,
+        color: color || null,
+        fuel_type: fuelType || null,
+        transmission: transmission || null,
+        mileage_km: mileageKm || null,
+        stock_count: stockCount,
+        status: 'in_stock',
+        source: 'csv',
+      });
+    });
+
+    setValidationErrors(errors);
+    setValidationWarnings(warnings);
+    setParsedItems(itemsToInsert);
+    setUploadStep('confirm');
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    try {
+      const res = await inventoryService.batch(parsedItems);
+      if (res.success) {
+        addToast({ type: 'success', title: 'Import Complete', message: `Successfully imported ${res.count} vehicles!` });
+        // Reload vehicles
+        const listRes = await inventoryService.list({ pageSize: 100 });
+        const mapped = listRes.items.map((item) => ({
+          id: item.id,
+          make: item.make,
+          model: item.model,
+          variant: item.variant ?? '',
+          year: item.year,
+          price: item.price,
+          condition: item.condition,
+          color: item.color ?? '',
+          fuel_type: item.fuelType ?? '',
+          stock_count: item.stockCount,
+          status: item.status,
+          image_url: makeGradient(item.make),
+        }));
+        setVehicles(mapped);
+        setShowUploadModal(false);
+      }
+    } catch (err: any) {
+      console.error(err);
+      addToast({ type: 'error', title: 'Import Failed', message: err.response?.data?.error?.message || 'Failed to import inventory batch' });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     inventoryService.list({ pageSize: 100 }).then((res) => {
@@ -498,7 +770,7 @@ export default function InventoryPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-5">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900">Import Inventory</h3>
-              <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
             </div>
 
             {/* Step indicator */}
@@ -519,72 +791,143 @@ export default function InventoryPage() {
               <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setIsDragging(false); setUploadStep('mapping'); }}
+                onDrop={(e) => { e.preventDefault(); setIsDragging(false); const file = e.dataTransfer.files?.[0]; if (file) processFile(file); }}
                 className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${isDragging ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Upload className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="font-medium text-gray-700">Drop CSV or Excel file here</p>
+                <p className="font-medium text-gray-700">Drop CSV file here</p>
                 <p className="text-sm text-gray-400 mt-1">or click to browse</p>
-                <p className="text-xs text-gray-300 mt-3">Supports .csv, .xlsx, .xls · Max 500 rows</p>
-                <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={() => setUploadStep('mapping')} />
+                <p className="text-xs text-gray-300 mt-3">Supports .csv · Max 500 rows</p>
+                <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
               </div>
             )}
 
             {uploadStep === 'mapping' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <p className="text-sm text-gray-600">Map your file columns to Cardeko fields:</p>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                   {[
-                    { field: 'Make', yourCol: 'Brand', required: true },
-                    { field: 'Model', yourCol: 'Model Name', required: true },
-                    { field: 'Variant', yourCol: 'Variant/Trim', required: false },
-                    { field: 'Year', yourCol: 'Year of Manufacture', required: true },
-                    { field: 'Price', yourCol: 'Selling Price', required: true },
-                    { field: 'Condition', yourCol: 'New/Used', required: true },
-                    { field: 'Image URL', yourCol: 'Image Link', required: false },
+                    { key: 'make', label: 'Make / Brand', required: true },
+                    { key: 'model', label: 'Model', required: true },
+                    { key: 'variant', label: 'Variant', required: false },
+                    { key: 'year', label: 'Year', required: true },
+                    { key: 'price', label: 'Price', required: true },
+                    { key: 'condition', label: 'Condition', required: false },
+                    { key: 'color', label: 'Color', required: false },
+                    { key: 'fuel_type', label: 'Fuel Type', required: false },
+                    { key: 'transmission', label: 'Transmission', required: false },
+                    { key: 'mileage_km', label: 'Mileage (KM)', required: false },
+                    { key: 'stock_count', label: 'Stock Count', required: false },
                   ].map((m) => (
-                    <div key={m.field} className="flex items-center gap-3">
-                      <div className="w-28 text-xs font-medium text-gray-700">
-                        {m.field} {m.required && <span className="text-red-500">*</span>}
+                    <div key={m.key} className="flex items-center gap-3">
+                      <div className="w-32 text-xs font-semibold text-gray-700">
+                        {m.label} {m.required && <span className="text-red-500">*</span>}
                       </div>
-                      <select className="flex-1 text-xs border rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value={m.yourCol}>{m.yourCol}</option>
-                        <option value="">-- Skip --</option>
+                      <select
+                        value={columnMapping[m.key] || ''}
+                        onChange={(e) => setColumnMapping(prev => ({ ...prev, [m.key]: e.target.value }))}
+                        className="flex-1 text-xs border rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Skip / Default --</option>
+                        {csvHeaders.map(h => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
                       </select>
                     </div>
                   ))}
                 </div>
+
+                {/* Data Preview */}
+                <div className="border rounded-xl p-3 bg-gray-50 space-y-2">
+                  <span className="text-xs font-bold text-gray-700 block">Sample Data Preview (First 3 Rows)</span>
+                  <div className="overflow-x-auto text-[11px]">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b text-gray-400 font-semibold">
+                          <th className="pb-1 pr-2">Make</th>
+                          <th className="pb-1 pr-2">Model</th>
+                          <th className="pb-1 pr-2">Year</th>
+                          <th className="pb-1 pr-2">Price</th>
+                          <th className="pb-1 pr-2">Cond.</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {csvRows.slice(0, 3).map((row, idx) => {
+                          const getValue = (fieldKey: string) => {
+                            const colName = columnMapping[fieldKey];
+                            if (!colName) return '-';
+                            const colIdx = csvHeaders.indexOf(colName);
+                            return colIdx !== -1 ? row[colIdx] || '-' : '-';
+                          };
+                          return (
+                            <tr key={idx} className="text-gray-600">
+                              <td className="py-1 pr-2 truncate max-w-[80px]">{getValue('make')}</td>
+                              <td className="py-1 pr-2 truncate max-w-[80px]">{getValue('model')}</td>
+                              <td className="py-1 pr-2">{getValue('year')}</td>
+                              <td className="py-1 pr-2">{getValue('price')}</td>
+                              <td className="py-1 pr-2">{getValue('condition')}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div className="flex gap-3">
                   <Button variant="secondary" className="flex-1 text-sm" onClick={() => setUploadStep('drop')}>Back</Button>
-                  <Button className="flex-1 text-sm" onClick={() => setUploadStep('confirm')}>Validate</Button>
+                  <Button className="flex-1 text-sm bg-blue-600 hover:bg-blue-700" onClick={handleValidate}>Validate</Button>
                 </div>
               </div>
             )}
 
             {uploadStep === 'confirm' && (
               <div className="space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="font-semibold text-green-800">Ready to import</p>
-                  <p className="text-sm text-green-700 mt-1">47 vehicles · 0 errors · 3 warnings</p>
+                <div className={`border rounded-xl p-4 ${validationErrors.length > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                  <p className={`font-bold ${validationErrors.length > 0 ? 'text-red-800' : 'text-green-800'}`}>
+                    {validationErrors.length > 0 ? 'Validation Failed' : 'Ready to Import'}
+                  </p>
+                  <p className={`text-sm mt-1 ${validationErrors.length > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                    {parsedItems.length} rows processed · {validationErrors.length} errors · {validationWarnings.length} warnings
+                  </p>
                 </div>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700">
-                  3 rows have missing Image URLs — a placeholder will be used.
-                </div>
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p>Import mode:</p>
-                  <div className="flex gap-2">
-                    {['Append', 'Update existing', 'Replace all'].map((m) => (
-                      <label key={m} className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="radio" name="mode" defaultChecked={m === 'Update existing'} />
-                        {m}
-                      </label>
-                    ))}
+
+                {validationErrors.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold text-red-600 block">Critical Errors (Must be fixed):</span>
+                    <div className="max-h-40 overflow-y-auto border border-red-100 rounded-lg p-2.5 bg-red-50/50 space-y-1 text-xs">
+                      {validationErrors.map((err, i) => (
+                        <div key={i} className="text-red-700">
+                          <strong>Row {err.row} ({err.field}):</strong> {err.message}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {validationWarnings.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold text-yellow-600 block">Warnings (Import will continue with defaults):</span>
+                    <div className="max-h-40 overflow-y-auto border border-yellow-100 rounded-lg p-2.5 bg-yellow-50/50 space-y-1 text-xs">
+                      {validationWarnings.map((warn, i) => (
+                        <div key={i} className="text-yellow-700">
+                          <strong>Row {warn.row} ({warn.field}):</strong> {warn.message}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-3">
                   <Button variant="secondary" className="flex-1 text-sm" onClick={() => setUploadStep('mapping')}>Back</Button>
-                  <Button className="flex-1 text-sm" onClick={() => setShowUploadModal(false)}>Confirm Import</Button>
+                  <Button
+                    className="flex-1 text-sm bg-blue-600 hover:bg-blue-700"
+                    disabled={validationErrors.length > 0 || importing}
+                    onClick={handleImport}
+                  >
+                    {importing ? 'Importing...' : `Confirm Import (${parsedItems.length - validationErrors.length} vehicles)`}
+                  </Button>
                 </div>
               </div>
             )}

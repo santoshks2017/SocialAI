@@ -74,9 +74,46 @@ export async function generateCaptions(
   dealer: DealerContext,
   inventory?: InventoryContext,
   festivalContext?: string,
-  includeHindi = false,
+  languageMode: 'en' | 'hi' | 'hinglish' | 'bilingual' = 'en',
 ): Promise<GeneratedCaptions> {
   const openai = getClient()
+  const includeHindi = languageMode === 'bilingual'
+
+  let languageInstruction = 'All captions must be written in fluent Indian English, incorporating local English idioms if relevant.';
+  if (languageMode === 'hi') {
+    languageInstruction = 'All captions must be written in pure Devanagari script (Hindi - हिंदी) only. Do not use Roman script except for technical words or models if necessary. Ensure correct grammar and natural Indian automobile dealer tone.';
+  } else if (languageMode === 'hinglish') {
+    languageInstruction = 'All captions must be written in Hinglish (Hindi words written in the Roman/Latin script - e.g., "Nayi car lene ka soch rahe hain? Aaj hi humare showroom visit karein aur test drive lein!"). Use colloquial, trendy, and conversational Hinglish.';
+  } else if (languageMode === 'bilingual') {
+    languageInstruction = 'All captions must be written in a bilingual format: provide a section in fluent English followed by a corresponding section in Hindi (Devanagari script), separated by a line break.';
+  }
+
+  const systemPrompt = `You are a social media marketing expert for Indian automobile dealerships.
+You write captions that drive footfall, enquiries, and leads.
+
+LANGUAGE DIRECTION:
+${languageInstruction}
+
+RULES:
+1. Never invent or approximate prices. If no price provided, omit pricing entirely.
+2. Never invent vehicle specifications. Only use provided data.
+3. Include a clear call-to-action: visit showroom, call now, WhatsApp us.
+4. Use the dealer's city name for local relevance.
+5. Keep tone professional but warm — trusted local business, not a meme page.
+6. If festival context is provided, weave it naturally — do not force it.
+7. Generate exactly 3 variants:
+   - "punchy": Short (under 60 words), bold, urgent. Best for Instagram.
+   - "detailed": Informative (100-150 words), lists key details, EMI/price if available.
+   - "emotional": Aspirational (80-120 words), connects the car to lifestyle/family/dreams.
+
+OUTPUT FORMAT (valid JSON only, no markdown fences):
+{
+  "variants": [
+    { "caption_text": "...", "hashtags": ["#tag1",...], "suggested_emoji": ["🚗"], "platform_notes": "...", "style": "punchy" },
+    { "caption_text": "...", "hashtags": ["#tag1",...], "suggested_emoji": ["✨"], "platform_notes": "...", "style": "detailed" },
+    { "caption_text": "...", "hashtags": ["#tag1",...], "suggested_emoji": ["❤️"], "platform_notes": "...", "style": "emotional" }
+  ]${includeHindi ? ',\n  "hindi_variants": ["<variant 1 in Hindi>", "<variant 2 in Hindi>", "<variant 3 in Hindi>"]' : ''}
+}`
 
   const vehicleBlock = inventory
     ? `VEHICLE CONTEXT:
@@ -103,7 +140,7 @@ Generate 3 caption variants as specified.`
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
     ],
     temperature: 0.8,

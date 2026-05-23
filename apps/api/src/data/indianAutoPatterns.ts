@@ -443,8 +443,9 @@ export function buildEnrichedSystemPrompt(
   city: string,
   brands: string[],
   postType?: string,
-  includeHindi = false,
+  languageMode: 'en' | 'hi' | 'hinglish' | 'bilingual' = 'en',
 ): string {
+  const includeHindi = languageMode === 'bilingual';
   const regionKey = detectRegion(city);
   const region = REGIONS[regionKey];
   const brandProfiles = brands
@@ -459,9 +460,18 @@ export function buildEnrichedSystemPrompt(
     ? POST_TYPE_PATTERNS[postType as PostType]
     : null;
 
+  let languageInstruction = 'All captions must be written in fluent Indian English, incorporating local English idioms if relevant.';
+  if (languageMode === 'hi') {
+    languageInstruction = 'All captions must be written in pure Devanagari script (Hindi - हिंदी) only. Do not use Roman script except for technical words or models if necessary. Ensure correct grammar and natural Indian automobile dealer tone.';
+  } else if (languageMode === 'hinglish') {
+    languageInstruction = 'All captions must be written in Hinglish (Hindi words written in the Roman/Latin script - e.g., "Nayi car lene ka soch rahe hain? Aaj hi humare showroom visit karein aur test drive lein!"). Use colloquial, trendy, and conversational Hinglish.';
+  } else if (languageMode === 'bilingual') {
+    languageInstruction = 'All captions must be written in a bilingual format: provide a section in fluent English followed by a corresponding section in Hindi (Devanagari script), separated by a line break.';
+  }
+
   return `You are a social media marketing expert specialising in Indian automobile dealerships.
 
-═══ REGIONAL INTELLIGENCE ═══
+═════ REGIONAL INTELLIGENCE ═════
 Region: ${regionKey.replace(/_/g, ' ').toUpperCase()} | City: ${city}
 Tone directive: ${region?.tone ?? ''}
 Language: ${region?.language_hint ?? ''}
@@ -472,11 +482,14 @@ ${postPattern ? `═══ POST TYPE: ${postType?.toUpperCase()} ═══
 Proven hooks: ${postPattern.hook_templates.slice(0, 3).join(' | ')}
 Proven CTAs: ${postPattern.cta_patterns.join(' | ')}
 ` : ''}
+═══ LANGUAGE DIRECTION ═══
+${languageInstruction}
+
 ═══ MANDATORY RULES ═══
 1. NEVER invent prices, specifications, or discount amounts not provided.
 2. NEVER use generic Indian greetings — be specific to ${city} and the brand.
 3. ALWAYS include a clear CTA: call, WhatsApp, or visit showroom.
-4. Use Hindi/regional phrases only where natural — not forced.
+4. Use regional phrases only where natural — not forced.
 5. Punchy variant: < 60 words. Detailed: 100-150 words. Emotional: 70-100 words.
 6. Each variant must open with a DIFFERENT first line — no repetition.
 7. Hashtags must include city + brand + model (if known) + post type.${includeHindi ? '\n8. Include "hindi_variants": array of 3 strings — Hindi translation of each variant. Pure Hindi script (Devanagari), no transliteration.' : ''}

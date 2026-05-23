@@ -57,6 +57,67 @@ function parseCsvText(text: string) {
 }
 
 export default async function inventoryRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', async (request, reply) => {
+    try {
+      await request.jwtVerify()
+    } catch (err) {
+      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } })
+    }
+
+    const planGateHook = fastify.checkPlanLimit('inventory')
+    await planGateHook(request, reply)
+  })
+
+  // POST /v1/inventory/batch — Bulk insert inventory items
+  fastify.post(
+    "/batch",
+    {
+      preHandler: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string
+      const { items } = request.body as { items: Array<Record<string, any>> }
+
+      if (!items || !Array.isArray(items)) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "items must be an array" },
+        })
+      }
+
+      try {
+        const createdItems = await prisma.$transaction(
+          items.map((item) =>
+            prisma.inventoryItem.create({
+              data: {
+                dealer_id,
+                make: String(item.make ?? ""),
+                model: String(item.model ?? ""),
+                variant: item.variant ? String(item.variant) : null,
+                year: parseInt(String(item.year ?? ""), 10) || 0,
+                price: parseInt(String(item.price ?? ""), 10) || 0,
+                condition: String(item.condition ?? "used"),
+                color: item.color ? String(item.color) : null,
+                fuel_type: item.fuel_type ? String(item.fuel_type) : null,
+                transmission: item.transmission ? String(item.transmission) : null,
+                mileage_km: item.mileage_km ? (parseInt(String(item.mileage_km), 10) || null) : null,
+                stock_count: item.stock_count ? (parseInt(String(item.stock_count), 10) || 1) : 1,
+                image_urls: Array.isArray(item.image_urls) ? item.image_urls.map(String) : [],
+                status: String(item.status ?? "in_stock"),
+                source: String(item.source ?? "csv"),
+              },
+            })
+          )
+        )
+        return { success: true, count: createdItems.length }
+      } catch (err: any) {
+        fastify.log.error(err, "Failed to batch insert inventory items")
+        return reply.code(500).send({
+          error: { code: "TRANSACTION_FAILED", message: "Failed to insert inventory batch", details: err.message },
+        })
+      }
+    }
+  )
+
   fastify.get(
     "/",
     {

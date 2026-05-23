@@ -42,8 +42,19 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       try {
         await request.jwtVerify();
         dealer_id = request.user.dealer_id ?? null;
-      } catch {
-        return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
+        
+        // Enforce plan limits for platforms
+        const planGateHook = fastify.checkPlanLimit('platforms');
+        await planGateHook(request, reply);
+        if (reply.sent) return;
+      } catch (err: any) {
+        if (reply.sent) return;
+        return reply.code(err.statusCode || 401).send({
+          error: {
+            code: err.code || 'UNAUTHORIZED',
+            message: err.message || 'Authentication required to link platforms',
+          },
+        });
       }
     }
 
