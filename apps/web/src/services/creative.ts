@@ -193,6 +193,9 @@ export const inventoryService = {
   
   bulkMarkSold: (ids: string[]) =>
     api.post<{ success: boolean }>('/inventory/bulk-sold', { ids }),
+
+  batch: (items: any[]) =>
+    api.post<{ success: boolean; count: number }>('/inventory/batch', { items }),
   
   upload: async (file: File, mapping: Record<string, string>, mode: string) => {
     const formData = new FormData();

@@ -9,7 +9,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')],
     },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id!
@@ -212,7 +212,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/publish",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')],
     },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id!

@@ -22,6 +22,17 @@ function mapCampaign(c: BoostCampaign) {
 }
 
 export default async function boostRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+    } catch (err) {
+      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+    }
+
+    const planGateHook = fastify.checkPlanLimit('boost');
+    await planGateHook(request, reply);
+  });
+
   // GET /v1/boost — list all campaigns for dealer
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;

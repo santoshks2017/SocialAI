@@ -27,11 +27,12 @@ export async function generateCaptions(
   inventory?: InventoryContext,
   inspirationPosts?: string[],
   postType?: string,
-  includeHindi = false,
+  languageMode: 'en' | 'hi' | 'hinglish' | 'bilingual' = 'en',
 ): Promise<GeneratedCaptions> {
   const groq = getClient();
+  const includeHindi = languageMode === 'bilingual';
 
-  const systemPrompt = buildEnrichedSystemPrompt(dealer.city, dealer.brands ?? [], postType, includeHindi);
+  const systemPrompt = buildEnrichedSystemPrompt(dealer.city, dealer.brands ?? [], postType, languageMode);
 
   const vehicleBlock = inventory
     ? `VEHICLE: ${inventory.make ?? ''} ${inventory.model ?? ''} ${inventory.variant ?? ''} | Price: ${inventory.price ? `₹${(inventory.price / 100000).toFixed(2)} Lakhs` : 'not provided — omit pricing'} | Stock: ${inventory.stock_count ?? 'available'}`

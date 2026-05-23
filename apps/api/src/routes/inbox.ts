@@ -175,6 +175,19 @@ async function sendReplyToPlatform(
 }
 
 export default async function inboxRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (request.url.includes('/webhook')) return
+
+    try {
+      await request.jwtVerify()
+    } catch (err) {
+      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } })
+    }
+
+    const planGateHook = fastify.checkPlanLimit('inbox')
+    await planGateHook(request, reply)
+  })
+
   // GET /v1/inbox — list messages
   fastify.get("/", { preHandler: [fastify.authenticate] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null })
@@ -360,11 +373,27 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
 
   // POST /v1/inbox/webhook/meta — receive Meta webhook events
   fastify.post("/webhook/meta", async (request, reply) => {
-    const payload = request.body as any
+    const signature = request.headers['x-hub-signature-256'] as string;
+    const secret = process.env['META_APP_SECRET'] || process.env['META_WEBHOOK_VERIFY_TOKEN'];
+    let isValid = false;
+    if (process.env['NODE_ENV'] !== 'production' && (!signature || !secret)) {
+      fastify.log.info('Bypassing Meta webhook signature verification in local development.');
+      isValid = true;
+    } else if (signature && secret) {
+      const rawBody = (request as any).rawBody;
+      const { validateMetaSignature } = await import('../lib/webhookSecurity.js');
+      isValid = validateMetaSignature(rawBody, signature, secret);
+    }
+
+    if (!isValid) {
+      return reply.code(400).send({ error: 'Invalid webhook signature' });
+    }
+
+    const payload = request.body as any;
     fastify.log.info(
       { payloadType: payload?.object },
       "Received Meta webhook event",
-    )
+    );
 
     const entries = Array.isArray(payload?.entry) ? payload.entry : []
     let imported = 0

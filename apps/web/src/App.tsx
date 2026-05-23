@@ -4,6 +4,7 @@ import {
   Calendar, BarChart2, Package, Zap, Settings, Link2,
   ChevronRight, Send, RefreshCw, Check, Sparkles,
   LayoutDashboard, Video, LogOut, Menu, X, LayoutList,
+  Shield, ArrowLeftRight
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import api from './services/api';
@@ -17,16 +18,19 @@ import InboxPage from './pages/InboxPage';
 import InventoryPage from './pages/Inventory';
 import BoostPage from './pages/Boost';
 import AnalyticsPage from './pages/Analytics';
-import SettingsPage from './pages/SettingsPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
-import ConnectProfilesPage from './pages/ConnectProfilesPage';
+import SettingsPage from './pages/SettingsPage';
 import AccountsPage from './pages/AccountsPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import PostsPage from './pages/PostsPage';
+import Onboarding from './pages/Onboarding';
+import BillingPage from './pages/BillingPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import type { UserInfo } from './lib/permissions';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
+<<<<<<< HEAD
   { to: '/',                 icon: LayoutDashboard, label: 'Dashboard',  exact: true },
   { to: '/posts',            icon: LayoutList,      label: 'Posts'                  },
   { to: '/calendar',         icon: Calendar,        label: 'Calendar'               },
@@ -36,6 +40,20 @@ const NAV_ITEMS = [
   { to: '/inbox',            icon: MessageSquare,   label: 'Inbox'                  },
   { to: '/boost',            icon: Zap,             label: 'Boost'                  },
   { to: '/accounts',         icon: Link2,           label: 'Accounts'               },
+=======
+  { to: '/',          icon: LayoutDashboard, label: 'Dashboard',  exact: true },
+  { to: '/posts',     icon: LayoutList,      label: 'Posts'                  },
+  { to: '/calendar',  icon: Calendar,        label: 'Calendar'               },
+  { to: '/inventory', icon: Package,         label: 'Inventory'              },
+  { to: '/analytics', icon: BarChart2,       label: 'Analytics'              },
+  { to: '/inbox',     icon: MessageSquare,   label: 'Inbox'                  },
+  { to: '/boost',     icon: Zap,             label: 'Boost'                  },
+  { to: '/accounts',  icon: Link2,           label: 'Accounts'               },
+];
+
+const COMING_SOON_ITEMS = [
+  { icon: Video,   label: 'AI Video'  },
+>>>>>>> razorpay-billing-integration-setup
 ];
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -123,6 +141,34 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
 
       {/* Bottom section */}
       <div className="px-3 py-3 space-y-0.5">
+        {user?.role === 'owner' && (
+          <NavLink
+            to="/admin"
+            onClick={onClose}
+            className={({ isActive }) =>
+              `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
+                isActive ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white hover:bg-white/5'
+              }`
+            }
+          >
+            <Shield className="w-[18px] h-[18px] flex-shrink-0 text-red-400 group-hover:text-red-300" />
+            Admin Panel
+          </NavLink>
+        )}
+
+        <NavLink
+          to="/billing"
+          onClick={onClose}
+          className={({ isActive }) =>
+            `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
+              isActive ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white hover:bg-white/5'
+            }`
+          }
+        >
+          <Zap className="w-[18px] h-[18px] flex-shrink-0 text-orange-400 group-hover:text-orange-300" />
+          Billing & Plans
+        </NavLink>
+
         <NavLink
           to="/settings"
           onClick={onClose}
@@ -247,12 +293,13 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
 
 function SuggestedPostCard({ data }: { data: DashboardData | null }) {
   const festival = data?.upcomingFestivals?.[0];
-  const title = festival ? `${festival.name_en} Special Offer` : 'Weekend Test Drive Special';
-  const caption = festival
-    ? `Celebrate ${festival.name_en} with exclusive offers! Visit our showroom for special discounts. Limited period only.`
+  const festivalName = festival ? (festival.name_en || (festival as any).name || '') : '';
+  const title = festival && festivalName ? `${festivalName} Special Offer` : 'Weekend Test Drive Special';
+  const caption = festival && festivalName
+    ? `Celebrate ${festivalName} with exclusive offers! Visit our showroom for special discounts. Limited period only.`
     : 'Saturday ho ya Sunday, aapki dream car ka test drive sirf ek call door hai! 🚗✨';
-  const hashtags = festival
-    ? [`#${festival.name_en.replace(/\s+/g, '')}`, '#FestivalOffer', '#CarDeal']
+  const hashtags = festival && festivalName
+    ? [`#${festivalName.replace(/\s+/g, '')}`, '#FestivalOffer', '#CarDeal']
     : ['#WeekendOffer', '#TestDrive', '#CarDeal'];
   const badgeLabel = festival?.category ?? 'Weekend Offer';
   const dateStr = (festival ? new Date(festival.date) : new Date())
@@ -409,7 +456,7 @@ function getUpcomingDefaults() {
 function ComingUpPanel({ festivals }: { festivals?: DashboardData['upcomingFestivals'] }) {
   const items = festivals?.length
     ? festivals.slice(0, 3).map((f) => ({
-        label: f.name_en,
+        label: f.name_en || (f as any).name || 'Festival',
         dateStr: new Date(f.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
         sub: f.category ?? 'Festival',
       }))
@@ -571,7 +618,30 @@ function Dashboard() {
 // ─── Main Layout ──────────────────────────────────────────────────────────────
 function AppLayout({ children, fullBleed }: { children: React.ReactNode; fullBleed?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, loginWithToken } = useAuth();
+  
+  const adminToken = localStorage.getItem('admin_access_token');
+  const isImpersonating = !!adminToken;
+
+  const handleStopImpersonation = () => {
+    const token = localStorage.getItem('admin_access_token');
+    const refresh = localStorage.getItem('admin_refresh_token');
+    const userStr = localStorage.getItem('admin_user_info');
+    
+    if (token && userStr) {
+      localStorage.removeItem('admin_access_token');
+      localStorage.removeItem('admin_refresh_token');
+      localStorage.removeItem('admin_user_info');
+      
+      const adminUser = JSON.parse(userStr);
+      loginWithToken(token, refresh || '', adminUser);
+      
+      window.location.href = '/admin';
+    }
+  };
+
   return (
+<<<<<<< HEAD
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div className="flex-1 flex flex-col lg:pl-[220px] min-w-0">
@@ -579,6 +649,33 @@ function AppLayout({ children, fullBleed }: { children: React.ReactNode; fullBle
         <main className={`flex-1 min-h-0 ${fullBleed ? 'overflow-hidden flex flex-col' : 'overflow-y-auto p-5 md:p-7'}`}>
           {children}
         </main>
+=======
+    <div className="flex flex-col h-screen overflow-hidden bg-[#f1f5f9]">
+      {/* Impersonation Banner */}
+      {isImpersonating && (
+        <div className="bg-gradient-to-r from-orange-600 to-amber-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shrink-0 shadow-md relative z-50">
+          <div className="flex items-center gap-2">
+            <ArrowLeftRight className="w-3.5 h-3.5 animate-pulse" />
+            <span>Impersonation Active: You are acting as admin for <span className="underline">{user?.name}</span></span>
+          </div>
+          <button 
+            onClick={handleStopImpersonation}
+            className="bg-white text-orange-700 hover:bg-orange-50 font-black px-3 py-1 rounded-md transition-colors shadow-sm text-[10px] uppercase tracking-wider"
+          >
+            Stop Impersonating
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+        <div className="flex-1 flex flex-col lg:pl-[220px] min-w-0">
+          <MobileTopBar onMenuOpen={() => setMobileOpen(true)} />
+          <main className={`flex-1 min-h-0 ${fullBleed ? 'overflow-hidden flex flex-col' : 'overflow-y-auto p-5 md:p-7'}`}>
+            {children}
+          </main>
+        </div>
+>>>>>>> razorpay-billing-integration-setup
       </div>
     </div>
   );
@@ -615,7 +712,7 @@ function AppRoutes() {
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
 
       {/* Protected routes */}
-      <Route path="/onboarding" element={<RequireAuth><ConnectProfilesPage /></RequireAuth>} />
+      <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route path="/" element={<RequireAuth><AppLayout><Dashboard /></AppLayout></RequireAuth>} />
       <Route path="/create" element={<RequireAuth><AppLayout fullBleed><CreatePost /></AppLayout></RequireAuth>} />
       <Route path="/posts"    element={<RequireAuth><AppLayout><PostsPage /></AppLayout></RequireAuth>} />
@@ -625,7 +722,13 @@ function AppRoutes() {
       <Route path="/analytics" element={<RequireAuth><AppLayout><AnalyticsPage /></AppLayout></RequireAuth>} />
       <Route path="/boost" element={<RequireAuth><AppLayout><BoostPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts" element={<RequireAuth><AppLayout><AccountsPage /></AppLayout></RequireAuth>} />
+<<<<<<< HEAD
       <Route path="/accounts/create" element={<Navigate to="/accounts" replace />} />
+=======
+      <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectAccountPage /></AppLayout></RequireAuth>} />
+      <Route path="/billing" element={<RequireAuth><AppLayout><BillingPage /></AppLayout></RequireAuth>} />
+      <Route path="/admin" element={<RequireAuth><AppLayout><AdminDashboard /></AppLayout></RequireAuth>} />
+>>>>>>> razorpay-billing-integration-setup
       <Route path="/settings" element={<RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -61,6 +61,7 @@ export interface JwtUser {
   role:           Role;
   phone:          string;
   permissions:    Record<Permission, boolean>;
+  impersonatedBy?: string;
 }
 
 // Resolve effective permissions for a user (custom overrides on top of role defaults)

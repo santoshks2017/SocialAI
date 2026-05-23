@@ -82,14 +82,14 @@ async function generateCaptionsAI(
   prompt: string,
   dealerContext: Parameters<typeof openaiGenerateCaptions>[1],
   inventoryContext?: Parameters<typeof openaiGenerateCaptions>[2],
-  includeHindi = false,
+  languageMode: 'en' | 'hi' | 'hinglish' | 'bilingual' = 'en',
   inspirationPosts?: string[],
   postType?: string,
 ): Promise<GeneratedCaptions> {
   // 1. Try Groq (primary)
   if (isGroqAvailable()) {
     try {
-      return await groqGenerateCaptions(prompt, dealerContext, inventoryContext, inspirationPosts, postType, includeHindi)
+      return await groqGenerateCaptions(prompt, dealerContext, inventoryContext, inspirationPosts, postType, languageMode)
     } catch (err) {
       console.error("Groq generation failed, falling back to OpenRouter:", err)
     }
@@ -104,7 +104,7 @@ async function generateCaptionsAI(
         inventoryContext,
         inspirationPosts,
         postType,
-        includeHindi,
+        languageMode,
       )
     } catch (err) {
       console.error("OpenRouter generation failed, falling back to mock:", err)
@@ -183,7 +183,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/generate",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')],
     },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id as string
@@ -194,10 +194,17 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         force?: boolean // bypass caption cache
         includeHindi?: boolean
         language?: string
+        languageMode?: 'en' | 'hi' | 'hinglish' | 'bilingual'
         post_type?: string // offer | new_arrival | delivery | festival | testimonial | engagement | service | ev | finance
       }
       const { prompt, platforms, image_id, force } = body
-      const includeHindi = body.includeHindi || body.language === "hi"
+      
+      let languageMode: 'en' | 'hi' | 'hinglish' | 'bilingual' = body.languageMode || 'en'
+      if (!body.languageMode) {
+        if (body.includeHindi || body.language === "hi") {
+          languageMode = 'bilingual'
+        }
+      }
       const postType = body.post_type
 
       if (!prompt?.trim()) {
@@ -277,7 +284,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         : undefined
 
       // Cache captions (not images)
-      const cacheKey = `${dealer_id}:${prompt}:${vehicleMatch?.id ?? "none"}`
+      const cacheKey = `${dealer_id}:${prompt}:${vehicleMatch?.id ?? "none"}:${languageMode}`
       const cached = captionCache.get(cacheKey)
       const cachedCaptions =
         !force && cached && cached.expires > Date.now()
@@ -293,7 +300,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
             prompt,
             dealerContext,
             inventoryContext,
-            includeHindi,
+            languageMode,
             inspirationPosts.length > 0 ? inspirationPosts : undefined,
             postType,
           )
@@ -444,7 +451,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
   // POST /v1/creatives/generate-branded  (AI image + Sharp template composite → branded creative URL)
   fastify.post(
     "/generate-branded",
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')] },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id as string
       const body = request.body as {
@@ -552,7 +559,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
   // POST /v1/creatives/generate-layered  (3-layer: subject + AI background + SVG branding)
   fastify.post(
     "/generate-layered",
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')] },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id as string
       const body = request.body as {
@@ -938,7 +945,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     '/generate-scenes',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')] },
     async (request, reply) => {
       const body = request.body as { brief: string; model?: string; poses?: string[] }
 
@@ -1035,7 +1042,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/generate-image",
     {
-      preHandler: [fastify.authenticate],
+      preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')],
     },
     async (request, reply) => {
       const { prompt } = request.body as { prompt: string }
@@ -1196,7 +1203,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
   // Uses Ken Burns effect (slow zoom + pan) on a car creative with caption overlay.
   fastify.post(
     '/generate-video',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')] },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id as string;
       const { prompt, image_id, duration_seconds = 15, aspect_ratio = '9:16' } = request.body as {
