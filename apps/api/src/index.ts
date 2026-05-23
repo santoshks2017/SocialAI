@@ -30,6 +30,8 @@ import generatePostRoutes from './routes/generatePost.js';
 import generateFromUrlRoutes from './routes/generateFromUrl.js';
 import platformAccountRoutes from './routes/platformAccounts.js';
 import cronRoutes from './routes/cron.js';
+import analyticsRoutes from './routes/analytics.js';
+import modelLibraryRoutes from './routes/modelLibrary.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 
 // Vercel sets this automatically in its environment
@@ -38,8 +40,8 @@ const IS_VERCEL = process.env['VERCEL'] === '1';
 const fastify = Fastify({ logger: true });
 
 const ALLOWED_ORIGINS = new Set([
-  process.env['FRONTEND_URL'] ?? 'https://social-genie-web.vercel.app',
-  'https://social-genie-web.vercel.app',
+  process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app',
+  'https://cardekho-social-ai-web.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ]);
@@ -100,6 +102,8 @@ fastify.register(generatePostRoutes,{ prefix: '/v1' });
 fastify.register(generateFromUrlRoutes, { prefix: '/v1' });
 fastify.register(platformAccountRoutes, { prefix: '/v1/platform-accounts' });
 fastify.register(cronRoutes,            { prefix: '/v1/cron' });
+fastify.register(analyticsRoutes,       { prefix: '/v1/analytics' });
+fastify.register(modelLibraryRoutes,    { prefix: '/v1/model-library' });
 
 fastify.get('/v1/health', async () => ({
   status: 'ok',

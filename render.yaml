@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: socialgenie-api
+    name: cardekho-social-ai-api
     runtime: node
     region: singapore   # closest to India; change to "oregon" for US-West free tier
     plan: free
@@ -54,6 +54,6 @@ services:
       - key: CLOUDFRONT_DOMAIN
         sync: false
       - key: FRONTEND_URL
-        sync: false           # your Vercel URL e.g. https://socialgenie.vercel.app
+        sync: false           # your Vercel URL e.g. https://cardekho-social-ai.vercel.app
       - key: API_BASE_URL
-        sync: false           # this service's Render URL e.g. https://socialgenie-api.onrender.com
+        sync: false           # this service's Render URL e.g. https://cardekho-social-ai-api.onrender.com

@@ -419,7 +419,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/facebook', async (request, reply) => {
     const META_APP_ID = process.env['META_APP_ID'];
     const META_REDIRECT_URI = process.env['META_REDIRECT_URI'];
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-genie-web.vercel.app';
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
 
     if (!META_APP_ID || !META_REDIRECT_URI) {
       fastify.log.error('[FB OAuth] Missing META_APP_ID or META_REDIRECT_URI');
@@ -446,7 +446,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/facebook/callback', async (request, reply) => {
     const { code, error: fbError, state } = request.query as { code?: string; error?: string; state?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-genie-web.vercel.app';
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
 
     if (fbError || !code) {
       fastify.log.warn(`[FB OAuth] Callback error: ${fbError ?? 'no_code'}`);
@@ -506,48 +506,49 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       fastify.log.info(`[FB OAuth] Found ${pages.length} pages for dealer=${dealerId ?? 'unknown'}`);
 
-      let fbCount = 0;
-      let igCount = 0;
-      const userId = dealerId ?? 'anonymous';
+      const pagesToSelect = [];
+      const instagramsToSelect = [];
 
       for (const page of pages) {
-        // Page tokens derived from long-lived user tokens do not expire
-        await saveAccount({
-          userId,
-          platform: 'facebook',
-          accountId: page.id,
-          accountName: page.name,
-          accessToken: page.access_token,
-          tokenExpiry: userTokenExpiry,
+        pagesToSelect.push({
+          id: page.id,
+          name: page.name,
+          access_token: page.access_token,
         });
-        fbCount++;
-        fastify.log.info(`[FB OAuth] Saved FB page: ${page.name} (${page.id}) → dealer=${userId}`);
 
         // Check for linked Instagram Business account
         const igUrl = `https://graph.facebook.com/${FB_API_VERSION}/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`;
-        const igRes = await fetch(igUrl);
-        const igData = await igRes.json() as { instagram_business_account?: { id: string } };
+        try {
+          const igRes = await fetch(igUrl);
+          const igData = await igRes.json() as { instagram_business_account?: { id: string } };
 
-        if (igData.instagram_business_account?.id) {
-          const igId = igData.instagram_business_account.id;
-          const igDetailsRes = await fetch(`https://graph.facebook.com/${FB_API_VERSION}/${igId}?fields=id,username&access_token=${page.access_token}`);
-          const igDetails = await igDetailsRes.json() as { id: string; username?: string };
+          if (igData.instagram_business_account?.id) {
+            const igId = igData.instagram_business_account.id;
+            const igDetailsRes = await fetch(`https://graph.facebook.com/${FB_API_VERSION}/${igId}?fields=id,username&access_token=${page.access_token}`);
+            const igDetails = await igDetailsRes.json() as { id: string; username?: string };
 
-          await saveAccount({
-            userId,
-            platform: 'instagram',
-            accountId: igDetails.id,
-            accountName: igDetails.username ?? `ig_${igDetails.id}`,
-            accessToken: page.access_token,
-            tokenExpiry: userTokenExpiry,
-          });
-          igCount++;
-          fastify.log.info(`[FB OAuth] Saved IG account: ${igDetails.username ?? igDetails.id} → dealer=${userId}`);
+            instagramsToSelect.push({
+              id: igDetails.id,
+              username: igDetails.username ?? `ig_${igDetails.id}`,
+              page_id: page.id,
+              page_access_token: page.access_token,
+            });
+            fastify.log.info(`[FB OAuth] Found linked IG account: ${igDetails.username ?? igDetails.id} for FB page ${page.name}`);
+          }
+        } catch (igErr) {
+          fastify.log.warn(`[FB OAuth] Failed to check Instagram for page ${page.id}: ${String(igErr)}`);
         }
       }
 
-      fastify.log.info(`[FB OAuth] Complete: ${fbCount} FB pages, ${igCount} IG accounts saved for dealer=${userId}`);
-      return reply.redirect(`${FRONTEND_URL}/oauth/callback?success=1&fb=${fbCount}&ig=${igCount}&platform=facebook`);
+      const payload = {
+        pages: pagesToSelect,
+        instagrams: instagramsToSelect,
+        tokenExpiry: userTokenExpiry.toISOString(),
+      };
+
+      fastify.log.info(`[FB OAuth] Found ${pagesToSelect.length} FB pages, ${instagramsToSelect.length} IG accounts for selection`);
+      return reply.redirect(`${FRONTEND_URL}/oauth/callback?success=1&platform=facebook&data=${encodeURIComponent(JSON.stringify(payload))}`);
+
     } catch (err) {
       fastify.log.error(err, '[FB OAuth] Callback failed with unexpected error');
       return reply.redirect(`${FRONTEND_URL}/oauth/callback?error=token_exchange_failed&platform=facebook`);
@@ -565,7 +566,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/google', async (request, reply) => {
     const GOOGLE_CLIENT_ID = process.env['GOOGLE_CLIENT_ID'];
     const GOOGLE_REDIRECT_URI = process.env['GOOGLE_REDIRECT_URI'];
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-genie-web.vercel.app';
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
 
     if (!GOOGLE_CLIENT_ID || !GOOGLE_REDIRECT_URI) {
       fastify.log.error('[Google OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_REDIRECT_URI');
@@ -594,7 +595,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/google/callback', async (request, reply) => {
     const { code, error: gError, state } = request.query as { code?: string; error?: string; state?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-genie-web.vercel.app';
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
 
     if (gError || !code) {
       fastify.log.warn(`[Google OAuth] Callback error: ${gError ?? 'no_code'}`);

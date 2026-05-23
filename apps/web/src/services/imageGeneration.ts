@@ -1,6 +1,7 @@
 /// <reference path="../types/puter.d.ts" />
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)
+  ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '');
 
 /**
  * Builds a short headline from caption text (mirrors extractHeadline on the backend).
@@ -180,7 +181,7 @@ function generateSvgPlaceholder(captionText: string, variantIndex: number): stri
     <text x="540" y="560" font-family="Arial,sans-serif" font-size="44" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle"
       style="white-space:pre">${headline.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</text>
     <!-- Sub-label -->
-    <text x="540" y="630" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.45)" text-anchor="middle">Your Dealership · SocialGenie</text>
+    <text x="540" y="630" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.45)" text-anchor="middle">Your Dealership · CarDekho Social AI</text>
     <!-- Bottom accent line -->
     <rect x="390" y="680" width="300" height="4" rx="2" fill="${accent}" opacity="0.8"/>
   </svg>`;
@@ -312,3 +313,64 @@ export async function generateSceneBackgrounds(
     })
   );
 }
+
+export interface GeminiCreativeOption {
+  creativeUrl: string;
+  headline: string;
+  copy: string;
+  hashtags: string[];
+  backgroundPrompt: string;
+}
+
+export interface GeminiCreativeResponse {
+  success: boolean;
+  promptBrief?: {
+    car_details: string;
+    angle: string;
+    background: string;
+    theme: string;
+    lighting: string;
+    text_placement: string;
+    expanded_prompt?: string;
+  };
+  options: GeminiCreativeOption[];
+}
+
+export async function generateGeminiCreative(
+  prompt: string,
+  brand?: string,
+  subjectImageIds?: string[],
+  subjectImageUrls?: string[],
+): Promise<GeminiCreativeResponse> {
+  const token = localStorage.getItem('access_token');
+  const res = await fetch(`${API_BASE_URL}/creatives/generate-gemini`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      prompt,
+      brand,
+      subject_image_ids: subjectImageIds,
+      subject_image_urls: subjectImageUrls,
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    throw new Error(err.error?.message ?? `Gemini creative generation failed (${res.status})`);
+  }
+
+  return await res.json() as GeminiCreativeResponse;
+}
+
+export function revokeSceneUrls(urls: string[]) {
+  urls.forEach((url) => {
+    if (url && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+  });
+}
+

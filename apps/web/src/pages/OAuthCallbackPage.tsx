@@ -8,15 +8,15 @@ export default function OAuthCallbackPage() {
   useEffect(() => {
     const success = searchParams.get('success');
     const error = searchParams.get('error');
-    const fb = searchParams.get('fb');
-    const ig = searchParams.get('ig');
-    const google = searchParams.get('google');
     const platform = searchParams.get('platform');
+    const pageName = searchParams.get('page_name');
 
+    // Build the message to send to the opener (AccountsPage popup flow)
     const message = success
-      ? { type: 'oauth_success', fb, ig, google, platform }
+      ? { type: 'oauth_success', platform, pageName }
       : { type: 'oauth_error', error, platform };
 
+    // Popup mode: post message to the opener window and close
     if (window.opener && !window.opener.closed) {
       try {
         window.opener.postMessage(message, window.location.origin);
@@ -27,13 +27,17 @@ export default function OAuthCallbackPage() {
       return;
     }
 
-    // Popup was blocked or user navigated here directly — redirect back to /accounts
+    // Direct navigation fallback — redirect to /accounts with status params
     const params = new URLSearchParams();
-    if (success) params.set('success', 'true');
-    if (error) params.set('error', error);
-    if (fb) params.set('fb', fb);
-    if (ig) params.set('ig', ig);
-    if (google) params.set('google', google);
+    if (success) {
+      params.set('connected', 'true');
+      if (platform) params.set('platform', platform);
+      if (pageName) params.set('page_name', pageName);
+    }
+    if (error) {
+      params.set('error', error);
+      if (platform) params.set('platform', platform);
+    }
     window.location.replace(`/accounts?${params}`);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -14,9 +14,15 @@ export async function composeSceneWithCar(
   const { matchSceneLighting=true, contactShadow=true, autoContrast=true } = opts;
   const W = canvas.getWidth(), H = canvas.getHeight();
 
-  // Remove scene layers, keep text/badge layers
+  // Remove scene layers, keep text/badge layers.
+  // Off() event handlers before removal to prevent accumulation across scene switches.
   const SCENE_LAYER_IDS = ['scene','inpaint-fill','car','contact-shadow','scrim-top','scrim-bottom'];
-  canvas.getObjects().forEach((o) => { if (SCENE_LAYER_IDS.includes(getId(o))) canvas.remove(o); });
+  canvas.getObjects().forEach((o) => {
+    if (SCENE_LAYER_IDS.includes(getId(o))) {
+      o.off(); // detach all fabric event listeners
+      canvas.remove(o);
+    }
+  });
 
   // Scene background
   const sceneImg = await fabric.FabricImage.fromURL(scene.sceneUrl, { crossOrigin: 'anonymous' });

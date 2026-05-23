@@ -1,6 +1,6 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import * as fabric from 'fabric';
-import { X, Wand2, RefreshCw, Download } from 'lucide-react';
+import { X, Wand2, RefreshCw, Download, AlertCircle } from 'lucide-react';
 import { useCanvasStore } from './useCanvasStore';
 import { CanvasStage } from './CanvasStage';
 import { LeftRail } from './LeftRail';
@@ -18,20 +18,23 @@ interface Props {
 }
 
 export function CanvasStudio({ open, onClose, brief, model, initialHeading, onExport }: Props) {
+  // Lifted into state so RightRail re-renders when canvas first becomes available
+  const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
-  const rightRailCanvasRef = useRef<fabric.Canvas | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
-  const carLibrary      = useCanvasStore((s) => s.carLibrary);
-  const aspectRatio     = useCanvasStore((s) => s.aspectRatio);
-  const isLoading       = useCanvasStore((s) => s.isLoading);
-  const getDimensions   = useCanvasStore((s) => s.getDimensions);
-  const setLoading      = useCanvasStore((s) => s.setLoading);
+  const carLibrary       = useCanvasStore((s) => s.carLibrary);
+  const aspectRatio      = useCanvasStore((s) => s.aspectRatio);
+  const isLoading        = useCanvasStore((s) => s.isLoading);
+  const getDimensions    = useCanvasStore((s) => s.getDimensions);
+  const setLoading       = useCanvasStore((s) => s.setLoading);
   const setSceneVariants = useCanvasStore((s) => s.setSceneVariants);
-  const reset           = useCanvasStore((s) => s.reset);
+  const reset            = useCanvasStore((s) => s.reset);
 
   const dims = getDimensions();
 
   const handleGenerate = useCallback(async () => {
+    setGenerationError(null);
     setLoading(true, 'Generating scenes…');
     try {
       const poses: CarPose[] = carLibrary.length > 0
@@ -41,15 +44,18 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
       setSceneVariants(variants);
     } catch (e) {
       console.error('[CanvasStudio] Scene generation failed:', e);
+      setGenerationError(
+        e instanceof Error ? e.message : 'Scene generation failed. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
   }, [brief, model, carLibrary, setLoading, setSceneVariants]);
 
   const handleExport = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL({ format: 'jpeg', quality: 0.92, multiplier: 1 });
+    const c = canvasRef.current;
+    if (!c) return;
+    const dataUrl = c.toDataURL({ format: 'jpeg', quality: 0.92, multiplier: 1 });
     if (!dataUrl || dataUrl === 'data:,') {
       console.error('[CanvasStudio] Export produced empty data URL');
       return;
@@ -60,9 +66,10 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
 
   const handleClose = () => { reset(); onClose(); };
 
+  // Dual-write: keep ref for export (synchronous access) + state for RightRail (reactive)
   const handleCanvasReady = (c: fabric.Canvas) => {
     canvasRef.current = c;
-    rightRailCanvasRef.current = c;
+    setCanvas(c);
   };
 
   if (!open) return null;
@@ -92,6 +99,17 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
         </div>
       </header>
 
+      {/* Generation error banner */}
+      {generationError && (
+        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 border-b border-red-200 text-red-700 text-xs font-medium shrink-0">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">{generationError}</span>
+          <button onClick={() => setGenerationError(null)} className="text-red-400 hover:text-red-700 transition-colors p-0.5">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         <LeftRail brief={brief} />
@@ -101,7 +119,8 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
           height={dims.height}
           onCanvasReady={handleCanvasReady}
         />
-        <RightRail canvas={rightRailCanvasRef.current} initialHeading={initialHeading} />
+        {/* canvas (state) passed so RightRail re-renders when canvas is ready */}
+        <RightRail canvas={canvas} initialHeading={initialHeading} aspectRatio={aspectRatio} />
       </div>
     </div>
   );

@@ -13,52 +13,70 @@ export interface SaveAccountInput {
 }
 
 export async function saveAccount(input: SaveAccountInput) {
-  return prisma.platformAccount.upsert({
+  if (input.userId === 'anonymous') {
+    return null;
+  }
+
+  return prisma.platformConnection.upsert({
     where: {
-      userId_platform_accountId: {
-        userId: input.userId,
+      dealer_id_platform: {
+        dealer_id: input.userId,
         platform: input.platform,
-        accountId: input.accountId,
       },
     },
     update: {
-      accountName: input.accountName,
-      accessToken: input.accessToken,
-      refreshToken: input.refreshToken ?? null,
-      tokenExpiry: input.tokenExpiry ?? null,
+      platform_account_id: input.accountId,
+      platform_account_name: input.accountName,
+      access_token: input.accessToken,
+      refresh_token: input.refreshToken ?? null,
+      token_expires_at: input.tokenExpiry ?? null,
+      is_connected: true,
     },
     create: {
-      userId: input.userId,
+      dealer_id: input.userId,
       platform: input.platform,
-      accountId: input.accountId,
-      accountName: input.accountName,
-      accessToken: input.accessToken,
-      refreshToken: input.refreshToken ?? null,
-      tokenExpiry: input.tokenExpiry ?? null,
+      platform_account_id: input.accountId,
+      platform_account_name: input.accountName,
+      access_token: input.accessToken,
+      refresh_token: input.refreshToken ?? null,
+      token_expires_at: input.tokenExpiry ?? null,
+      is_connected: true,
     },
   });
 }
 
 export async function getAccountsByUser(userId: string, platform?: string) {
-  return prisma.platformAccount.findMany({
+  if (userId === 'anonymous') {
+    return [];
+  }
+
+  const connections = await prisma.platformConnection.findMany({
     where: {
-      userId,
+      dealer_id: userId,
+      is_connected: true,
       ...(platform ? { platform } : {}),
     },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      platform: true,
-      accountId: true,
-      accountName: true,
-      tokenExpiry: true,
-      createdAt: true,
-    },
+    orderBy: { created_at: 'desc' },
   });
+
+  return connections.map((conn) => ({
+    id: conn.id,
+    platform: conn.platform,
+    accountId: conn.platform_account_id,
+    accountName: conn.platform_account_name ?? 'Connected Page',
+    tokenExpiry: conn.token_expires_at,
+    createdAt: conn.created_at,
+  }));
 }
 
 export async function deleteAccount(id: string, userId: string) {
-  return prisma.platformAccount.deleteMany({
-    where: { id, userId },
+  if (userId === 'anonymous') {
+    return { count: 0 };
+  }
+
+  return prisma.platformConnection.updateMany({
+    where: { id, dealer_id: userId },
+    data: { is_connected: false },
   });
 }
+

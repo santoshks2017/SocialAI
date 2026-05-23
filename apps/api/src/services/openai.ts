@@ -178,6 +178,7 @@ export async function generateInboxReply(
   dealer: DealerContext,
   messageType: "comment" | "dm" | "review",
   inventory?: { make: string; model: string; price?: number }[],
+  tone?: string,
 ): Promise<string> {
   const openai = getClient()
 
@@ -198,7 +199,7 @@ RULES:
 5. Always include a CTA: visit showroom, call ${dealer.phone}, or WhatsApp ${dealer.whatsapp}.
 6. Keep the response under ${maxWords} words.
 7. Match the language of the customer's message (Hindi reply for Hindi message, etc.).
-8. SENTIMENT: ${sentiment}. For negative sentiment, lead with a sincere apology.
+8. SENTIMENT: ${sentiment}.${tone ? ` TONE OF RESPONSE: Use a strictly ${tone} tone.` : ""}
 
 Return only the reply text — no JSON, no labels.`,
       },
@@ -213,3 +214,39 @@ Return only the reply text — no JSON, no labels.`,
 
   return response.choices[0]?.message?.content?.trim() ?? ""
 }
+
+export async function generateTestimonialCaption(
+  reviewText: string,
+  customerName: string,
+  dealer: { name: string; city: string },
+): Promise<{ caption: string; hashtags: string[] }> {
+  const openai = getClient()
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "system",
+        content: `You are a social media copywriter for Indian automobile dealerships.
+Convert a positive customer review/comment into a highly engaging social media testimonial post.
+Write an enthusiastic caption thanking the customer, highlight their positive feedback, and add relevant hashtags (e.g., #CustomerReview, #HappyCustomer, #CarDekho, etc.).
+Keep it under 100 words.
+Return JSON: { "caption": "...", "hashtags": ["#tag1", "#tag2", ...] }`,
+      },
+      {
+        role: "user",
+        content: `Review from ${customerName} for ${dealer.name} in ${dealer.city}:\n"${reviewText}"`,
+      },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.7,
+  })
+
+  const content = response.choices[0]?.message?.content
+  if (!content) throw new Error("Empty response from OpenAI")
+  const parsed = JSON.parse(content) as { caption: string; hashtags: string[] }
+  return {
+    caption: parsed.caption || "",
+    hashtags: parsed.hashtags || [],
+  }
+}
+

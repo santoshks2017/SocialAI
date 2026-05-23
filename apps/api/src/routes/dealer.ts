@@ -33,6 +33,8 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       language_preferences?: string[];
       region?: string;
       logo_url?: string;
+      font?: string;
+      address?: string;
     };
 
     const updated = await prisma.dealer.update({
@@ -49,6 +51,8 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
         ...(body.language_preferences !== undefined ? { language_preferences: body.language_preferences } : {}),
         ...(body.region !== undefined ? { region: body.region } : {}),
         ...(body.logo_url !== undefined ? { logo_url: body.logo_url } : {}),
+        ...(body.font !== undefined ? { font: body.font } : {}),
+        ...(body.address !== undefined ? { address: body.address } : {}),
       },
     });
 

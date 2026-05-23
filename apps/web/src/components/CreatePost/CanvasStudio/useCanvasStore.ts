@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { CarPngVariant, SceneVariant, AspectRatio } from './types';
 import { ASPECT_DIMS } from './types';
+import { revokeSceneUrls } from '../../../services/imageGeneration';
 
 interface CanvasStore {
   carLibrary: CarPngVariant[];
@@ -46,7 +47,11 @@ export const useCanvasStore = create<CanvasStore>()((set, get) => ({
 
   setCarVariant:   (v) => set({ carLibrary: [...get().carLibrary.filter((c)=>c.pose!==v.pose), v] }),
   removeCarVariant:(pose) => set({ carLibrary: get().carLibrary.filter((c)=>c.pose!==pose) }),
-  setSceneVariants:(vs) => set({ sceneVariants:vs, selectedSceneIdx: vs.length>0?0:null }),
+  setSceneVariants:(vs) => {
+    // Revoke previous blob URLs before replacing
+    revokeSceneUrls(get().sceneVariants.map((s) => s.sceneUrl));
+    set({ sceneVariants:vs, selectedSceneIdx: vs.length>0?0:null });
+  },
   selectScene:     (idx) => set({ selectedSceneIdx:idx }),
   setSelectedObject:(o) => set({ selectedObject:o }),
   setAspectRatio:  (a) => set({ aspectRatio:a }),
@@ -55,5 +60,9 @@ export const useCanvasStore = create<CanvasStore>()((set, get) => ({
   setMatchSceneLighting:(v) => set({ matchSceneLighting:v }),
   setContactShadow:(v) => set({ contactShadow:v }),
   getDimensions:   () => ASPECT_DIMS[get().aspectRatio],
-  reset:           () => set(DEFAULTS),
+  reset: () => {
+    // Revoke scene blob URLs before clearing state
+    revokeSceneUrls(get().sceneVariants.map((s) => s.sceneUrl));
+    set(DEFAULTS);
+  },
 }));

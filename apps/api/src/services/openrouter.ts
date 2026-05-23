@@ -9,21 +9,21 @@ let client: OpenAI | null = null;
 
 function getClient(): OpenAI {
   if (!client) {
-    const apiKey = process.env['OPENROUTER_API_KEY'];
-    if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set');
+    const apiKey = process.env['OPENROUTER_TEXT_API_KEY'];
+    if (!apiKey) throw new Error('OPENROUTER_TEXT_API_KEY is not set');
     client = new OpenAI({
       apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
       defaultHeaders: {
-        'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://social-genie-web.vercel.app',
-        'X-Title': 'SocialGenie',
+        'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app',
+        'X-Title': 'CarDekho Social AI',
       },
     });
   }
   return client;
 }
 
-const OPENROUTER_MODEL = process.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct';
+const OPENROUTER_MODEL = process.env['OPENROUTER_TEXT_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct';
 
 export async function generateCaptions(
   prompt: string,
@@ -149,5 +149,5 @@ export async function generateInboxReply(
 }
 
 export function isOpenRouterAvailable(): boolean {
-  return !!(process.env['OPENROUTER_API_KEY']);
+  return !!(process.env['OPENROUTER_TEXT_API_KEY']);
 }

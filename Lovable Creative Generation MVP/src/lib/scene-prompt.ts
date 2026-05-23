@@ -1,21 +1,16 @@
-import type { CarPose } from './types';
-
-const POSE_DESCRIPTIONS: Record<CarPose, string> = {
-  'front':               'photographed straight-on from the front, eye-level camera, perfectly symmetrical view',
-  'front-three-quarter': 'photographed from a front three-quarter angle, ~30 degrees off the front axis, eye-level',
-  'side-profile':        'photographed in pure side profile, 90 degrees, eye-level, full silhouette',
-  'hero-low-angle':      'photographed from a low hero angle, camera near ground looking slightly up, three-quarter front view, dramatic',
-};
-
-export function inferModelClass(modelName: string): string {
-  const m = modelName.toLowerCase();
-  if (/sierra|creta|brezza|nexon|venue|seltos|sonet|kushaq|taigun|harrier|safari|hector/.test(m)) return 'compact-suv';
-  if (/fortuner|endeavour|gloster|alcazar|innova/.test(m)) return 'suv';
-  if (/swift|baleno|i20|altroz|polo|tiago|punch/.test(m)) return 'hatchback';
-  if (/dzire|amaze|aura|tigor|rapid|virtus|slavia|verna|city/.test(m)) return 'sedan';
-  if (/audi|bmw|mercedes|jaguar|volvo/.test(m)) return 'luxury-sedan';
-  return 'compact-suv';
+export interface ScenePromptOpts {
+  brief: string;
+  modelName: string;
+  pose: 'front' | 'front-three-quarter' | 'side-profile' | 'hero-low-angle';
+  modelClass: string;
 }
+
+const POSE_DESCRIPTIONS: Record<ScenePromptOpts['pose'], string> = {
+  'front': 'photographed straight-on from the front, eye-level camera, perfectly symmetrical view',
+  'front-three-quarter': 'photographed from a front three-quarter angle, ~30 degrees off the front axis, eye-level',
+  'side-profile': 'photographed in pure side profile, 90 degrees, eye-level, full silhouette',
+  'hero-low-angle': 'photographed from a low hero angle, camera near ground looking slightly up, three-quarter front view, dramatic',
+};
 
 function pickSceneType(modelClass: string, brief: string): string {
   const b = brief.toLowerCase();
@@ -26,21 +21,14 @@ function pickSceneType(modelClass: string, brief: string): string {
   if (/family|safe|trust|reliable/.test(b)) return 'quiet suburban Indian residential street at warm afternoon, tree-lined paved road, soft natural light, calm atmosphere';
   if (/test drive|book|visit|showroom/.test(b)) return 'clean modern automotive studio with seamless light-gray cyclorama, subtle floor reflection, even diffused lighting';
   const fallbacks: Record<string, string> = {
-    'compact-suv':  'modern Indian metro street at golden hour, clean asphalt, glass buildings in soft bokeh',
-    'suv':          'wide open coastal highway at sunset, smooth tarmac, distant hills',
-    'sedan':        'business district street in early evening, polished asphalt, modern architecture in background',
-    'hatchback':    'vibrant urban street with colorful market stalls in soft bokeh background',
+    'compact-suv': 'modern Indian metro street at golden hour, clean asphalt, glass buildings in soft bokeh',
+    'suv': 'wide open coastal highway at sunset, smooth tarmac, distant hills',
+    'sedan': 'business district street in early evening, polished asphalt, modern architecture in background',
+    'hatchback': 'vibrant urban street with colorful market stalls in soft bokeh background',
     'luxury-sedan': 'private mansion driveway with stone-paved approach',
-    'sports-car':   'mountain road switchback at golden hour with smooth tarmac',
+    'sports-car': 'mountain road switchback at golden hour with smooth tarmac',
   };
-  return fallbacks[modelClass] ?? 'clean studio with seamless gradient backdrop';
-}
-
-export interface ScenePromptOpts {
-  brief: string;
-  modelName: string;
-  pose: CarPose;
-  modelClass: string;
+  return fallbacks[modelClass] || 'clean studio with seamless gradient backdrop';
 }
 
 export function buildScenePrompt(opts: ScenePromptOpts): string {

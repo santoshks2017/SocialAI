@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import {
   Car, Plus, MessageSquare, Bell,
   Calendar, BarChart2, Package, Zap, Settings, Link2,
@@ -21,31 +21,28 @@ import SettingsPage from './pages/SettingsPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import ConnectProfilesPage from './pages/ConnectProfilesPage';
 import AccountsPage from './pages/AccountsPage';
-import ConnectAccountPage from './pages/ConnectAccountPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import PostsPage from './pages/PostsPage';
 import type { UserInfo } from './lib/permissions';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { to: '/',          icon: LayoutDashboard, label: 'Dashboard',  exact: true },
-  { to: '/posts',     icon: LayoutList,      label: 'Posts'                  },
-  { to: '/calendar',  icon: Calendar,        label: 'Calendar'               },
-  { to: '/analytics', icon: BarChart2,       label: 'Analytics'              },
-  { to: '/inbox',     icon: MessageSquare,   label: 'Inbox'                  },
-  { to: '/boost',     icon: Zap,             label: 'Boost'                  },
-  { to: '/accounts',  icon: Link2,           label: 'Accounts'               },
-];
-
-const COMING_SOON_ITEMS = [
-  { icon: Package, label: 'Inventory' },
-  { icon: Video,   label: 'AI Video'  },
+  { to: '/',                 icon: LayoutDashboard, label: 'Dashboard',  exact: true },
+  { to: '/posts',            icon: LayoutList,      label: 'Posts'                  },
+  { to: '/calendar',         icon: Calendar,        label: 'Calendar'               },
+  { to: '/inventory',        icon: Package,         label: 'Inventory'              },
+  { to: '/create?mode=video',icon: Video,           label: 'AI Video'               },
+  { to: '/analytics',        icon: BarChart2,       label: 'Analytics'              },
+  { to: '/inbox',            icon: MessageSquare,   label: 'Inbox'                  },
+  { to: '/boost',            icon: Zap,             label: 'Boost'                  },
+  { to: '/accounts',         icon: Link2,           label: 'Accounts'               },
 ];
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [inboxPending, setInboxPending] = useState<number>(0);
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -60,20 +57,18 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
   const handleLogout = () => { logout(); navigate('/onboarding'); };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white border-r border-gray-200">
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-5 shrink-0">
         <NavLink to="/" className="flex items-center gap-2.5" onClick={onClose}>
-          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center shadow-md">
-            <Car className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-bold text-white text-[15px] tracking-tight">
-            Social<span className="text-orange-400">Genie</span>
+          <img src="/logo.png" className="w-8 h-8 rounded-lg shadow-lg shadow-orange-500/20 object-cover" />
+          <span className="font-bold text-gray-900 text-[15px] tracking-tight">
+            CarDekho <span className="text-orange-500">Social AI</span>
           </span>
         </NavLink>
         {/* Mobile close */}
         <button
-          className="lg:hidden p-1 text-white/40 hover:text-white transition-colors"
+          className="lg:hidden p-1 text-slate-400 hover:text-slate-700 transition-colors"
           onClick={onClose}
         >
           <X className="w-5 h-5" />
@@ -85,7 +80,7 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
         <NavLink
           to="/create"
           onClick={onClose}
-          className="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors shadow-lg shadow-orange-500/20"
+          className="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors shadow-lg shadow-orange-500/25"
         >
           <Plus className="w-4 h-4" /> Create Post
         </NavLink>
@@ -93,54 +88,38 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
 
       {/* Nav items */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto py-1">
-        {NAV_ITEMS.map(({ to, icon: Icon, label, exact }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={exact}
-            onClick={onClose}
-            className={({ isActive }) =>
-              `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
-                isActive
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/50 hover:text-white hover:bg-white/5'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <Icon className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${isActive ? 'text-white' : 'text-white/40 group-hover:text-white/70'}`} />
-                {label}
-                {label === 'Inbox' && inboxPending > 0 && (
-                  <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                    {inboxPending}
-                  </span>
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {NAV_ITEMS.map(({ to, icon: Icon, label, exact }) => {
+          const isActive = exact
+            ? location.pathname === to
+            : to.includes('?')
+              ? location.pathname === to.split('?')[0] && location.search.includes(to.split('?')[1])
+              : location.pathname === to;
 
-        {/* Coming Soon section */}
-        <div className="pt-3 pb-1 px-3">
-          <p className="text-[10px] font-bold text-white/20 tracking-widest uppercase">Coming Soon</p>
-        </div>
-        {COMING_SOON_ITEMS.map(({ icon: Icon, label }) => (
-          <div
-            key={label}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium text-white/25 cursor-default select-none"
-          >
-            <Icon className="w-[18px] h-[18px] flex-shrink-0 text-white/15" />
-            {label}
-            <span className="ml-auto bg-white/5 text-white/25 text-[10px] font-bold rounded-full px-1.5 py-0.5">
-              Soon
-            </span>
-          </div>
-        ))}
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={onClose}
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
+                isActive
+                  ? 'bg-orange-50 text-orange-600 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Icon className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${isActive ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+              {label}
+              {label === 'Inbox' && inboxPending > 0 && (
+                <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {inboxPending}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Divider */}
-      <div className="h-px bg-white/5 mx-3" />
+      <div className="h-px bg-slate-200/60 mx-3" />
 
       {/* Bottom section */}
       <div className="px-3 py-3 space-y-0.5">
@@ -149,11 +128,11 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
           onClick={onClose}
           className={({ isActive }) =>
             `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
-              isActive ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white hover:bg-white/5'
+              isActive ? 'bg-orange-50 text-orange-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`
           }
         >
-          <Settings className="w-[18px] h-[18px] flex-shrink-0 text-white/40 group-hover:text-white/70" />
+          <Settings className="w-[18px] h-[18px] flex-shrink-0 text-slate-400 group-hover:text-slate-600" />
           Settings
         </NavLink>
 
@@ -164,12 +143,12 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium text-white truncate">{user.name}</p>
-              <p className="text-[11px] text-white/30 capitalize">{user.role}</p>
+              <p className="text-[13px] font-medium text-gray-900 truncate">{user.name}</p>
+              <p className="text-[11px] text-slate-500 capitalize">{user.role}</p>
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 text-white/25 hover:text-red-400 transition-colors rounded-lg hover:bg-white/5"
+              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-slate-50"
               title="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -183,7 +162,7 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-[220px] bg-[#0f1117] flex-col fixed inset-y-0 left-0 z-40 shrink-0">
+      <aside className="hidden lg:flex w-[220px] bg-gray-50 flex-col fixed inset-y-0 left-0 z-40 shrink-0">
         {sidebarContent}
       </aside>
 
@@ -191,7 +170,7 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-          <aside className="absolute left-0 top-0 bottom-0 w-[220px] bg-[#0f1117] flex flex-col shadow-2xl">
+          <aside className="absolute left-0 top-0 bottom-0 w-[220px] bg-gray-50 flex flex-col shadow-2xl">
             {sidebarContent}
           </aside>
         </div>
@@ -203,7 +182,7 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
 // ─── Top bar (mobile) ─────────────────────────────────────────────────────────
 function MobileTopBar({ onMenuOpen }: { onMenuOpen: () => void }) {
   return (
-    <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-slate-200 h-14 flex items-center px-4 gap-3 shrink-0">
+    <header className="lg:hidden sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 h-14 flex items-center px-4 gap-3 shrink-0">
       <button
         className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors"
         onClick={onMenuOpen}
@@ -211,14 +190,12 @@ function MobileTopBar({ onMenuOpen }: { onMenuOpen: () => void }) {
         <Menu className="w-5 h-5 text-slate-600" />
       </button>
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center">
-          <Car className="w-3.5 h-3.5 text-white" />
-        </div>
-        <span className="font-bold text-slate-900 text-sm">Social<span className="text-orange-500">Genie</span></span>
+        <img src="/logo.png" className="w-7 h-7 rounded-lg object-cover" />
+        <span className="font-bold text-slate-900 text-sm">CarDekho <span className="text-orange-500">Social AI</span></span>
       </div>
       <div className="flex-1" />
       <button className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors">
-        <Bell className="w-5 h-5 text-slate-500" />
+        <Bell className="w-5 h-5 text-slate-600" />
         <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full" />
       </button>
     </header>
@@ -260,8 +237,8 @@ interface DashboardData {
 // ─── Dashboard sub-components ─────────────────────────────────────────────────
 function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-      <p className="text-xs text-slate-400 font-medium mb-1">{label}</p>
+    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
+      <p className="text-xs text-slate-500 font-medium mb-1">{label}</p>
       <p className={`text-2xl font-extrabold ${color} mb-0.5`}>{value}</p>
       {sub && <p className="text-xs text-slate-400">{sub}</p>}
     </div>
@@ -286,20 +263,20 @@ function SuggestedPostCard({ data }: { data: DashboardData | null }) {
   const createUrl = `/create?prompt=${encodeURIComponent(fullPrompt)}&postType=${encodeURIComponent(postType)}`;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-      <div className="px-5 py-3 flex items-center justify-between border-b border-slate-50">
+    <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+      <div className="px-5 py-3 flex items-center justify-between border-b border-slate-200 bg-slate-50/50">
         <span className="text-[11px] font-extrabold text-orange-500 tracking-widest uppercase">Today's Suggested Post</span>
-        <span className="text-xs text-slate-400">{dateStr}</span>
+        <span className="text-xs text-slate-500">{dateStr}</span>
       </div>
       <div className="flex gap-5 p-5">
-        <div className="w-40 flex-shrink-0 bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl flex flex-col items-center justify-center p-4 relative overflow-hidden aspect-[4/3]">
-          <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-3">
-            <Car className="w-5 h-5 text-orange-400" />
+        <div className="w-40 flex-shrink-0 bg-gradient-to-br from-slate-100 to-slate-50 rounded-xl flex flex-col items-center justify-center p-4 relative overflow-hidden aspect-[4/3] border border-slate-250">
+          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center mb-3">
+            <Car className="w-5 h-5 text-orange-600" />
           </div>
-          <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-1.5">
+          <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-1.5">
             {badgeLabel.slice(0, 14)}
           </p>
-          <p className="text-white text-xs font-bold text-center leading-snug mb-3 px-1">
+          <p className="text-slate-800 text-xs font-bold text-center leading-snug mb-3 px-1">
             {title.slice(0, 28)}
           </p>
           <div className="bg-orange-500 rounded-full px-3 py-1">
@@ -309,26 +286,26 @@ function SuggestedPostCard({ data }: { data: DashboardData | null }) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2.5">
-            <span className="bg-teal-50 text-teal-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-teal-100">{badgeLabel}</span>
-            <span className="bg-orange-50 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-100">Auto-Suggested</span>
+            <span className="bg-teal-50 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-teal-200">{badgeLabel}</span>
+            <span className="bg-orange-50 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">Auto-Suggested</span>
           </div>
           <h3 className="font-bold text-slate-900 text-sm leading-tight mb-2">{title}</h3>
           <div className="bg-slate-50 rounded-xl px-3 py-2.5 mb-3 border border-slate-100">
-            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{caption}</p>
+            <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{caption}</p>
           </div>
           <div className="flex gap-2 flex-wrap mb-4">
             {hashtags.map((h) => (
-              <span key={h} className="text-[11px] text-orange-500 font-semibold">{h}</span>
+              <span key={h} className="text-[11px] text-orange-600 font-semibold">{h}</span>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <NavLink to={createUrl} className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+            <NavLink to={createUrl} className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shadow-lg shadow-orange-500/20">
               <Send className="w-3 h-3" /> Post Everywhere
             </NavLink>
-            <NavLink to={createUrl} className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg border border-slate-200 hover:border-slate-300 bg-white transition-colors">
+            <NavLink to={createUrl} className="text-xs font-semibold text-slate-700 hover:text-slate-900 px-3 py-2 rounded-lg border border-slate-200 hover:border-slate-350 bg-white hover:bg-slate-50 transition-colors">
               Edit First
             </NavLink>
-            <button className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 px-2 py-2 transition-colors">
+            <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-750 px-2 py-2 transition-colors">
               <RefreshCw className="w-3 h-3" />
             </button>
           </div>
@@ -356,17 +333,17 @@ function InboxPreview({ stats }: { stats?: DashboardData['stats'] }) {
   const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-      <div className="px-5 py-3.5 flex items-center justify-between border-b border-slate-50">
+    <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+      <div className="px-5 py-3.5 flex items-center justify-between border-b border-slate-200 bg-slate-50/50">
         <div className="flex items-center gap-2.5">
           <h3 className="font-semibold text-slate-900 text-sm">Review & Comment Inbox</h3>
           {pendingCount > 0 && (
-            <span className="bg-orange-50 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-100">
+            <span className="bg-orange-50 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
               {pendingCount} Pending
             </span>
           )}
         </div>
-        <NavLink to="/inbox" className="text-xs text-orange-500 font-semibold hover:text-orange-600 flex items-center gap-0.5">
+        <NavLink to="/inbox" className="text-xs text-orange-600 font-semibold hover:text-orange-750 flex items-center gap-0.5">
           View All <ChevronRight className="w-3.5 h-3.5" />
         </NavLink>
       </div>
@@ -379,20 +356,20 @@ function InboxPreview({ stats }: { stats?: DashboardData['stats'] }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="font-semibold text-sm text-slate-900">{msg.customerName}</span>
-                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{platformLabel(msg.platform)}</span>
-                <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(msg.receivedAt)}</span>
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium">{platformLabel(msg.platform)}</span>
+                <span className="text-[10px] text-slate-500 ml-auto">{timeAgo(msg.receivedAt)}</span>
               </div>
-              <p className="text-xs text-slate-500 mb-2.5 leading-relaxed line-clamp-2">"{msg.messageText}"</p>
+              <p className="text-xs text-slate-600 mb-2.5 leading-relaxed line-clamp-2">"{msg.messageText}"</p>
               {msg.aiSuggestedReply && (
-                <div className="bg-teal-50 border border-teal-100 rounded-xl p-2.5 mb-2.5">
-                  <p className="text-[10px] font-bold text-teal-600 mb-1 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> AI Suggested Reply
+                <div className="bg-teal-50 border border-teal-200 rounded-xl p-2.5 mb-2.5">
+                  <p className="text-[10px] font-bold text-teal-750 mb-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-teal-600" /> AI Suggested Reply
                   </p>
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{msg.aiSuggestedReply}</p>
                 </div>
               )}
               <div className="flex gap-2">
-                <NavLink to="/inbox" className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+                <NavLink to="/inbox" className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-lg shadow-teal-600/10">
                   <Check className="w-3 h-3" /> {msg.aiSuggestedReply ? 'Approve & Send' : 'Open Inbox'}
                 </NavLink>
               </div>
@@ -400,9 +377,9 @@ function InboxPreview({ stats }: { stats?: DashboardData['stats'] }) {
           </div>
         ) : (
           <div className="text-center py-4">
-            <MessageSquare className="w-7 h-7 text-slate-200 mx-auto mb-2" />
-            <p className="text-xs text-slate-400 font-medium">No pending reviews</p>
-            <NavLink to="/inbox" className="text-xs text-orange-500 font-semibold hover:text-orange-600 mt-1 inline-block">View Inbox</NavLink>
+            <MessageSquare className="w-7 h-7 text-slate-400 mx-auto mb-2" />
+            <p className="text-xs text-slate-500 font-medium">No pending reviews</p>
+            <NavLink to="/inbox" className="text-xs text-orange-600 font-semibold hover:text-orange-750 mt-1 inline-block">View Inbox</NavLink>
           </div>
         )}
       </div>
@@ -439,17 +416,17 @@ function ComingUpPanel({ festivals }: { festivals?: DashboardData['upcomingFesti
     : getUpcomingDefaults();
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
       <h3 className="font-semibold text-slate-900 text-sm mb-3.5">Coming Up</h3>
       <div className="space-y-2">
         {items.map(({ label, dateStr, sub }) => (
-          <div key={label} className="flex items-center gap-3 py-2">
-            <div className="w-8 h-8 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center flex-shrink-0">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+          <div key={label} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
+            <div className="w-8 h-8 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center flex-shrink-0">
+              <Calendar className="w-3.5 h-3.5 text-slate-500" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-800">{label}</p>
-              <p className="text-xs text-slate-400">{dateStr} — {sub}</p>
+              <p className="text-xs text-slate-500">{dateStr} — {sub}</p>
             </div>
           </div>
         ))}
@@ -485,22 +462,22 @@ function ConnectedPanel() {
   const navigate = useNavigate();
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3.5">
         <h3 className="font-semibold text-slate-900 text-sm">Connected Accounts</h3>
-        <button onClick={() => navigate('/accounts')} className="text-[10px] text-orange-500 font-bold hover:text-orange-600">
+        <button onClick={() => navigate('/accounts')} className="text-[10px] text-orange-600 font-bold hover:text-orange-750">
           Manage →
         </button>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-4">
-          <RefreshCw className="w-4 h-4 text-slate-300 animate-spin" />
+          <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" />
         </div>
       ) : accounts.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-xs text-slate-400">No accounts connected</p>
-          <button onClick={() => navigate('/accounts')} className="text-xs text-orange-500 font-semibold mt-1 hover:text-orange-600">
+          <p className="text-xs text-slate-500">No accounts connected</p>
+          <button onClick={() => navigate('/accounts')} className="text-xs text-orange-600 font-semibold mt-1 hover:text-orange-750">
             + Connect
           </button>
         </div>
@@ -522,13 +499,13 @@ function ConnectedPanel() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-slate-800 truncate">{acc.accountName}</p>
-                  <p className="text-[10px] text-slate-400">{meta.label} · {timeAgo}</p>
+                  <p className="text-[10px] text-slate-500">{meta.label} · {timeAgo}</p>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="p-1 text-slate-300 hover:text-slate-500 transition-colors" title="Refresh token">
+                  <button className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title="Refresh token">
                     <RefreshCw className="w-3 h-3" />
                   </button>
-                  <button onClick={() => handleDelete(acc.id)} className="p-1 text-slate-300 hover:text-red-500 transition-colors" title="Disconnect">
+                  <button onClick={() => handleDelete(acc.id)} className="p-1 text-slate-400 hover:text-red-650 transition-colors" title="Disconnect">
                     <X className="w-3 h-3" />
                   </button>
                 </div>
@@ -536,7 +513,7 @@ function ConnectedPanel() {
             );
           })}
           {accounts.length > 5 && (
-            <button onClick={() => navigate('/accounts')} className="text-[10px] text-slate-400 font-semibold hover:text-orange-500 w-full text-center pt-1">
+            <button onClick={() => navigate('/accounts')} className="text-[10px] text-slate-500 font-semibold hover:text-orange-600 w-full text-center pt-1">
               +{accounts.length - 5} more
             </button>
           )}
@@ -565,7 +542,7 @@ function Dashboard() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-900">{greeting}{firstName ? `, ${firstName}` : ''} 👋</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Your dealership social presence at a glance</p>
+        <p className="text-sm text-slate-500 mt-0.5">Your dealership social presence at a glance</p>
       </div>
 
       {/* Stats row */}
@@ -595,7 +572,7 @@ function Dashboard() {
 function AppLayout({ children, fullBleed }: { children: React.ReactNode; fullBleed?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f1f5f9]">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div className="flex-1 flex flex-col lg:pl-[220px] min-w-0">
         <MobileTopBar onMenuOpen={() => setMobileOpen(true)} />
@@ -611,7 +588,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, token, isInitializing } = useAuth();
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-[#0d0f1a] flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -648,7 +625,7 @@ function AppRoutes() {
       <Route path="/analytics" element={<RequireAuth><AppLayout><AnalyticsPage /></AppLayout></RequireAuth>} />
       <Route path="/boost" element={<RequireAuth><AppLayout><BoostPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts" element={<RequireAuth><AppLayout><AccountsPage /></AppLayout></RequireAuth>} />
-      <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectAccountPage /></AppLayout></RequireAuth>} />
+      <Route path="/accounts/create" element={<Navigate to="/accounts" replace />} />
       <Route path="/settings" element={<RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -33,3 +33,11 @@ export const ASPECT_DIMS: Record<AspectRatio, { width: number; height: number }>
   '4:5':  { width: 1080, height: 1350 },
   '16:9': { width: 1920, height: 1080 },
 };
+
+/**
+ * Typed accessor for the `id` custom property set on Fabric.js canvas objects.
+ * Avoids scattering `(o as any).id` across callsites.
+ */
+export function getObjectId(obj: object): string {
+  return (obj as Record<string, unknown>)['id'] as string ?? '';
+}

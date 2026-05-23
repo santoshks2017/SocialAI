@@ -7,9 +7,9 @@ import { BadgePanel } from './BadgePanel';
 type Tab = 'Variants' | 'Text' | 'Badge';
 const TABS: Tab[] = ['Variants', 'Text', 'Badge'];
 
-interface Props { canvas: fabric.Canvas | null; initialHeading?: string; }
+interface Props { canvas: fabric.Canvas | null; initialHeading?: string; aspectRatio?: string; }
 
-export function RightRail({ canvas, initialHeading }: Props) {
+export function RightRail({ canvas, initialHeading, aspectRatio }: Props) {
   const [tab, setTab] = useState<Tab>('Variants');
   return (
     <aside className="w-60 shrink-0 border-l border-neutral-200 bg-white flex flex-col overflow-hidden">
@@ -23,7 +23,7 @@ export function RightRail({ canvas, initialHeading }: Props) {
       </div>
       <div className="flex-1 overflow-y-auto">
         {tab === 'Variants' && <VariantPanel />}
-        {tab === 'Text'     && <TextPanel canvas={canvas} initialHeading={initialHeading} />}
+        {tab === 'Text'     && <TextPanel canvas={canvas} initialHeading={initialHeading} resetKey={aspectRatio} />}
         {tab === 'Badge'    && <BadgePanel canvas={canvas} />}
       </div>
     </aside>

@@ -1,4 +1,5 @@
 import * as fabric from 'fabric';
+import { getObjectId } from './types';
 
 export type OfferBadgeStyle = 'parallelogram' | 'flat' | 'pill';
 
@@ -41,7 +42,7 @@ function wirePair(badge: fabric.Object, text: fabric.Textbox, canvas: fabric.Can
 
 export async function addOfferBlock(canvas: fabric.Canvas, spec: OfferBlockSpec): Promise<void> {
   canvas.getObjects().forEach((o) => {
-    const id = ((o as any).id as string) ?? '';
+    const id = getObjectId(o);
     if (id.startsWith('offer-badge')||id.startsWith('offer-text')) canvas.remove(o);
   });
 
@@ -72,8 +73,8 @@ export function updateBadge(canvas: fabric.Canvas, badgeObj: fabric.Object, patc
   if (patch.color) badgeObj.set({fill:patch.color});
 
   if (patch.style && patch.style !== (badgeObj as any).offerStyle) {
-    const oldId = (badgeObj as any).id as string;
-    const pairedText = canvas.getObjects().find((o)=>(o as any).id===oldId.replace('offer-badge','offer-text')) as fabric.Textbox|undefined;
+    const oldId = getObjectId(badgeObj);
+    const pairedText = canvas.getObjects().find((o)=>getObjectId(o)===oldId.replace('offer-badge','offer-text')) as fabric.Textbox|undefined;
     const savedL = badgeObj.left, savedT = badgeObj.top;
     const savedColor = (patch.color ?? badgeObj.fill) as string;
     canvas.remove(badgeObj);

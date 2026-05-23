@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { useCanvasStore } from './useCanvasStore';
 import { composeSceneWithCar, applyAutoContrastScrims } from './sceneComposer';
+import { getObjectId } from './types';
 
 interface Props {
   width: number;
@@ -44,8 +45,8 @@ export function CanvasStage({ width, height, onCanvasReady }: Props) {
     if (!car) {
       // Scene-only: just swap the background
       canvas.getObjects().forEach((o) => {
-        const id = (o as any).id as string ?? '';
-        if (['scene','scrim-top','scrim-bottom','contact-shadow','car'].includes(id)) canvas.remove(o);
+        const id = getObjectId(o);
+        if (['scene','scrim-top','scrim-bottom','contact-shadow','car'].includes(id)) { o.off(); canvas.remove(o); }
       });
       const img = await fabric.FabricImage.fromURL(scene.sceneUrl, { crossOrigin: 'anonymous' });
       const sc = Math.max(width/img.width!, height/img.height!);

@@ -28,11 +28,16 @@ import {
   generateImage as cfGenerateImage,
   isCloudflareAvailable,
 } from "../services/cloudflareAI.js"
+import { generateOpenRouterImage, isOpenRouterImageAvailable } from "../services/openrouterImage.js"
+import { generateGeminiImage, isGeminiImageAvailable } from "../services/geminiImage.js"
 import { removeBackground } from "../services/backgroundRemoval.js"
 import {
   compositeLayered,
   type DealerBranding,
 } from "../services/layeredCompositor.js"
+import { generateGeminiCreativeContent } from "../services/geminiService.js"
+import { getBrandLogoSvg } from "../services/brandLogoService.js"
+
 
 const execFileAsync = promisify(execFile)
 
@@ -155,6 +160,24 @@ async function transformCaptionAI(caption: string, instruction: string): Promise
   return caption
 }
 
+async function getDealerOrFallback(dealerId?: string): Promise<any> {
+  let dealer = dealerId ? await prisma.dealer.findUnique({ where: { id: dealerId } }) : null
+  if (!dealer) {
+    dealer = await prisma.dealer.findFirst({
+      where: { name: { contains: 'demo', mode: 'insensitive' } },
+    })
+  }
+  if (!dealer) {
+    dealer = await prisma.dealer.findFirst({
+      where: { name: { contains: 'janani', mode: 'insensitive' } },
+    })
+  }
+  if (!dealer) {
+    dealer = await prisma.dealer.findFirst()
+  }
+  return dealer
+}
+
 export default async function creativeRoutes(fastify: FastifyInstance) {
   // POST /v1/creatives/generate
   fastify.post(
@@ -185,13 +208,23 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           })
       }
 
-      const dealer = await prisma.dealer.findUnique({
+      let dealer = await prisma.dealer.findUnique({
         where: { id: dealer_id },
       })
-      if (!dealer)
-        return reply
-          .code(404)
-          .send({ error: { code: "NOT_FOUND", message: "Dealer not found" } })
+      if (!dealer) {
+        // Attempt fallback by dealer name (case-insensitive) for legacy clients like Janani
+        const fallbackDealer = await prisma.dealer.findFirst({
+          where: { name: { contains: 'janani', mode: 'insensitive' } },
+        });
+        if (fallbackDealer) {
+          // Continue with found dealer
+          dealer = fallbackDealer;
+        } else {
+          return reply
+            .code(404)
+            .send({ error: { code: "NOT_FOUND", message: "Dealer not found" } });
+        }
+      }
 
       const dealerContext = {
         name: dealer.name,
@@ -425,7 +458,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         })
       }
 
-      const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
+      const dealer = await getDealerOrFallback(dealer_id)
       if (!dealer)
         return reply
           .code(404)
@@ -434,15 +467,35 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
       try {
         // Use Cloudflare SDXL if available, otherwise fall back to a Sharp-rendered
         // gradient background that looks polished with the dealer overlay.
-        let imageBuffer: Buffer;
-        if (isCloudflareAvailable()) {
-          const imagePrompt =
-            `Professional automotive photography for Indian car dealership. ` +
-            `${body.headline.slice(0, 120)}. ` +
-            `Photorealistic, cinematic lighting, 4K quality, no text overlay, ` +
-            `clean background, showroom or open road setting.`
-          imageBuffer = await cfGenerateImage(imagePrompt.slice(0, 500))
-        } else {
+        let imageBuffer: Buffer | null = null;
+        const imagePrompt =
+          `Professional automotive photography for Indian car dealership. ` +
+          `${body.headline.slice(0, 120)}. ` +
+          `Photorealistic, cinematic lighting, 4K quality, no text overlay, ` +
+          `clean background, showroom or open road setting.`
+
+        if (isGeminiImageAvailable()) {
+          try {
+            imageBuffer = await generateGeminiImage(imagePrompt)
+          } catch (err) {
+            fastify.log.error(err, "Gemini image generation failed, falling back")
+          }
+        }
+        if (!imageBuffer && isCloudflareAvailable()) {
+          try {
+            imageBuffer = await cfGenerateImage(imagePrompt.slice(0, 500))
+          } catch (err) {
+            fastify.log.error(err, "Cloudflare image generation failed, falling back")
+          }
+        }
+        if (!imageBuffer && isOpenRouterImageAvailable()) {
+          try {
+            imageBuffer = await generateOpenRouterImage(imagePrompt.slice(0, 500))
+          } catch (err) {
+            fastify.log.error(err, "OpenRouter image generation failed, falling back")
+          }
+        }
+        if (!imageBuffer) {
           imageBuffer = await generateGradientBackground(dealer.primary_color ?? '#f97316')
         }
         const filePrefix = randomUUID()
@@ -517,7 +570,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         })
       }
 
-      const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
+      const dealer = await getDealerOrFallback(dealer_id)
       if (!dealer)
         return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Dealer not found" } })
 
@@ -531,19 +584,35 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
       try {
         // ── Layer 2: background ───────────────────────────────────────────────
-        let backgroundBuffer: Buffer
-        if (isCloudflareAvailable()) {
-          const bgPrompt =
-            `Professional automotive background for Indian car dealership. ` +
-            `${body.headline.slice(0, 100)}. ` +
-            `Cinematic lighting, photorealistic, 4K, no cars, no text, clean scene, ` +
-            `showroom or scenic outdoor road setting.`
+        let backgroundBuffer: Buffer | null = null
+        const bgPrompt =
+          `Professional automotive background for Indian car dealership. ` +
+          `${body.headline.slice(0, 100)}. ` +
+          `Cinematic lighting, photorealistic, 4K, no cars, no text, clean scene, ` +
+          `showroom or scenic outdoor road setting.`
+
+        if (isGeminiImageAvailable()) {
+          try {
+            backgroundBuffer = await generateGeminiImage(bgPrompt)
+          } catch (err) {
+            fastify.log.error(err, "Gemini background generation failed, falling back")
+          }
+        }
+        if (!backgroundBuffer && isCloudflareAvailable()) {
           try {
             backgroundBuffer = await cfGenerateImage(bgPrompt.slice(0, 500))
-          } catch {
-            backgroundBuffer = await generateGradientBackground(branding.primaryColor)
+          } catch (err) {
+            fastify.log.error(err, "Cloudflare background generation failed, falling back")
           }
-        } else {
+        }
+        if (!backgroundBuffer && isOpenRouterImageAvailable()) {
+          try {
+            backgroundBuffer = await generateOpenRouterImage(bgPrompt.slice(0, 500))
+          } catch (err) {
+            fastify.log.error(err, "OpenRouter background generation failed, falling back")
+          }
+        }
+        if (!backgroundBuffer) {
           backgroundBuffer = await generateGradientBackground(branding.primaryColor)
         }
 
@@ -597,7 +666,276 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
     },
   )
 
+  // POST /v1/creatives/generate-gemini — multimodal Gemini creative pipeline
+  fastify.post(
+    "/generate-gemini",
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string
+      const body = request.body as {
+        prompt: string
+        brand?: string
+        subject_image_ids?: string[]
+        subject_image_id?: string
+        subject_image_urls?: string[]
+        subject_image_url?: string
+      }
+
+      if (!body.prompt?.trim()) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "prompt is required" },
+        })
+      }
+
+      const dealer = await getDealerOrFallback(dealer_id)
+      if (!dealer) {
+        return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Dealer not found" } })
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY
+      if (!apiKey) {
+        return reply.code(400).send({
+          error: {
+            code: "MISSING_API_KEY",
+            message: "Gemini API key is not configured on the server. Please set GEMINI_API_KEY in the environment.",
+          },
+        })
+      }
+
+      try {
+        // ── Load raw car image buffers ─────────────────────────────────────────
+        const imageIds = body.subject_image_ids ?? (body.subject_image_id ? [body.subject_image_id] : [])
+        const imageUrls = body.subject_image_urls ?? (body.subject_image_url ? [body.subject_image_url] : [])
+
+        const rawImages: Array<{ buffer: Buffer; mimeType: string }> = []
+
+        for (const id of imageIds) {
+          try {
+            const ext = path.extname(id).toLowerCase()
+            const mimeType = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg"
+            const buf = await readFile(path.join(ORIGINALS_DIR, id))
+            rawImages.push({ buffer: buf, mimeType })
+          } catch (err) {
+            fastify.log.warn(err, `Failed to read subject_image_id: ${id}`)
+          }
+        }
+
+        for (const url of imageUrls) {
+          try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(20_000) })
+            if (res.ok) {
+              const contentType = res.headers.get("content-type")
+              const mimeType = contentType || "image/jpeg"
+              const buf = Buffer.from(await res.arrayBuffer())
+              rawImages.push({ buffer: buf, mimeType })
+            }
+          } catch (err) {
+            fastify.log.warn(err, `Failed to fetch subject_image_url: ${url}`)
+          }
+        }
+
+        // ── Call Gemini to generate content & prompts (3 options) ─────────────
+        const geminiResult = await generateGeminiCreativeContent(
+          body.prompt,
+          rawImages
+        )
+        const promptBrief = geminiResult.brief
+        const creativeOptions = geminiResult.options
+
+        // ── Background removal on the car subjects ──────────────────────────────
+        const subjectBuffers: Buffer[] = []
+        for (const img of rawImages) {
+          try {
+            const cleanBuf = await removeBackground(img.buffer)
+            subjectBuffers.push(cleanBuf)
+          } catch (err) {
+            fastify.log.error(err, "Background removal failed, falling back to original buffer")
+            subjectBuffers.push(img.buffer)
+          }
+        }
+
+        // ── Retrieve dealer logo buffer ───────────────────────────────────────
+        let dealerLogoBuffer: Buffer | undefined
+        if (dealer.logo_url) {
+          try {
+            const logoFilename = path.basename(dealer.logo_url)
+            const localLogoPath = path.join(ORIGINALS_DIR, logoFilename)
+            try {
+              dealerLogoBuffer = await readFile(localLogoPath)
+            } catch {
+              // Try HTTP fetch if local file read fails
+              const logoRes = await fetch(dealer.logo_url, { signal: AbortSignal.timeout(10_000) })
+              if (logoRes.ok) {
+                dealerLogoBuffer = Buffer.from(await logoRes.arrayBuffer())
+              }
+            }
+          } catch (err) {
+            fastify.log.warn(err, `Failed to load dealer logo from: ${dealer.logo_url}`)
+          }
+        }
+
+        // ── Retrieve brand logo SVG ───────────────────────────────────────────
+        const activeBrand = body.brand || (Array.isArray(dealer.brands) && dealer.brands.length > 0 ? (dealer.brands[0] as string) : "Car")
+        const brandLogoSvg = getBrandLogoSvg(activeBrand, "#ffffff")
+
+        // ── Prepare branding info ─────────────────────────────────────────────
+        const branding: DealerBranding = {
+          name: dealer.name,
+          city: dealer.city,
+          phone: dealer.contact_phone ?? dealer.phone,
+        }
+        
+        const addressText = dealer.address || [dealer.city, dealer.state].filter(Boolean).join(", ")
+        if (addressText) {
+          branding.address = addressText
+        }
+        
+        const whatsappNum = dealer.whatsapp_number ?? dealer.contact_phone ?? dealer.phone
+        if (whatsappNum) {
+          branding.whatsapp = whatsappNum
+        }
+        
+        if (dealer.primary_color) {
+          branding.primaryColor = dealer.primary_color
+        }
+        
+        if (dealer.font) {
+          branding.font = dealer.font
+        }
+        
+        if (dealerLogoBuffer) {
+          branding.logoBuffer = dealerLogoBuffer
+        }
+        
+        if (brandLogoSvg) {
+          branding.brandLogoSvg = brandLogoSvg
+        }
+
+        // ── Composite and upload each option ──────────────────────────────────
+        const options = []
+
+        for (let i = 0; i < creativeOptions.length; i++) {
+          const option = creativeOptions[i]
+          if (!option) continue
+          const bgPrompt = option.background_prompt
+
+          let backgroundBuffer: Buffer | null = null
+          let isGradient = false
+
+          if (bgPrompt) {
+            if (isGeminiImageAvailable()) {
+              try {
+                backgroundBuffer = await generateGeminiImage(bgPrompt)
+              } catch (err) {
+                fastify.log.error(err, `Gemini background generation failed for option ${i}, falling back`)
+              }
+            }
+            if (!backgroundBuffer && isCloudflareAvailable()) {
+              try {
+                backgroundBuffer = await cfGenerateImage(bgPrompt.slice(0, 500))
+              } catch (err) {
+                fastify.log.error(err, `Cloudflare background generation failed for option ${i}, falling back`)
+              }
+            }
+            if (!backgroundBuffer && isOpenRouterImageAvailable()) {
+              try {
+                backgroundBuffer = await generateOpenRouterImage(bgPrompt.slice(0, 500))
+              } catch (err) {
+                fastify.log.error(err, `OpenRouter background generation failed for option ${i}, falling back`)
+              }
+            }
+          }
+
+          if (!backgroundBuffer) {
+            backgroundBuffer = await generateGradientBackground(dealer.primary_color ?? "#f97316")
+            isGradient = true
+          }
+
+          // Select matching subject image index modulo count of images
+          // Pass the car cutout buffer as subjectBuffer ONLY if image generation fell back to a gradient
+          const subjectBuffer = (isGradient && subjectBuffers.length > 0)
+            ? subjectBuffers[i % subjectBuffers.length]
+            : undefined
+
+          // Select template style based on option index
+          const templateStyles: Array<'festive' | 'premium' | 'value'> = ['festive', 'premium', 'value']
+          const templateStyle = templateStyles[i % templateStyles.length] as 'festive' | 'premium' | 'value'
+
+          // Generate brand logo SVG with matching color for this option style
+          const logoColor = "#ffffff"
+          const optionBrandLogoSvg = getBrandLogoSvg(activeBrand, logoColor)
+
+          const optionBranding = {
+            ...branding,
+            brandLogoSvg: optionBrandLogoSvg,
+          }
+
+          const { finalBuffer, pngBuffer } = await compositeLayered({
+            backgroundBuffer,
+            ...(subjectBuffer !== undefined ? { subjectBuffer } : {}),
+            dealer: optionBranding,
+            headline: option.headline,
+            templateStyle,
+            colorMood: promptBrief.color_mood,
+          })
+
+          const filePrefix = randomUUID()
+          const filenameJpg = `${filePrefix}_gemini_creative_${i}.jpg`
+          const filenamePng = `${filePrefix}_gemini_creative_${i}.png`
+
+          const urlJpg = await uploadFile(
+            finalBuffer,
+            `creatives/${filenameJpg}`,
+            "image/jpeg",
+            CREATIVES_DIR
+          )
+
+          const urlPng = await uploadFile(
+            pngBuffer,
+            `creatives/${filenamePng}`,
+            "image/png",
+            CREATIVES_DIR
+          )
+
+          const mockSeed = Math.floor(Math.random() * 1000000000)
+
+          options.push({
+            creativeUrl: urlJpg,
+            pngUrl: urlPng,
+            headline: option.headline,
+            copy: option.caption_text,
+            hashtags: option.hashtags,
+            backgroundPrompt: option.background_prompt,
+            metadata: {
+              prompt: option.background_prompt,
+              negativePrompt: promptBrief.negative_prompt,
+              colorMood: promptBrief.color_mood,
+              seed: mockSeed,
+              modelVersion: "gemini-2.5-flash",
+              timestamp: new Date().toISOString(),
+            }
+          })
+        }
+
+        return {
+          success: true,
+          promptBrief,
+          options,
+        }
+      } catch (err) {
+        fastify.log.error(err, "Gemini creative generation pipeline failed")
+        return reply.code(500).send({
+          error: {
+            code: "AI_ERROR",
+            message: "Failed to generate AI creative. Please try again.",
+          },
+        })
+      }
+    }
+  )
+
   // POST /v1/creatives/generate-scenes — automotive background scenes per pose
+
   fastify.post(
     '/generate-scenes',
     { preHandler: [fastify.authenticate] },
@@ -651,13 +989,35 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           ).slice(0, 500)
 
           try {
-            if (isCloudflareAvailable()) {
-              const buf = await cfGenerateImage(prompt)
-              const filename = `${randomUUID()}_scene_${pose}.jpg`
-              const url = await uploadFile(buf, `creatives/${filename}`, 'image/jpeg', CREATIVES_DIR)
-              return { url, pose }
+            let buf: Buffer | null = null
+            if (isGeminiImageAvailable()) {
+              try {
+                buf = await generateGeminiImage(prompt)
+              } catch (err) {
+                fastify.log.error(err, "Gemini scene generation failed, falling back")
+              }
             }
-            throw new Error('CF not available')
+            if (!buf && isCloudflareAvailable()) {
+              try {
+                buf = await cfGenerateImage(prompt)
+              } catch (err) {
+                fastify.log.error(err, "Cloudflare scene generation failed, falling back")
+              }
+            }
+            if (!buf && isOpenRouterImageAvailable()) {
+              try {
+                buf = await generateOpenRouterImage(prompt)
+              } catch (err) {
+                fastify.log.error(err, "OpenRouter scene generation failed, falling back")
+              }
+            }
+            if (!buf) {
+              throw new Error('No image generation service available or succeeded')
+            }
+
+            const filename = `${randomUUID()}_scene_${pose}.jpg`
+            const url = await uploadFile(buf, `creatives/${filename}`, 'image/jpeg', CREATIVES_DIR)
+            return { url, pose }
           } catch {
             const buf = await generateGradientBackground('#f97316')
             const filename = `${randomUUID()}_scene_${pose}_grad.png`
@@ -687,7 +1047,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           })
       }
 
-      if (!isCloudflareAvailable()) {
+      if (!isGeminiImageAvailable() && !isCloudflareAvailable() && !isOpenRouterImageAvailable()) {
         return reply
           .code(503)
           .send({
@@ -699,11 +1059,37 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const imageBuffer = await cfGenerateImage(prompt.slice(0, 500))
+        let imageBuffer: Buffer | null = null;
+        if (isGeminiImageAvailable()) {
+          try {
+            imageBuffer = await generateGeminiImage(prompt)
+          } catch (err) {
+            fastify.log.error(err, "Gemini image generation failed, falling back")
+          }
+        }
+        if (!imageBuffer && isCloudflareAvailable()) {
+          try {
+            imageBuffer = await cfGenerateImage(prompt.slice(0, 500))
+          } catch (err) {
+            fastify.log.error(err, "Cloudflare image generation failed, falling back")
+          }
+        }
+        if (!imageBuffer && isOpenRouterImageAvailable()) {
+          try {
+            imageBuffer = await generateOpenRouterImage(prompt.slice(0, 500))
+          } catch (err) {
+            fastify.log.error(err, "OpenRouter image generation failed, falling back")
+          }
+        }
+
+        if (!imageBuffer) {
+          throw new Error("All image generation services failed");
+        }
+
         const base64 = imageBuffer.toString("base64")
         return { image: base64 }
       } catch (err) {
-        fastify.log.error(err, "Cloudflare image generation failed")
+        fastify.log.error(err, "Image generation failed")
         return reply
           .code(500)
           .send({
@@ -824,7 +1210,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'prompt is required' } });
       }
 
-      const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } });
+      const dealer = await getDealerOrFallback(dealer_id);
       if (!dealer) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Dealer not found' } });
 
       const dur = Math.min(Math.max(duration_seconds, 5), 60);

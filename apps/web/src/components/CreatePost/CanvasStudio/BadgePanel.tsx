@@ -4,6 +4,7 @@ import * as fabric from 'fabric';
 import { addOfferBlock, updateBadge } from './offerBlock';
 import type { OfferBadgeStyle, OfferBlockSpec } from './offerBlock';
 import { useCanvasStore } from './useCanvasStore';
+import { getObjectId } from './types';
 
 const STYLES: { id: OfferBadgeStyle; label: string }[] = [
   { id: 'parallelogram', label: 'Dynamic' },
@@ -13,7 +14,7 @@ const STYLES: { id: OfferBadgeStyle; label: string }[] = [
 
 export function BadgePanel({ canvas }: { canvas: fabric.Canvas | null }) {
   const selectedObject = useCanvasStore((s) => s.selectedObject) as fabric.Object | null;
-  const isBadge = !!selectedObject && typeof (selectedObject as any).id === 'string' && ((selectedObject as any).id as string).startsWith('offer-badge');
+  const isBadge = !!selectedObject && typeof getObjectId(selectedObject) === 'string' && getObjectId(selectedObject).startsWith('offer-badge');
 
   const [amount,     setAmount]     = useState('₹50,000 Off');
   const [label,      setLabel]      = useState('Limited Period');

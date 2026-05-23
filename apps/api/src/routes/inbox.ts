@@ -4,17 +4,19 @@ import { prisma } from "../db/prisma.js"
 import type { InboxMessage } from "../generated/client/index.js"
 import { generateInboxReply as groqGenerateInboxReply, isGroqAvailable } from "../services/groq.js"
 import { generateInboxReply as openaiGenerateInboxReply } from "../services/openai.js"
+import { generateMockEmails } from "../services/emailMock.js"
 
 async function generateReplyAI(
   messageText: string,
   sentiment: string,
   dealer: { name: string; city: string; brands: string[]; phone: string; whatsapp: string; language_preferences: string[] },
   messageType: "comment" | "dm" | "review",
+  tone?: string,
 ): Promise<string> {
   if (isGroqAvailable()) {
-    try { return await groqGenerateInboxReply(messageText, sentiment, dealer, messageType) } catch {}
+    try { return await groqGenerateInboxReply(messageText, sentiment, dealer, messageType, tone) } catch {}
   }
-  return openaiGenerateInboxReply(messageText, sentiment, dealer, messageType)
+  return openaiGenerateInboxReply(messageText, sentiment, dealer, messageType, undefined, tone)
 }
 import { replyToGmbReview } from "../services/gmb.js"
 
@@ -31,6 +33,7 @@ function mapMessage(m: InboxMessage) {
     customerName: m.customer_name,
     customerAvatarUrl: m.customer_avatar_url ?? undefined,
     customerPlatformId: m.customer_platform_id ?? undefined,
+    emailSubject: m.email_subject ?? undefined,
     messageText: m.message_text,
     sentiment: m.sentiment ?? undefined,
     tag: m.tag ?? undefined,
@@ -42,6 +45,7 @@ function mapMessage(m: InboxMessage) {
     receivedAt: m.received_at.toISOString(),
   }
 }
+
 
 async function upsertInboxMessage(params: {
   dealer_id: string
@@ -313,12 +317,14 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
       const dealer_id = (request.user as { dealer_id: string | null })
         .dealer_id as string
       const { id } = request.params as { id: string }
+      const { tone } = (request.body ?? {}) as { tone?: string }
+
       const message = await prisma.inboxMessage.findFirst({
         where: { id, dealer_id },
       })
       if (!message) return reply.code(404).send({ error: "Not found" })
 
-      if (message.ai_suggested_reply) {
+      if (!tone && message.ai_suggested_reply) {
         return { suggestedReply: message.ai_suggested_reply }
       }
 
@@ -340,6 +346,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
             (dealer.language_preferences as string[] | null) ?? [],
         },
         normalizeInboxType(message.message_type),
+        tone,
       )
 
       await prisma.inboxMessage.update({
@@ -349,6 +356,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
       return { suggestedReply }
     },
   )
+
 
   // POST /v1/inbox/webhook/meta — receive Meta webhook events
   fastify.post("/webhook/meta", async (request, reply) => {
@@ -443,4 +451,205 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
     }
     return reply.code(403).send({ error: "Forbidden" })
   })
+
+  // GET /v1/inbox/settings — get auto-reply settings
+  fastify.get("/settings", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
+    if (!dealer) return reply.code(404).send({ error: "Dealer not found" })
+    return { autoReplyEnabled: dealer.auto_reply_enabled }
+  })
+
+  // POST /v1/inbox/settings — update auto-reply settings
+  fastify.post("/settings", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const { autoReplyEnabled } = request.body as { autoReplyEnabled: boolean }
+    
+    await prisma.dealer.update({
+      where: { id: dealer_id },
+      data: { auto_reply_enabled: autoReplyEnabled }
+    })
+    return { autoReplyEnabled }
+  })
+
+  // GET /v1/inbox/rules — list rules
+  fastify.get("/rules", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const rules = await prisma.autoReplyRule.findMany({
+      where: { dealer_id },
+      include: { template: true },
+      orderBy: { created_at: "desc" }
+    })
+    return { items: rules }
+  })
+
+  // POST /v1/inbox/rules — create rule
+  fastify.post("/rules", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const body = request.body as {
+      platform: string
+      messageType: string
+      conditionType: string
+      conditionValue: string
+      actionType: string
+      aiTone?: string
+      templateId?: string
+      isActive?: boolean
+    }
+
+    const rule = await prisma.autoReplyRule.create({
+      data: {
+        dealer_id,
+        platform: body.platform,
+        message_type: body.messageType,
+        condition_type: body.conditionType,
+        condition_value: body.conditionValue,
+        action_type: body.actionType,
+        ai_tone: body.aiTone ?? null,
+        template_id: body.templateId ?? null,
+        is_active: body.isActive ?? true
+      },
+      include: { template: true }
+    })
+    return { item: rule }
+  })
+
+  // PUT /v1/inbox/rules/:id — update rule
+  fastify.put("/rules/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const { id } = request.params as { id: string }
+    const body = request.body as {
+      platform?: string
+      messageType?: string
+      conditionType?: string
+      conditionValue?: string
+      actionType?: string
+      aiTone?: string
+      templateId?: string
+      isActive?: boolean
+    }
+
+    const rule = await prisma.autoReplyRule.findFirst({ where: { id, dealer_id } })
+    if (!rule) return reply.code(404).send({ error: "Rule not found" })
+
+    const data: any = {}
+    if (body.platform !== undefined) data.platform = body.platform
+    if (body.messageType !== undefined) data.message_type = body.messageType
+    if (body.conditionType !== undefined) data.condition_type = body.conditionType
+    if (body.conditionValue !== undefined) data.condition_value = body.conditionValue
+    if (body.actionType !== undefined) data.action_type = body.actionType
+    if (body.aiTone !== undefined) data.ai_tone = body.aiTone
+    if (body.templateId !== undefined) data.template_id = body.templateId
+    if (body.isActive !== undefined) data.is_active = body.isActive
+
+    const updated = await prisma.autoReplyRule.update({
+      where: { id },
+      data,
+      include: { template: true }
+    })
+    return { item: updated }
+  })
+
+  // DELETE /v1/inbox/rules/:id — delete rule
+  fastify.delete("/rules/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const { id } = request.params as { id: string }
+    const rule = await prisma.autoReplyRule.findFirst({ where: { id, dealer_id } })
+    if (!rule) return reply.code(404).send({ error: "Rule not found" })
+
+    await prisma.autoReplyRule.delete({ where: { id } })
+    return { success: true }
+  })
+
+  // GET /v1/inbox/templates — list templates
+  fastify.get("/templates", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const templates = await prisma.autoReplyTemplate.findMany({
+      where: { dealer_id },
+      orderBy: { created_at: "desc" }
+    })
+    return { items: templates }
+  })
+
+  // POST /v1/inbox/templates — create template
+  fastify.post("/templates", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const { name, text } = request.body as { name: string; text: string }
+
+    const template = await prisma.autoReplyTemplate.create({
+      data: { dealer_id, name, text }
+    })
+    return { item: template }
+  })
+
+  // PUT /v1/inbox/templates/:id — update template
+  fastify.put("/templates/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const { id } = request.params as { id: string }
+    const { name, text } = request.body as { name?: string; text?: string }
+
+    const template = await prisma.autoReplyTemplate.findFirst({ where: { id, dealer_id } })
+    if (!template) return reply.code(404).send({ error: "Template not found" })
+
+    const data: any = {}
+    if (name !== undefined) data.name = name
+    if (text !== undefined) data.text = text
+
+    const updated = await prisma.autoReplyTemplate.update({
+      where: { id },
+      data
+    })
+    return { item: updated }
+  })
+
+  // DELETE /v1/inbox/templates/:id — delete template
+  fastify.delete("/templates/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const { id } = request.params as { id: string }
+    const template = await prisma.autoReplyTemplate.findFirst({ where: { id, dealer_id } })
+    if (!template) return reply.code(404).send({ error: "Template not found" })
+
+    await prisma.autoReplyTemplate.delete({ where: { id } })
+    return { success: true }
+  })
+
+  // POST /v1/inbox/mock/seed — seed mock email messages
+  fastify.post("/mock/seed", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const items = await generateMockEmails(dealer_id)
+    return { items: items.map(mapMessage) }
+  })
+
+  // POST /v1/inbox/:id/generate-post-draft — convert positive review to post draft
+  fastify.post("/:id/generate-post-draft", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+    const { id } = request.params as { id: string }
+
+    const message = await prisma.inboxMessage.findFirst({ where: { id, dealer_id } })
+    if (!message) return reply.code(404).send({ error: "Message not found" })
+
+    const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
+    if (!dealer) return reply.code(404).send({ error: "Dealer not found" })
+
+    const { generateTestimonialCaption } = await import("../services/openai.js")
+    const { caption, hashtags } = await generateTestimonialCaption(
+      message.message_text,
+      message.customer_name,
+      { name: dealer.name, city: dealer.city }
+    )
+
+    const post = await prisma.post.create({
+      data: {
+        dealer_id,
+        prompt_text: `Testimonial post based on review by ${message.customer_name}: "${message.message_text}"`,
+        caption_text: caption,
+        caption_hashtags: hashtags,
+        platforms: ["facebook", "instagram"],
+        status: "draft",
+      }
+    })
+
+    return { post }
+  })
 }
+

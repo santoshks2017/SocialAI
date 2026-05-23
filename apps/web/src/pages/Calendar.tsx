@@ -173,8 +173,8 @@ function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailMo
                   onClick={() => setNewTime(toLocal(q.value))}
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
                     newTime === toLocal(q.value)
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                      ? 'bg-orange-500 text-white border-orange-500'
+                      : 'bg-gray-50 text-gray-700 border-slate-200 hover:border-orange-300 hover:text-orange-600'
                   }`}
                 >
                   {q.label}
@@ -186,7 +186,7 @@ function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailMo
               min={minDateTime}
               value={newTime}
               onChange={(e) => setNewTime(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-blue-400 focus:outline-none"
+              className="w-full border border-slate-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-orange-400 focus:outline-none bg-white text-slate-850"
             />
             <button
               disabled={loading || !newTime}
@@ -195,7 +195,7 @@ function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailMo
                 try { await onReschedule(post.id, new Date(newTime).toISOString()); onClose(); }
                 finally { setLoading(false); }
               }}
-              className="w-full py-2 text-sm font-bold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 text-sm font-bold bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/10"
             >
               <Clock className="w-3.5 h-3.5" />
               {loading ? 'Rescheduling…' : 'Confirm Reschedule'}
@@ -322,21 +322,21 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border overflow-hidden text-sm">
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
             <button
               onClick={() => setView('week')}
-              className={`px-3 py-1.5 font-medium transition-colors ${view === 'week' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 font-medium transition-colors ${view === 'week' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
               Week
             </button>
             <button
               onClick={() => setView('month')}
-              className={`px-3 py-1.5 font-medium transition-colors ${view === 'month' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 font-medium transition-colors ${view === 'month' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
               Month
             </button>
           </div>
-          <NavLink to="/create" className="inline-flex items-center gap-1.5 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+          <NavLink to="/create" className="inline-flex items-center gap-1.5 bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
             <Plus className="w-4 h-4" /> Add Post
           </NavLink>
         </div>
@@ -356,7 +356,7 @@ export default function CalendarPage() {
               <ChevronRight className="w-4 h-4 text-gray-600" />
             </button>
             {weekOffset !== 0 && (
-              <button onClick={() => setWeekOffset(0)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+              <button onClick={() => setWeekOffset(0)} className="text-xs text-orange-600 hover:text-orange-700 font-semibold">
                 Today
               </button>
             )}
@@ -368,10 +368,10 @@ export default function CalendarPage() {
               const posts = getPostsForDate(date);
               const todayCol = isToday(date);
               return (
-                <div key={i} className={`min-h-[260px] rounded-xl border ${todayCol ? 'border-blue-300 bg-blue-50/50' : 'bg-white border-gray-100'}`}>
-                  <div className={`px-2 py-2 text-center border-b ${todayCol ? 'border-blue-200' : 'border-gray-100'}`}>
-                    <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{DAYS[i]}</p>
-                    <p className={`text-lg font-bold mt-0.5 ${todayCol ? 'text-blue-600' : 'text-gray-800'}`}>
+                <div key={i} className={`min-h-[260px] rounded-xl border ${todayCol ? 'border-orange-300 bg-orange-50/40' : 'bg-white border-slate-200/80 shadow-sm'}`}>
+                  <div className={`px-2 py-2 text-center border-b ${todayCol ? 'border-orange-200 bg-orange-50/20' : 'border-slate-100 bg-slate-50/30'}`}>
+                    <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{DAYS[i]}</p>
+                    <p className={`text-lg font-bold mt-0.5 ${todayCol ? 'text-orange-600' : 'text-slate-800'}`}>
                       {date.getDate()}
                     </p>
                     {getFestivalsForDate(date).map((f) => (
@@ -386,7 +386,7 @@ export default function CalendarPage() {
                     ))}
                     <NavLink
                       to={`/create?date=${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}
-                      className="w-full flex items-center justify-center gap-1 py-2 rounded-lg border border-dashed border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors text-xs"
+                      className="w-full flex items-center justify-center gap-1 py-2 rounded-lg border border-dashed border-slate-200 text-slate-400 hover:border-orange-300 hover:text-orange-600 transition-colors text-xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </NavLink>
@@ -408,7 +408,7 @@ export default function CalendarPage() {
               <ChevronRight className="w-4 h-4 text-gray-600" />
             </button>
             {monthOffset !== 0 && (
-              <button onClick={() => setMonthOffset(0)} className="text-xs text-blue-600 hover:text-blue-700 font-medium ml-1">Today</button>
+              <button onClick={() => setMonthOffset(0)} className="text-xs text-orange-600 hover:text-orange-700 font-semibold ml-1">Today</button>
             )}
           </div>
 
@@ -429,16 +429,16 @@ export default function CalendarPage() {
                 <div
                   key={i}
                   className={`min-h-[80px] p-1.5 border-r border-b last-of-type:border-r-0 ${
-                    !inMonth ? 'bg-gray-50' : todayCell ? 'bg-blue-50' : 'hover:bg-gray-50'
+                    !inMonth ? 'bg-slate-50/50' : todayCell ? 'bg-orange-50/40 border border-orange-200' : 'hover:bg-slate-50/50'
                   }`}
                 >
                   {inMonth && cellDate && (
                     <>
                       <div className="flex items-center justify-between mb-0.5">
-                        <p className={`text-xs font-semibold ${todayCell ? 'text-blue-600' : 'text-gray-700'}`}>{dayNum + 1}</p>
+                        <p className={`text-xs font-semibold ${todayCell ? 'text-orange-600' : 'text-slate-700'}`}>{dayNum + 1}</p>
                         <NavLink
                           to={`/create?date=${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, '0')}-${String(cellDate.getDate()).padStart(2, '0')}`}
-                          className="text-gray-300 hover:text-blue-400 transition-colors"
+                          className="text-slate-350 hover:text-orange-500 transition-colors"
                         >
                           <Plus className="w-3 h-3" />
                         </NavLink>

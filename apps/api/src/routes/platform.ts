@@ -88,7 +88,151 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       return { success: true, redirect_url: url.toString() };
     }
 
+    // ── Twitter/X mock OAuth ──────────────────────────────────────────────────
+    if (platform === 'twitter') {
+      if (!dealer_id) {
+        return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
+      }
+      const state = Buffer.from(JSON.stringify({ dealer_id })).toString('base64url');
+      // Mock: immediately redirect to our own callback (no real Twitter OAuth round-trip)
+      const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/twitter?code=mock_twitter_code&state=${state}`;
+      return { success: true, redirect_url: callbackUrl };
+    }
+
+    // ── YouTube mock OAuth ────────────────────────────────────────────────────
+    if (platform === 'youtube') {
+      if (!dealer_id) {
+        return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
+      }
+      const state = Buffer.from(JSON.stringify({ dealer_id })).toString('base64url');
+      const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/youtube?code=mock_youtube_code&state=${state}`;
+      return { success: true, redirect_url: callbackUrl };
+    }
+
     return reply.code(400).send({ error: { code: 'INVALID_PLATFORM', message: `Unknown platform: ${platform}` } });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // GET /v1/platforms/callback/twitter
+  // Mock Twitter/X OAuth callback — upserts a demo PlatformConnection.
+  // ─────────────────────────────────────────────────────────────────────────────
+  fastify.get('/callback/twitter', async (request, reply) => {
+    const { code, state, error: oauthError } = request.query as {
+      code?: string;
+      state?: string;
+      error?: string;
+    };
+
+    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+
+    if (oauthError || !code || !state) {
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'Twitter login cancelled')}&platform=twitter`);
+    }
+
+    let stateData: { dealer_id: string | null };
+    try {
+      stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
+    } catch {
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=twitter`);
+    }
+
+    if (!stateData.dealer_id) {
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=twitter`);
+    }
+
+    try {
+      // Fetch dealer name for a realistic mock handle
+      const dealer = await prisma.dealer.findUnique({ where: { id: stateData.dealer_id } });
+      const handle = dealer?.name
+        ? `@${dealer.name.toLowerCase().replace(/\s+/g, '').slice(0, 15)}`
+        : '@dealershowroom';
+
+      await prisma.platformConnection.upsert({
+        where: { dealer_id_platform: { dealer_id: stateData.dealer_id, platform: 'twitter' } },
+        create: {
+          dealer_id: stateData.dealer_id,
+          platform: 'twitter',
+          platform_account_id: `tw_${stateData.dealer_id.slice(0, 8)}`,
+          platform_account_name: handle,
+          access_token: 'mock_twitter_access_token',
+          refresh_token: 'mock_twitter_refresh_token',
+          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
+          is_connected: true,
+        },
+        update: {
+          platform_account_name: handle,
+          access_token: 'mock_twitter_access_token',
+          refresh_token: 'mock_twitter_refresh_token',
+          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          is_connected: true,
+        },
+      });
+
+      return reply.redirect(`${frontendCallback}?success=1&platform=twitter&page_name=${encodeURIComponent(handle)}`);
+    } catch (err) {
+      fastify.log.error(err, 'Twitter mock callback failed');
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Twitter connection failed')}&platform=twitter`);
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // GET /v1/platforms/callback/youtube
+  // Mock YouTube OAuth callback — upserts a demo PlatformConnection.
+  // ─────────────────────────────────────────────────────────────────────────────
+  fastify.get('/callback/youtube', async (request, reply) => {
+    const { code, state, error: oauthError } = request.query as {
+      code?: string;
+      state?: string;
+      error?: string;
+    };
+
+    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+
+    if (oauthError || !code || !state) {
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'YouTube login cancelled')}&platform=youtube`);
+    }
+
+    let stateData: { dealer_id: string | null };
+    try {
+      stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
+    } catch {
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=youtube`);
+    }
+
+    if (!stateData.dealer_id) {
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=youtube`);
+    }
+
+    try {
+      const dealer = await prisma.dealer.findUnique({ where: { id: stateData.dealer_id } });
+      const channelName = dealer?.name ? `${dealer.name} Official` : 'Dealership Channel';
+
+      await prisma.platformConnection.upsert({
+        where: { dealer_id_platform: { dealer_id: stateData.dealer_id, platform: 'youtube' } },
+        create: {
+          dealer_id: stateData.dealer_id,
+          platform: 'youtube',
+          platform_account_id: `yt_${stateData.dealer_id.slice(0, 8)}`,
+          platform_account_name: channelName,
+          access_token: 'mock_youtube_access_token',
+          refresh_token: 'mock_youtube_refresh_token',
+          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          is_connected: true,
+        },
+        update: {
+          platform_account_name: channelName,
+          access_token: 'mock_youtube_access_token',
+          refresh_token: 'mock_youtube_refresh_token',
+          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          is_connected: true,
+        },
+      });
+
+      return reply.redirect(`${frontendCallback}?success=1&platform=youtube&page_name=${encodeURIComponent(channelName)}`);
+    } catch (err) {
+      fastify.log.error(err, 'YouTube mock callback failed');
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('YouTube connection failed')}&platform=youtube`);
+    }
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -105,19 +249,19 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       error_description?: string;
     };
 
-    const frontendSettings = `${FRONTEND_URL}/settings?tab=platforms`;
+    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
 
     if (oauthError || !code || !state) {
       const msg = oauthError ?? 'Missing code or state';
       fastify.log.warn({ oauthError, error_description }, 'Meta OAuth denied or missing params');
-      return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent(error_description ?? msg)}&platform=facebook`);
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(error_description ?? msg)}&platform=facebook`);
     }
 
     let stateData: { dealer_id: string | null; platform?: string; signin?: boolean };
     try {
       stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
     } catch {
-      return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent('Invalid state parameter')}&platform=facebook`);
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state parameter')}&platform=facebook`);
     }
 
     try {
@@ -152,7 +296,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         const errMsg = stateData.signin
           ? 'No Facebook Page found. Please create a Facebook Business Page first, then try again.'
           : 'No Facebook Page found. Create a Facebook Page first.';
-        return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent(errMsg)}&platform=facebook`);
+        return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(errMsg)}&platform=facebook`);
       }
 
       // 4. Get non-expiring Page access token
@@ -213,7 +357,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       }
 
       if (!dealerId) {
-        return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent('Session expired. Please try again.')}&platform=facebook`);
+        return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=facebook`);
       }
 
       // 5. Save Facebook connection
@@ -284,12 +428,12 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         );
       }
 
-      return reply.redirect(`${frontendSettings}&oauth_success=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(page.name)}`);
+      return reply.redirect(`${frontendCallback}?success=1&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(page.name)}`);
 
     } catch (err) {
       fastify.log.error(err, 'Meta OAuth callback failed');
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? 'Connection failed';
-      return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent(msg)}&platform=facebook`);
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(msg)}&platform=facebook`);
     }
   });
 
@@ -304,17 +448,17 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       error?: string;
     };
 
-    const frontendSettings = `${FRONTEND_URL}/settings?tab=platforms`;
+    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
 
     if (oauthError || !code || !state) {
-      return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent(oauthError ?? 'Google login cancelled')}&platform=gmb`);
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'Google login cancelled')}&platform=google`);
     }
 
     let stateData: { dealer_id: string | null; signin?: boolean };
     try {
       stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
     } catch {
-      return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent('Invalid state')}&platform=gmb`);
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=google`);
     }
 
     try {
@@ -409,7 +553,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       }
 
       if (!dealerId) {
-        return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent('Session expired. Please try again.')}&platform=gmb`);
+        return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=google`);
       }
 
       if (account) {
@@ -437,11 +581,11 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         );
       }
 
-      return reply.redirect(`${frontendSettings}&oauth_success=${encodeURIComponent('gmb')}&page_name=${encodeURIComponent(displayName)}`);
+      return reply.redirect(`${frontendCallback}?success=1&platform=google&page_name=${encodeURIComponent(displayName)}`);
 
     } catch (err) {
       fastify.log.error(err, 'Google OAuth callback failed');
-      return reply.redirect(`${frontendSettings}&oauth_error=${encodeURIComponent('Google connection failed')}&platform=gmb`);
+      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Google connection failed')}&platform=google`);
     }
   });
 

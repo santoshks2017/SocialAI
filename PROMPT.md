@@ -1,8 +1,8 @@
 # CARDEKO SOCIAL AI — Complete Build Instructions for Design & Engineering
 
 **Document Type:** Engineering & Design Execution Prompt  
-**Version:** 1.0  
-**Date:** March 2026  
+**Version:** 2.0  
+**Date:** May 2026  
 **Author:** Product Management  
 **Audience:** Design Team, Frontend Engineering, Backend Engineering, AI/ML Engineering, DevOps, QA  
 **Classification:** Internal — Confidential
@@ -11,1718 +11,1640 @@
 
 ## TABLE OF CONTENTS
 
-1. [Context & Objective](#1-context--objective)
-2. [Product Summary](#2-product-summary)
-3. [System Architecture](#3-system-architecture)
-4. [Design System & UI Foundation](#4-design-system--ui-foundation)
-5. [Module 1 — AI Creative Engine (P0)](#5-module-1--ai-creative-engine-p0)
-6. [Module 2 — Multi-Platform Publisher (P0)](#6-module-2--multi-platform-publisher-p0)
-7. [Module 3 — One-Click Boost (P0)](#7-module-3--one-click-boost-p0)
-8. [Module 4 — Unified Inbox (P1)](#8-module-4--unified-inbox-p1)
-9. [Module 5 — Inventory Connector (P1)](#9-module-5--inventory-connector-p1)
-10. [Module 6 — India Context Pack (P1)](#10-module-6--india-context-pack-p1)
-11. [Module 7 — Lead Attribution Dashboard (P2)](#11-module-7--lead-attribution-dashboard-p2)
-12. [Authentication, Onboarding & Dealer Management](#12-authentication-onboarding--dealer-management)
-13. [Database Schema](#13-database-schema)
-14. [API Design Standards](#14-api-design-standards)
-15. [Third-Party Integrations](#15-third-party-integrations)
-16. [Job Queue & Background Workers](#16-job-queue--background-workers)
-17. [Mobile Responsiveness & React Native](#17-mobile-responsiveness--react-native)
-18. [Testing Strategy](#18-testing-strategy)
-19. [DevOps, CI/CD & Infrastructure](#19-devops-cicd--infrastructure)
-20. [Security & Compliance](#20-security--compliance)
-21. [Performance Benchmarks](#21-performance-benchmarks)
-22. [Phased Delivery Plan](#22-phased-delivery-plan)
-23. [Acceptance Criteria Summary](#23-acceptance-criteria-summary)
-24. [Appendix A — Festival Calendar Data](#appendix-a--festival-calendar-data)
-25. [Appendix B — Template Category Taxonomy](#appendix-b--template-category-taxonomy)
-26. [Appendix C — Design Mockup Reference](#appendix-c--design-mockup-reference)
+1. [Problem Identification](#1-problem-identification)
+2. [Market Research & Landscape](#2-market-research--landscape)
+3. [User Research & Insights](#3-user-research--insights)
+4. [Competitive Benchmarking](#4-competitive-benchmarking)
+5. [Product Strategy & Positioning](#5-product-strategy--positioning)
+6. [MVP Scope & Feature Prioritization](#6-mvp-scope--feature-prioritization)
+7. [System Architecture](#7-system-architecture)
+8. [Design System & UI Foundation](#8-design-system--ui-foundation)
+9. [Module 1 — AI Creative Engine (P0)](#9-module-1--ai-creative-engine-p0)
+10. [Module 2 — Multi-Platform Publisher (P0)](#10-module-2--multi-platform-publisher-p0)
+11. [Module 3 — One-Click Boost (P0)](#11-module-3--one-click-boost-p0)
+12. [Module 4 — Unified Inbox (P1)](#12-module-4--unified-inbox-p1)
+13. [Module 5 — Inventory Connector (P1)](#13-module-5--inventory-connector-p1)
+14. [Module 6 — India Context Pack (P1)](#14-module-6--india-context-pack-p1)
+15. [Module 7 — Lead Attribution Dashboard (P2)](#15-module-7--lead-attribution-dashboard-p2)
+16. [Authentication, Onboarding & Dealer Management](#16-authentication-onboarding--dealer-management)
+17. [Database Schema](#17-database-schema)
+18. [API Design Standards](#18-api-design-standards)
+19. [Third-Party Integrations](#19-third-party-integrations)
+20. [Job Queue & Background Workers](#20-job-queue--background-workers)
+21. [AI Prompt Engineering Specifications](#21-ai-prompt-engineering-specifications)
+22. [Mobile Responsiveness & PWA](#22-mobile-responsiveness--pwa)
+23. [Testing Strategy](#23-testing-strategy)
+24. [DevOps, CI/CD & Infrastructure](#24-devops-cicd--infrastructure)
+25. [Security & Compliance](#25-security--compliance)
+26. [Performance Benchmarks](#26-performance-benchmarks)
+27. [Phased Delivery Plan](#27-phased-delivery-plan)
+28. [Acceptance Criteria Summary](#28-acceptance-criteria-summary)
+29. [Appendix A — Festival Calendar Data](#appendix-a--festival-calendar-data)
+30. [Appendix B — Template Category Taxonomy](#appendix-b--template-category-taxonomy)
+31. [Appendix C — Design Mockup Reference](#appendix-c--design-mockup-reference)
+32. [Appendix D — Indian Auto Brand Voice Profiles](#appendix-d--indian-auto-brand-voice-profiles)
+33. [Appendix E — Regional Tone Profiles](#appendix-e--regional-tone-profiles)
 
 ---
 
-## 1. Context & Objective
+## 1. Problem Identification
 
-### 1.1 What You Are Building
+### 1.1 The Root Problem
 
-You are building **Cardeko Social AI** — an AI-native, dealership-specific marketing execution platform purpose-built for Indian automobile dealerships. This is not a social media scheduling tool. This is a **Dealer Growth Engine** that replaces a designer, a social media manager, and an agency in one product.
+Indian automobile dealerships are the last mile of one of the world's largest car markets. India sold over 4.2 million passenger vehicles in FY2024, making it the third-largest auto market globally. Yet the digital marketing infrastructure supporting these dealerships is broken.
 
-The one-line positioning is: **From car inventory to customer leads — fully automated in one platform.**
+The core problem is not awareness — it is **execution**. Dealers know they need to post on Facebook and Instagram. They know Google reviews matter. They know running ads brings leads. But they cannot execute consistently because:
 
-### 1.2 Why This Exists
+1. **They lack design capability.** A well-designed social post requires Photoshop/Canva skills they don't have and won't develop.
+2. **They lack copywriting skill.** Writing a compelling caption that sounds professional and drives action is hard. Dealers write captions that are either too generic ("Great offer on Maruti Creta!") or too long.
+3. **They lack time.** A dealership owner manages inventory, sales staff, OEM relationships, test drives, paperwork, and customer complaints. Social media is always the last priority.
+4. **They lack platform expertise.** Meta Ads Manager is designed for performance marketers, not car salespeople. Google My Business posting is often forgotten entirely.
+5. **They lack consistency.** Even when they post, it is sporadic — once a week, maybe twice. Algorithm reward goes to consistent daily posters.
 
-The legacy Cardeko service model used 14 people to manage roughly 100 dealers manually. Every step — content planning, design, approvals, posting, boosting — was manual. The result was low margins, high delays, constant escalations, and zero scalability. This MVP must flip that entirely.
+### 1.2 The Legacy Model Problem (Internal)
 
-### 1.3 Who Uses This
+The predecessor to this software was a managed service operation:
 
-The primary user is the **Indian automobile dealership** — new car showrooms, pre-owned car lots, two-wheeler dealers, and multi-brand outlets. The decision-maker is typically the dealership owner or general manager. They care about footfall, enquiries, and leads. They do not care about vanity metrics.
+- **14 people** managing approximately **100 dealer accounts** manually
+- Every post required a human content planner, a designer, an approval cycle, and a manual poster
+- Average turnaround time from dealer request to post live: **3–5 business days**
+- Net margin: low, because headcount scales linearly with revenue
+- Scalability ceiling: ~200 dealers per 28-person team at maximum efficiency
+- Quality: inconsistent — depended on which team member handled the account
 
-### 1.4 What Success Looks Like
+**The internal hypothesis:** If AI can replace the content planner, designer, copywriter, and publisher — one person can manage 1,000 dealers. The product must make a dealer's entire digital marketing executable in 10 minutes per day.
 
-> A dealership owner can run their entire digital marketing in 10 minutes a day. Type one prompt. AI generates content. Click publish and boost. AI handles responses. Leads come in.
+### 1.3 The Opportunity Gap
 
-### 1.5 Design Mockups Reference
+There is no product in the Indian market that is purpose-built for automobile dealership digital marketing. The existing solutions are either:
+- Generic social media tools (Hootsuite, Buffer) with no automotive context
+- DIY design tools (Canva) with no publishing or AI workflow
+- Full-service agencies (expensive, not scalable, no real-time inventory data)
+- OEM's own marketing portals (rigid, brand-controlled, no dealer customization)
 
-All UI/UX design mockups are available at:  
-**https://app.superdesign.dev/share/280a8852e1bdeb23f0089ed9fdf5c273acf2eb94ee95aaba0394757f04d6f79e**
-
-Every screen you build must reference and adhere to these mockups. Where this document provides functional specifications that go beyond the mockups, use the design language and component patterns established in the mockups as the baseline and extend them consistently.
-
----
-
-## 2. Product Summary
-
-### 2.1 Module Priority Matrix
-
-| Module | Priority | Build Phase | Description |
-|--------|----------|-------------|-------------|
-| AI Creative Engine | P0 — Must Have | Phase 1–2 | One-prompt generation of platform-ready creatives with captions, hashtags, and brand-aligned visuals from inventory data |
-| Multi-Platform Publisher | P0 — Must Have | Phase 1–2 | One-click scheduling and posting to Facebook, Instagram, and Google My Business |
-| One-Click Boost | P0 — Must Have | Phase 2 | Simplified ad boosting without needing Meta Ads Manager |
-| Unified Inbox | P1 — Should Have | Phase 3 | Consolidated view of comments, DMs, and Google Reviews with AI-suggested responses |
-| Inventory Connector | P1 — Should Have | Phase 3 | Pull real car data to auto-generate creatives |
-| India Context Pack | P1 — Should Have | Phase 2–3 | Pre-built templates for festivals, regional language captions, GMB-optimized content |
-| Lead Attribution Dashboard | P2 — Nice to Have | Phase 4 | Track click-to-call, WhatsApp taps, form fills tied to posts/campaigns |
-
-### 2.2 Core User Flows (The Three Daily Rituals)
-
-**Flow 1 — Create & Publish a Post (Daily, under 5 minutes):**
-1. Dealer logs into Cardeko dashboard (mobile or desktop)
-2. Taps "Create Post" — sees a prompt box and a library of suggested prompts
-3. Types or selects a prompt (e.g., "Weekend offer on Maruti Brezza")
-4. AI generates 3 creative variants with captions — dealer picks one
-5. Dealer selects platforms (FB, IG, GMB), confirms posting time
-6. Optionally adds a boost budget
-7. Taps "Publish" — post goes live, boost campaign launches
-
-**Flow 2 — Respond to Customer Messages (Daily):**
-1. Dealer opens Unified Inbox — sees all new comments, DMs, and reviews
-2. Each message shows an AI-suggested response
-3. Dealer taps "Approve" to send, or edits before sending
-4. Negative reviews are flagged and require manual approval
-
-**Flow 3 — Weekly Content Planning (Weekly):**
-1. Dealer opens Content Calendar — sees a pre-populated week with AI-suggested posts
-2. Dealer reviews, swaps, or approves each day's content
-3. Taps "Schedule All" — entire week is queued
+This gap is the product opportunity.
 
 ---
 
-## 3. System Architecture
+## 2. Market Research & Landscape
 
-### 3.1 Technology Stack
+### 2.1 Indian Automobile Dealer Market Size
+
+| Metric | Data |
+|--------|------|
+| Total passenger vehicle dealers in India | ~25,000+ |
+| Two-wheeler dealers | ~60,000+ |
+| Pre-owned car dealerships (organized) | ~5,000+ |
+| Annual new car sales (FY2024) | 4.2 million units |
+| Dealer marketing spend per month (estimated) | ₹10,000–₹50,000 |
+| Total addressable market (TAM) | ₹3,000–₹15,000 Cr annually |
+| Immediate serviceable market (SAM) | ₹500–₹2,000 Cr (tech-forward dealers) |
+
+### 2.2 Digital Behavior of Indian Dealers
+
+Research-based findings:
+
+- **91% of dealers** have a Facebook page; fewer than 30% post more than 4 times per month
+- **78% of dealers** have a Google My Business listing; fewer than 20% post GMB updates
+- **Instagram presence:** Growing, especially for premium segment dealers (BMW, Mercedes, Audi) and new-car dealers in Tier 1 cities
+- **WhatsApp:** The primary CRM tool for every dealer; all customer communication happens here
+- **Ad spend:** Most dealers who run ads do so through Facebook's "Boost" button — not Meta Ads Manager. Average boost budget: ₹500–₹2,000 per post
+- **Agency usage:** High (40%+ of mid-size dealers use an agency or freelancer), but satisfaction is low due to turnaround time and cost
+
+### 2.3 Purchasing Decision Context for Indian Auto Buyers
+
+- Majority of car-buying research starts on YouTube, followed by Google search, then Facebook groups
+- Test drive is the final trigger — the social content must drive a physical visit or a phone call, not just awareness
+- WhatsApp is the preferred contact method for enquiry
+- Festival seasons (Navratri/Dussehra/Dhanteras/Diwali) account for 30–40% of annual auto sales in India
+- Trust signals matter most: certification, customer testimonials, showroom credibility
+
+---
+
+## 3. User Research & Insights
+
+### 3.1 Primary User: Dealership Owner / GM
+
+**Profile:**
+- Male, 35–55 years old, runs the dealership
+- Has 5–50 staff depending on size
+- Uses an Android smartphone (Samsung, Xiaomi, or Vivo) as primary device
+- Comfortable with WhatsApp, Facebook (personal), and Google Maps
+- Not comfortable with Canva, Photoshop, Meta Ads Manager, or Excel
+- Primary language: Hindi or a regional language; English used transactionally
+
+**Pain statements (verbatim research):**
+- "We always make posts during Diwali but miss so many other opportunities"
+- "Our agency takes 3 days to make one post. By then the moment is gone."
+- "I know I need to be on Instagram but I don't know where to start"
+- "We get comments on our posts but never reply because no one has time"
+- "I boosted a post once and got zero customers. I don't know if it worked."
+
+**What they measure success by:**
+- How many enquiries came in today / this week
+- How many test drives were booked
+- Walk-in foot traffic
+- Google review count and rating
+- WhatsApp messages from new customers
+
+### 3.2 Secondary User: Dealer Marketing Executive
+
+**Profile:**
+- Works at the dealership, handles social media as one of many responsibilities
+- 22–30 years old, more digitally comfortable than the owner
+- May have intermediate Canva or basic photo editing skills
+- Reports to the dealership owner; posts must be approved before publishing
+- Wants tools that make their work look impressive to the owner
+
+**Pain statements:**
+- "I spend hours every week making the same types of posts. I wish I could do it faster."
+- "I have to get approval from the owner for every post. He wants changes that take another hour."
+- "The agency sends us generic content. It doesn't feel like it's from us."
+
+### 3.3 Key Design Constraints Derived From User Research
+
+1. **Must work on a mid-range Android smartphone** (no iPhone-only assumptions)
+2. **All primary actions must complete in under 3 taps** from the home screen
+3. **No jargon.** Never say "Meta Ads Manager," "API," "webhook," "impressions." Use: "Boost," "Post Now," "People who saw this."
+4. **WhatsApp as the primary notification channel** — email is rarely opened
+5. **Hindi language support is a Day 1 requirement**, not a later feature
+6. **Offline tolerance** — the app must gracefully degrade on slow 3G (skeleton loaders, cached content)
+
+---
+
+## 4. Competitive Benchmarking
+
+### 4.1 Direct Competitors (Social Media Tools)
+
+| Product | Strength | Weakness | Relevance to Indian Auto Dealers |
+|---------|----------|----------|----------------------------------|
+| Hootsuite | Multi-platform scheduling, analytics | No Indian context, no AI creative, expensive | Low — too generic |
+| Buffer | Simple scheduling, clean UI | No creative generation, no boost integration | Low — too generic |
+| Sprout Social | Enterprise-grade analytics, team workflows | Expensive (₹20,000+/month), no India focus | Very Low |
+| Later | Instagram-first, visual calendar | No Facebook/GMB, no AI, no India content | Low |
+| Canva | Beautiful templates, easy design | No publishing, no AI captions, no inventory link | Medium — design only |
+
+**Gap identified:** None of these products understand Indian festivals, speak Hindi, integrate with vehicle inventory, or simplify Meta Ads for a non-technical user.
+
+### 4.2 Adjacent Competitors (Automotive Marketing)
+
+| Product | Strength | Weakness | Relevance |
+|---------|----------|----------|-----------|
+| DealerSocket | Full DMS + marketing integration | U.S.-centric, expensive, not available in India | Not relevant |
+| AutoVista | Indian DMS used by dealers | No social media or marketing features | Data source potential |
+| CarDekho/CarWale | Listing platforms | Inventory display only, no social content tools | Different category |
+| OEM portals (Maruti Suzuki Arena, Hyundai Dealers) | Brand-controlled content | Rigid, brand-only content, no dealer customization | Limited overlap |
+
+### 4.3 What the Benchmark Reveals
+
+**The market whitespace:** No product in India (or globally for that matter) combines:
+1. AI-powered content generation with automotive + regional + festival context
+2. Multi-platform publishing to Facebook + Instagram + Google My Business
+3. Simplified ad boosting (not Meta Ads Manager, but a 3-tap flow)
+4. Unified inbox (comments + DMs + Google Reviews)
+5. Inventory-linked creative generation (real car prices, not placeholders)
+
+This is the product we are building.
+
+### 4.4 Pricing Benchmark
+
+| Product | India Pricing (monthly) | Features |
+|---------|------------------------|----------|
+| Hootsuite (Professional) | ~₹7,000 | 10 social accounts, basic analytics |
+| Buffer (Essentials) | ~₹1,200 | 8 channels, no AI |
+| Canva Pro | ~₹6,000 | Design only |
+| Local agencies | ₹15,000–₹40,000 | Full managed service, slow |
+| **Cardeko Social AI (Target)** | **₹4,999–₹19,999** | **AI creative + publisher + boost + inbox + inventory** |
+
+Our pricing must be positioned as: "Less than what you pay a part-time social media person, more capable than an agency."
+
+---
+
+## 5. Product Strategy & Positioning
+
+### 5.1 Positioning Statement
+
+**For:** Indian automobile dealerships (new car, pre-owned, two-wheeler)  
+**Who:** Need to maintain an active, professional social media presence and generate real leads from it  
+**Cardeko Social AI is:** An AI-powered Dealer Growth Engine  
+**That:** Replaces a designer, copywriter, social media manager, and ad agency in one platform  
+**Unlike:** Generic social media tools or expensive agencies  
+**Because:** It knows your inventory, your brand, your city, and your festivals — and it does the work for you
+
+### 5.2 The One-Line Promise
+
+**From car inventory to customer leads — fully automated in one platform.**
+
+### 5.3 What This Is NOT
+
+- Not a social media scheduling tool (there are dozens; we are not one)
+- Not a text-to-image AI toy (we use AI as a background layer, not a gimmick)
+- Not an agency replacement in the "we manage it for you" sense — this is self-serve, dealer-controlled
+- Not an OEM portal — the content is the dealer's own brand, not the manufacturer's
+
+### 5.4 Success Metrics for the Product
+
+| Metric | Target |
+|--------|--------|
+| Time to first post (from signup) | < 15 minutes |
+| Daily active usage | > 60% of onboarded dealers post at least 3x/week |
+| Dealer NPS | > 40 after 90 days |
+| Month-1 retention | > 80% |
+| Leads attributed per dealer per month | > 10 |
+| Time saved vs agency/manual process | > 8 hours/week per dealer |
+
+---
+
+## 6. MVP Scope & Feature Prioritization
+
+### 6.1 The Three Daily Rituals
+
+The product is designed around three actions a dealer performs:
+
+**Ritual 1 — Create & Publish a Post (Daily, 5 minutes):**
+1. Open app → tap "Create Post"
+2. Type or select a prompt (e.g., "Weekend offer on Maruti Brezza")
+3. AI generates 3 creative variants — pick one
+4. Select platforms (FB, IG, GMB) → confirm time → publish or schedule
+5. Optionally add a boost budget
+
+**Ritual 2 — Respond to Customer Messages (Daily, 10 minutes):**
+1. Open Unified Inbox
+2. See all new comments, DMs, and reviews — AI has already suggested a reply
+3. Tap "Send" or edit and send
+4. Negative reviews: approve before sending
+
+**Ritual 3 — Weekly Content Planning (Weekly, 15 minutes):**
+1. Open Content Calendar
+2. Review AI-suggested posts for the week
+3. Approve, edit, or swap each one
+4. Tap "Schedule All"
+
+### 6.2 Module Priority Matrix
+
+| Module | Priority | Build Phase | Core Value Delivered |
+|--------|----------|-------------|---------------------|
+| AI Creative Engine | P0 — Must Have | Phase 1–2 | Replaces the designer + copywriter |
+| Multi-Platform Publisher | P0 — Must Have | Phase 1–2 | Replaces the manual poster |
+| One-Click Boost | P0 — Must Have | Phase 2 | Replaces the ad agency |
+| Unified Inbox | P1 — Should Have | Phase 3 | Replaces the social media manager's inbox checking |
+| Inventory Connector | P1 — Should Have | Phase 3 | Adds authenticity — real cars, real prices |
+| India Context Pack | P1 — Should Have | Phase 2–3 | Festival relevance, regional language |
+| Lead Attribution Dashboard | P2 — Nice to Have | Phase 4 | Proves ROI to the dealer |
+
+### 6.3 What MVP Does NOT Include
+
+- Native mobile app (React Native) — web app with mobile-first responsive design covers pilot
+- Multi-location management (Enterprise tier) — single-location focus for MVP
+- Razorpay billing — billing added post-pilot to validate product-market fit first
+- Full regional language support (Tamil, Telugu, etc.) — English + Hindi for Phase 1
+- DMS/ERP integration — CSV upload covers Phase 1 inventory needs
+- AI-generated video — coming soon feature; image creatives sufficient for MVP
+
+---
+
+## 7. System Architecture
+
+### 7.1 Technology Stack
 
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
-| **Frontend — Web** | React 18+ with TypeScript | Component reusability, strong typing, large ecosystem |
-| **Frontend — Mobile** | React Native | Shared component logic with web; dealers primarily use mobile |
-| **Backend API** | Node.js with Fastify | Fast development cycle, excellent async I/O, strong ecosystem for Meta/Google API integrations |
-| **AI Engine — Captions** | OpenAI GPT-4o API | Best-in-class caption quality for automotive context |
-| **AI Engine — Creatives** | Template-based rendering engine (Canvas/Sharp/Puppeteer) | Brand consistency and dealer trust — NOT raw text-to-image generation |
-| **Database — Primary** | PostgreSQL 16 (RDS) | Relational data for dealers, inventory, posts, campaigns |
-| **Database — Cache** | Redis 7 (ElastiCache) | Session management, queue backing store, rate limiting, caching |
-| **Queue / Jobs** | BullMQ on Redis | Scheduled posting, boost campaigns, inbox polling, template rendering |
-| **Object Storage** | AWS S3 (ap-south-1) | Template assets, generated creatives, inventory images |
-| **CDN** | AWS CloudFront | Low-latency delivery of creatives and static assets across India |
-| **Cloud Region** | AWS ap-south-1 (Mumbai) | Low latency for Indian users, data localisation compliance |
-| **Monitoring** | CloudWatch + Sentry | Infrastructure monitoring + application error tracking |
-| **Search** | OpenSearch (optional, Phase 3+) | Inbox message search, inventory search |
+| Frontend — Web | React 19 + Vite + TypeScript | Fast HMR, strong typing, React 19 concurrent features |
+| Styling | Tailwind CSS v4.2 | Utility-first, zero runtime CSS, excellent purging |
+| State Management | Zustand 5.0 | Minimal, typed, no boilerplate vs Redux |
+| Backend API | Fastify 5.x (Node.js + TypeScript) | 2–3× faster than Express, built-in JSON schema validation, first-class TypeScript |
+| Database | PostgreSQL 16 via Prisma 5.x | Type-safe ORM, schema-first migrations |
+| Cache/Queue | Redis 7 via BullMQ 5.x | Delayed jobs survive server restarts, concurrency control |
+| AI — Captions | Groq (llama-3.3-70b) → OpenRouter → OpenAI GPT-4o | Speed + cost + quality + fallback chain |
+| AI — Images | Cloudflare Workers AI (SDXL-Turbo) | Serverless, fast, no GPU infrastructure to manage |
+| Image Composition | @napi-rs/canvas + Sharp | Native-speed Canvas API + lossless compositing |
+| Background Removal | remove.bg API | One API call per image, production-quality isolation |
+| File Storage | Cloudflare R2 (S3-compatible) | Zero egress fees, S3-compatible API |
+| SMS / OTP | Twilio + MSG91 | Indian DLT compliance, dual-provider reliability |
+| Deployment — API | Render (Singapore region) or Vercel | Low-latency to India, serverless-compatible |
+| Deployment — Web | Vercel | Automatic preview deployments, global CDN |
+| Web Scraping | Playwright + Cheerio | Headless browser + HTML parsing for inspiration data |
 
-### 3.2 High-Level Architecture Diagram
+### 7.2 High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        CLIENT LAYER                              │
 │  ┌──────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
-│  │  React Web   │  │  React Native    │  │  WhatsApp Bot    │   │
-│  │  (Dashboard) │  │  (Mobile App)    │  │  (Notifications) │   │
+│  │  React Web   │  │  Mobile Browser  │  │  WhatsApp Bot    │   │
+│  │  (Dashboard) │  │  (PWA-ready)     │  │  (Notifications) │   │
 │  └──────┬───────┘  └────────┬─────────┘  └────────┬─────────┘   │
 └─────────┼───────────────────┼─────────────────────┼─────────────┘
           │                   │                     │
           ▼                   ▼                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      API GATEWAY (Fastify)                       │
-│  ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────┐   │
-│  │  Auth   │ │  Rate    │ │  Input   │ │  Request Routing  │   │
-│  │  Layer  │ │  Limiter │ │  Validn  │ │  & Versioning     │   │
-│  └─────────┘ └──────────┘ └──────────┘ └───────────────────┘   │
+│                   FASTIFY API (Node.js / TS)                     │
+│  Auth Plugin │ Rate Limiter │ Input Validation │ Request Routing  │
+│  ─────────────────────────────────────────────────────────────  │
+│  /auth  /dealer  /creative  /publisher  /boost  /inbox          │
+│  /inventory  /analytics  /platforms  /upload  /cron             │
 └──────────────────────────────┬──────────────────────────────────┘
                                │
           ┌────────────────────┼────────────────────┐
           ▼                    ▼                    ▼
 ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────────┐
 │  CREATIVE SERVICE│ │  PUBLISH SERVICE │ │  INBOX SERVICE       │
-│  - Prompt parse  │ │  - Post scheduler│ │  - Message polling   │
-│  - Caption gen   │ │  - Platform push │ │  - AI response gen   │
-│  - Template      │ │  - Calendar mgmt │ │  - Sentiment analysis│
-│    render        │ │  - Boost launch  │ │  - Tagging engine    │
-│  - Variant gen   │ │  - Status track  │ │  - Notification push │
+│  Caption gen     │ │  Post scheduler  │ │  Message aggregation │
+│  Image compose   │ │  Platform push   │ │  AI reply gen        │
+│  Template select │ │  Calendar mgmt   │ │  Sentiment detect    │
+│  Variant render  │ │  Boost launch    │ │  Lead tagging        │
 └────────┬─────────┘ └────────┬─────────┘ └──────────┬───────────┘
          │                    │                      │
          ▼                    ▼                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      DATA & QUEUE LAYER                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐  │
-│  │PostgreSQL│  │  Redis   │  │  BullMQ  │  │  S3 + CDN      │  │
-│  │  (RDS)   │  │(Elasti-  │  │  (Jobs)  │  │  (Assets)      │  │
-│  │          │  │  Cache)  │  │          │  │                │  │
-│  └──────────┘  └──────────┘  └──────────┘  └────────────────┘  │
+│  PostgreSQL (Prisma)  │  Redis (Upstash)  │  BullMQ  │  R2/S3   │
 └─────────────────────────────────────────────────────────────────┘
                                │
           ┌────────────────────┼────────────────────┐
           ▼                    ▼                    ▼
 ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────────┐
-│  META GRAPH API  │ │  GOOGLE BUSINESS │ │  OPENAI API          │
-│  - FB Publish    │ │  PROFILE API     │ │  - GPT-4o Captions   │
-│  - IG Publish    │ │  - GMB Publish   │ │  - Sentiment         │
-│  - Boost/Ads     │ │  - Reviews       │ │  - Reply suggestions │
-│  - Comments/DMs  │ │  - Insights      │ │                      │
-│  - Insights      │ │                  │ │                      │
+│  META GRAPH API  │ │  GOOGLE BUSINESS │ │  AI PROVIDERS        │
+│  FB + IG Publish │ │  PROFILE API     │ │  Groq (Primary)      │
+│  Meta Ads API    │ │  GMB Publish     │ │  OpenRouter (FB1)    │
+│  Webhooks        │ │  Reviews API     │ │  OpenAI (FB2)        │
+│  Insights API    │ │  GMB Insights    │ │  Cloudflare AI       │
 └──────────────────┘ └──────────────────┘ └──────────────────────┘
 ```
 
-### 3.3 Service Boundaries
+### 7.3 Monorepo Package Structure
 
-Do NOT build a monolith. Structure the backend as a modular monolith with clear domain boundaries, ready to be split into microservices if needed post-MVP. Use the following domain modules within the single Fastify application:
-
-- `modules/auth` — Authentication, session management, dealer CRUD
-- `modules/creative` — Template engine, AI caption generation, variant rendering
-- `modules/publisher` — Post scheduling, platform publishing, calendar management
-- `modules/boost` — Campaign creation, budget management, performance tracking via Meta API
-- `modules/inbox` — Message polling, AI response suggestions, sentiment analysis
-- `modules/inventory` — CSV/Excel upload, inventory CRUD, auto-creative triggers
-- `modules/analytics` — Lead attribution, performance metrics, report generation
-- `modules/festival` — Festival calendar, regional template mapping, auto-campaign suggestions
-
-Each module owns its own routes, services, and database queries. Cross-module communication happens through a shared event bus (Node.js EventEmitter for MVP, replaceable with message broker later).
+```
+SocialGenie/
+├── apps/
+│   ├── api/              — Fastify API server
+│   └── web/              — React 19 frontend
+├── packages/
+│   ├── shared/           — Shared TypeScript interfaces
+│   ├── scraper/          — Playwright dealer page scraper
+│   ├── pattern-engine/   — Indian auto market context data
+│   ├── render-engine/    — Canvas image composition
+│   └── template-engine/  — Template selection logic
+├── docker-compose.yml    — Local PostgreSQL + Redis
+└── package.json          — Yarn workspace config
+```
 
 ---
 
-## 4. Design System & UI Foundation
+## 8. Design System & UI Foundation
 
-### 4.1 Design Principles
+### 8.1 Design Principles
 
-1. **Mobile-first:** Indian dealers primarily use smartphones. Every screen must be designed for mobile first, then scaled up for desktop. The mockups reflect this — follow them faithfully.
-2. **Speed over features:** If a screen takes more than 2 taps to complete the primary action, redesign it.
-3. **Vernacular-ready:** Every text element must support right-to-left fallback and variable-length strings for Hindi and regional languages.
-4. **Low bandwidth tolerance:** Assume 3G connections in Tier-2/3 cities. Lazy-load images, compress aggressively, use skeleton screens.
-5. **Dealer-friendly language:** No jargon. "Boost" not "Promote via Meta Ads." "Post Now" not "Publish to Connected Social Accounts."
+1. **Mobile-first, always.** Design at 375px, scale up. Indian dealers use smartphones on the showroom floor.
+2. **Maximum 2 taps to the primary action.** No buried menus, no wizard UIs for daily tasks.
+3. **Vernacular-ready from Day 1.** Every text element must support Devanagari. Design layouts must handle variable-length Hindi strings.
+4. **Low-bandwidth tolerance.** Assume 3G in Tier-2/3 cities. Skeleton screens, compressed images, lazy loading everywhere.
+5. **Dealer-friendly language.** "Boost" not "Meta Ad Campaign." "Post Now" not "Publish to Connected Accounts." "People Reached" not "Impressions."
 
-### 4.2 Component Library
+### 8.2 Component Library (Required for MVP)
 
-Build a shared component library using React + TypeScript. Every component must support theming for future white-label (Enterprise tier).
+| Component | Variants | Critical Behavior |
+|-----------|----------|-------------------|
+| `<Button>` | Primary, Secondary, Ghost, Danger | Loading spinner state required |
+| `<Input>` | Text, Search, Prompt | RTL support, character count, clear button |
+| `<TextArea>` | Caption editor | Auto-resize, platform-specific char limit counter |
+| `<Card>` | Post preview, inbox message, creative variant | Swipe-to-action on mobile |
+| `<Modal>` | Confirmation, boost setup | Focus trap for accessibility |
+| `<Calendar>` | Week view, month view | Drag-and-drop reschedule (desktop only) |
+| `<Badge>` | Status, unread count | Color coded: green=live, yellow=scheduled, red=failed, grey=draft |
+| `<Toast>` | Success, error, warning | Auto-dismiss 5s, supports undo |
+| `<SkeletonLoader>` | All data-dependent screens | Match exact layout of loaded content |
+| `<EmptyState>` | No posts, no messages | Illustration + single primary CTA |
+| `<PlatformIcon>` | Facebook, Instagram, GMB | Consistent: 24px, 32px, 48px |
 
-**Required Base Components:**
+### 8.3 Typography
 
-| Component | Usage | Notes |
-|-----------|-------|-------|
-| `<Button>` | Primary, Secondary, Ghost, Danger variants | Must include loading state with spinner |
-| `<Input>` | Text, Search, Prompt input | Supports RTL, character count, clear button |
-| `<TextArea>` | Caption editing, prompt input | Auto-resize, max character count per platform |
-| `<Card>` | Post preview, creative variant, inbox message | Shadow elevation, hover state, swipe-to-action on mobile |
-| `<Modal>` | Confirmations, boost setup, platform selection | Must trap focus for accessibility |
-| `<Calendar>` | Content calendar, date picker, scheduler | Week view as default, month view toggle |
-| `<Badge>` | Status indicators, unread count, platform icons | Color-coded: green (live), yellow (scheduled), red (failed), grey (draft) |
-| `<Avatar>` | Dealer profile, customer avatar in inbox | Initials fallback when no image |
-| `<DropdownMenu>` | Platform selection, budget selection, actions | Supports multi-select for platforms |
-| `<Toast>` | Success/error notifications | Auto-dismiss after 5s, supports undo action |
-| `<SkeletonLoader>` | Loading states for all data-dependent screens | Match exact layout of loaded content |
-| `<EmptyState>` | No posts, no messages, no inventory | Illustration + single CTA button |
-| `<Tabs>` | Inbox categories, dashboard sections | Supports swipe navigation on mobile |
-| `<Tag>` | Lead, Complaint, General, Spam labels | Clickable for filtering |
-| `<ImageCarousel>` | Creative variant selection, inventory gallery | Supports pinch-to-zoom on mobile |
-| `<ProgressBar>` | Boost spend tracking, onboarding progress | Animated fill |
-| `<PlatformIcon>` | Facebook, Instagram, GMB icons | Consistent sizing (24px, 32px, 48px) |
-
-### 4.3 Typography
-
-- **Primary Font:** Inter (Google Font) — clean, excellent readability at small sizes, supports Devanagari
+- **Primary Font:** Inter (Google Font) — readability at small sizes, strong Devanagari support
 - **Fallback:** system-ui, sans-serif
-- **Scale:** 12px (caption), 14px (body), 16px (subheading), 20px (heading), 28px (page title)
-- **Line Height:** 1.5 for body text, 1.3 for headings
-- **Regional Language Font:** Noto Sans (covers Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi)
+- **Regional Font:** Noto Sans — Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi
+- **Scale:** 12 / 14 / 16 / 20 / 28px
 
-### 4.4 Color Palette
+### 8.4 Color System
 
-Derive from the mockup design system. At minimum, define:
+- **Primary:** Brand blue (CTAs, active states, links)
+- **Success:** #22C55E — published, approved, connected
+- **Warning:** #F59E0B — scheduled, pending, token expiry
+- **Error:** #EF4444 — failed, negative sentiment, disconnected
+- **Platform Colors:** Facebook #1877F2, Instagram gradient, Google #4285F4, WhatsApp #25D366
 
-- **Primary:** Brand blue (for CTAs, active states, links)
-- **Secondary:** Brand dark (for text, headings)
-- **Success:** Green (#22C55E) — published, approved
-- **Warning:** Amber (#F59E0B) — scheduled, pending review
-- **Error:** Red (#EF4444) — failed, negative sentiment, required action
-- **Neutral:** Grey scale (#F3F4F6, #9CA3AF, #4B5563, #111827) — backgrounds, borders, secondary text
-- **Platform Colors:** Facebook Blue (#1877F2), Instagram Gradient, Google Blue (#4285F4), WhatsApp Green (#25D366)
+### 8.5 Navigation Structure
 
-### 4.5 Layout Grid
+**Desktop — Left Sidebar (240px fixed):**
 
-- **Mobile:** Single column, 16px horizontal padding, 12px gap between cards
-- **Tablet:** Two-column where appropriate, 24px horizontal padding
-- **Desktop:** Sidebar (240px fixed) + main content area, 32px horizontal padding, max content width 1200px
-- **Breakpoints:** 640px (sm), 768px (md), 1024px (lg), 1280px (xl)
-
-### 4.6 Navigation Structure
-
-**Desktop — Left Sidebar:**
 ```
-┌─────────────────┐
-│  🏠 Dashboard    │
-│  ✨ Create Post  │
-│  📅 Calendar     │
-│  📬 Inbox        │
-│  🚗 Inventory    │
-│  📊 Analytics    │
-│  ⚡ Boost        │
-│  ⚙️ Settings     │
-│─────────────────│
-│  Dealer Name     │
-│  Plan: Growth    │
-│  [Switch Dealer] │
-└─────────────────┘
+Dashboard
+Create Post
+Calendar
+Posts
+Inbox           (with unread count badge)
+Analytics
+Boost
+Accounts
+Settings
+────────────────
+Inventory       → Coming Soon
+AI Video        → Coming Soon
+────────────────
+[Dealer Name]
+[Plan Badge]
 ```
 
-**Mobile — Bottom Tab Bar (5 items max):**
-```
-[Home] [Create] [Calendar] [Inbox] [More]
-```
-
-"More" expands to: Inventory, Analytics, Boost, Settings.
+**Mobile — Hamburger menu (sidebar collapses below 1024px)**
 
 ---
 
-## 5. Module 1 — AI Creative Engine (P0)
+## 9. Module 1 — AI Creative Engine (P0)
 
-This is the heart of the product. Get this right, and the rest follows.
+This is the core value proposition. A dealer should be able to go from zero to a professionally designed, caption-ready, platform-sized post in under 15 seconds.
 
-### 5.1 Functional Requirements
+### 9.1 Prompt Input System
 
-#### 5.1.1 Prompt Input System
+**Prompt Box:**
+- Free-text input: 500 character maximum
+- Placeholder: "Describe what you want to post..."
+- Below: horizontally scrollable **Prompt Chips** by category:
+  - New Arrival, Festival Offer, Service Camp, Customer Testimonial, Inventory Showcase, Engagement Post
+- Tapping a chip auto-fills with an editable pre-written prompt
+- Minimum 100 prompts in the library (15–20 per category, English + Hindi)
 
-**Prompt Box (Primary Interface):**
-- Free-text input field at the top of the Create Post screen
-- Placeholder text: "Describe what you want to post..." (localised)
-- Character limit: 500 characters
-- Below the prompt box, show a horizontally scrollable row of **Suggested Prompt Chips** categorised by:
-  - 🚗 New Arrival
-  - 🎉 Festival Offer
-  - 🔧 Service Camp
-  - ⭐ Customer Testimonial
-  - 📸 Inventory Showcase
-  - 💬 Engagement Post
-- Tapping a chip auto-fills the prompt box with a pre-written prompt that the dealer can edit
-- The prompt library must contain **at minimum 100 pre-written prompts** across all categories, 15–20 per category
+### 9.2 AI Caption Generation Pipeline
 
-**Prompt Library Management (Backend):**
-- Store prompts in the database with: `id`, `category`, `text_en`, `text_hi`, `text_regional`, `is_active`, `usage_count`, `created_at`
-- Admin API to add/edit/deactivate prompts
-- Sort suggested prompts by: (1) relevance to current date/festivals, (2) popularity (usage count), (3) recency
+**Input:** Dealer prompt text + optional inventory item IDs
 
-#### 5.1.2 AI Caption Generation
+**Processing:**
+1. Parse prompt for intent (arrival, offer, testimonial, service, engagement)
+2. Pull dealer profile: name, city, brands, phone, WhatsApp, colors, language preferences
+3. Pull inventory data if vehicle IDs provided: exact price, features, stock count
+4. Inject context into system prompt (see Section 21 for full AI Prompt Engineering specs)
+5. Call Groq API (llama-3.3-70b-versatile) — primary
+6. On error/rate-limit: retry with OpenRouter (llama-3.3-70b-instruct) — fallback 1
+7. On error: retry with OpenAI GPT-4o — fallback 2
+8. On all failures: return mock variants — fallback 3 (never block the dealer)
 
-When the dealer submits a prompt, the backend must:
+**Output:** 3 caption variants:
+- **Punchy:** < 60 words. Bold, urgent. Optimized for Instagram.
+- **Detailed:** 100–150 words. Specifications, EMI, price. Informational.
+- **Emotional:** 80–120 words. Aspirational, lifestyle, family-oriented.
 
-1. **Parse the prompt** to extract intent (new arrival, offer, testimonial, etc.), vehicle details (make, model, variant), offer details (discount, EMI, exchange), and tone (urgent, celebratory, informational)
-2. **Check inventory** — if vehicle mentioned, pull real data (price, specs, stock count, images) from the inventory module
-3. **Call OpenAI GPT-4o** with a structured system prompt that includes:
-   - Dealer brand name, city, contact details
-   - Vehicle/offer context extracted from step 1
-   - Inventory data from step 2 (if available)
-   - Platform-specific constraints (Instagram caption limit: 2200 chars, FB: 63,206 chars, GMB: 1500 chars)
-   - Tone and style guidelines for Indian automotive marketing
-   - **Guardrails:** Do not hallucinate prices, do not invent model names, do not use inappropriate language, do not make false claims about mileage/safety ratings
-4. **Return 3 caption variants** with:
-   - Caption text (platform-specific lengths)
-   - 5–10 relevant hashtags (mix of brand, local, trending)
-   - Suggested emoji usage (tasteful, not excessive)
-   - Hindi version (if dealer has Hindi enabled)
-   - Suggested posting time based on dealer's audience engagement data
+Each variant includes: caption text, 5–10 hashtags, 2–3 emoji suggestions, platform-specific notes.
 
-**GPT-4o System Prompt Template (Store in config, not hardcoded):**
+**Guardrails (enforced in system prompt, verified post-generation):**
+- NEVER invent or approximate prices. If no price provided, omit pricing entirely.
+- NEVER invent vehicle specifications. Use only provided data.
+- NEVER use inappropriate language or make false safety/mileage claims.
+- Always include a CTA: visit showroom / call now / WhatsApp.
 
-```
-You are a social media marketing expert for Indian automobile dealerships.
-You write captions that drive footfall, enquiries, and leads.
+### 9.3 Image Generation Pipeline
 
-DEALER CONTEXT:
-- Name: {dealer_name}
-- City: {dealer_city}
-- Brand(s): {dealer_brands}
-- Contact: {dealer_phone}, {dealer_whatsapp}
+**Step 1 — Background Generation:**
+- Call Cloudflare Workers AI (stable-diffusion-xl-turbo) with automotive-themed prompt
+- Prompt construction: "Professional {brand} automobile showroom, {primary_color} accent lighting, luxury interior, high-end photography, 8K render"
+- Fallback: SVG gradient using dealer primary + secondary colors
 
-VEHICLE CONTEXT (if applicable):
-- Model: {vehicle_model}
-- Variant: {vehicle_variant}
-- Price: {vehicle_price} (use exact price, NEVER approximate)
-- Key Features: {vehicle_features}
-- Stock Available: {stock_count}
+**Step 2 — Background Removal:**
+- Call remove.bg API on the dealer's vehicle image
+- Returns transparent-background PNG of just the vehicle
+- Fallback: use original image if remove.bg fails
 
-RULES:
-1. Never invent or approximate prices. If no price provided, omit pricing.
-2. Never invent vehicle specifications. Only use provided data.
-3. Include a clear call-to-action: visit showroom, call now, WhatsApp us.
-4. Use the dealer's city name for local relevance.
-5. Keep tone professional but warm — this is a trusted business, not a meme page.
-6. If festival context is provided, weave it naturally — do not force it.
-7. Generate exactly 3 variants: (a) Short & punchy, (b) Detailed & informative, (c) Emotional/aspirational.
+**Step 3 — Layer Composition (via Sharp + @napi-rs/canvas):**
+- Layer 1 (bottom, 1080×1080): AI-generated background
+- Layer 2 (middle, upper 65%): Vehicle PNG, centered, scaled to fit
+- Layer 3 (top): SVG branding overlay with dealer name, city, phone, WhatsApp, headline
 
-OUTPUT FORMAT:
-Return a JSON object with three variants, each containing:
-- caption_text: string
-- hashtags: string[] (5-10)
-- suggested_emoji: string[] (2-3)
-- platform_notes: string (any platform-specific adjustments)
-```
+**Output:** 1080×1080 PNG uploaded to R2/S3, CDN URL returned.
 
-#### 5.1.3 Template-Based Creative Rendering
+**Platform sizing:** Generate variants for all required sizes in parallel:
+- Instagram Post: 1080×1080
+- Facebook Post: 1200×630
+- Instagram Story: 1080×1920
+- GMB Post: 1200×900
 
-This is NOT text-to-image AI generation. This is a **template rendering engine** that composites dealer branding, inventory images, text overlays, and design elements into platform-ready images.
-
-**Template Architecture:**
-
-Each template is a JSON specification that defines:
-
-```json
-{
-  "template_id": "new_arrival_001",
-  "category": "new_arrival",
-  "name": "New Arrival — Bold Banner",
-  "platforms": ["facebook_post", "instagram_post", "instagram_story", "gmb_post"],
-  "dimensions": {
-    "facebook_post": { "width": 1200, "height": 630 },
-    "instagram_post": { "width": 1080, "height": 1080 },
-    "instagram_story": { "width": 1080, "height": 1920 },
-    "gmb_post": { "width": 1200, "height": 900 }
-  },
-  "layers": [
-    {
-      "type": "background",
-      "source": "solid_color",
-      "color": "{dealer_primary_color}",
-      "fallback_color": "#1A1A2E"
-    },
-    {
-      "type": "image",
-      "source": "inventory_image",
-      "position": { "x": "center", "y": "60%" },
-      "size": { "width": "80%", "height": "auto" },
-      "fallback": "placeholder_car.png"
-    },
-    {
-      "type": "text",
-      "content": "{headline}",
-      "font": "Inter Bold",
-      "size": 48,
-      "color": "#FFFFFF",
-      "position": { "x": "center", "y": "10%" },
-      "max_width": "90%",
-      "max_lines": 2
-    },
-    {
-      "type": "text",
-      "content": "{price_text}",
-      "font": "Inter Bold",
-      "size": 36,
-      "color": "#FFD700",
-      "position": { "x": "center", "y": "25%" }
-    },
-    {
-      "type": "image",
-      "source": "dealer_logo",
-      "position": { "x": "5%", "y": "90%" },
-      "size": { "width": 120, "height": "auto" }
-    },
-    {
-      "type": "text",
-      "content": "{dealer_phone}",
-      "font": "Inter Medium",
-      "size": 20,
-      "color": "#FFFFFF",
-      "position": { "x": "right-5%", "y": "92%" }
-    }
-  ],
-  "color_scheme": "dark",
-  "regional_variants": ["hi", "ta", "te", "kn", "ml", "mr"],
-  "tags": ["new_arrival", "car", "showcase"]
-}
-```
-
-**Rendering Pipeline:**
-
-1. AI selects the best template based on prompt intent + category matching
-2. Engine resolves all `{variables}` from dealer profile, inventory, and AI-generated headline/price text
-3. Engine renders the image using **Sharp (Node.js)** for static compositing OR **Puppeteer** for complex layouts with HTML/CSS templates
-4. Generate all platform-specific sizes in parallel
-5. Compress output images (JPEG quality 85 for photos, PNG for graphics with transparency)
-6. Upload to S3, return CDN URLs
-7. Generate 3 visual variants by varying: template choice, color scheme, layout, and headline text
-
-**Template Library Requirements (MVP):**
-
-| Category | Minimum Count | Examples |
-|----------|---------------|---------|
-| New Arrivals | 10 | Bold banner, minimal showcase, split-screen comparison |
-| Festival Offers | 10 | Diwali gold theme, Navratri 9-color, Holi splash |
-| Service Camp | 5 | Service reminder, free check-up announcement, AC service special |
-| Customer Testimonial | 5 | Photo + quote, star rating card, video thumbnail |
-| Inventory Showcase | 10 | Grid of 4 cars, single spotlight, price comparison |
-| Engagement Posts | 5 | Poll, quiz, this-or-that, trivia |
-| Generic / Seasonal | 5 | Republic Day, Independence Day, New Year |
-| **Total** | **50 minimum** | |
-
-Each template must support all 4 platform sizes (Facebook post, Instagram post, Instagram story, GMB post).
-
-#### 5.1.4 Creative Preview & Selection Screen
+### 9.4 Creative Preview & Selection UI
 
 After generation, show the dealer:
+- 3 creative variants in a horizontal carousel (swipeable on mobile)
+- Corresponding caption text per variant (truncated with "Read more")
+- Platform toggle (FB / IG / GMB) to preview at each platform's dimensions
+- **Edit Creative:** change headline, swap vehicle image, toggle logo, change color scheme (3 presets)
+- **Edit Caption:** text editor with character count per platform
+- **Regenerate:** creates 3 genuinely different variants from same prompt
+- **Download:** PNG/JPEG of selected creative
 
-- **3 creative variants** displayed as a horizontal carousel (swipeable on mobile)
-- Below each variant: the corresponding caption text (truncated with "Read more")
-- **Platform toggle buttons** (FB, IG, GMB) showing how the creative will look on each platform's dimensions
-- **Edit Creative** button: opens a lightweight editor where the dealer can:
-  - Change the headline text
-  - Swap the vehicle image (from inventory or upload)
-  - Toggle dealer logo on/off
-  - Change color scheme (3 pre-set options derived from dealer brand colors)
-- **Edit Caption** button: opens the caption in a text editor with character count per platform
-- **Regenerate** button: creates 3 new variants from the same prompt
-- **Download** button: downloads the selected creative as PNG/JPEG
+### 9.5 Performance Requirements
 
-### 5.2 Technical Implementation Notes
+- Time from prompt submission to 3 variants displayed: **< 15 seconds**
+- AI response caching: identical prompt + dealer context → cached for 24 hours
+- Image rendering: < 5 seconds per variant (parallel rendering on 3 variants)
+- Unselected variants: deleted from R2 after 30 days via lifecycle policy
 
-- Use a **rendering queue** (BullMQ) to handle creative generation asynchronously. The UI should show a "Generating your creatives..." state with a progress indicator. Target: under 15 seconds from prompt submission to 3 variants displayed.
-- Cache GPT-4o responses for identical prompts within the same dealer context for 24 hours.
-- Store all generated creatives in S3 with a lifecycle policy: delete unselected variants after 30 days, keep selected/published variants indefinitely.
-- Template rendering must be stateless — any worker can render any template given the JSON spec + assets.
+### 9.6 Template Library Requirements
 
-### 5.3 Acceptance Criteria
+| Category | Min Count | Visual Elements |
+|----------|-----------|----------------|
+| New Arrivals | 10 | Bold banner, spotlight, comparison |
+| Festival Offers | 10 | Diwali gold, Navratri 9-color, Holi splash |
+| Service Camp | 5 | Service reminder, free check-up announcement |
+| Customer Testimonial | 5 | Photo + quote, star rating card |
+| Inventory Showcase | 10 | Price grid, "just arrived" banner |
+| Engagement Posts | 5 | Poll, quiz, this-or-that |
+| Generic / Seasonal | 5 | Republic Day, Independence Day, Year-end |
+| **Total MVP** | **50 templates** | |
 
-- [ ] Dealer can type a free-text prompt and receive 3 creative variants with captions in under 15 seconds
-- [ ] Dealer can select from pre-built prompt library (minimum 100 prompts across 6 categories)
-- [ ] Captions include relevant hashtags, are platform-length appropriate, and contain zero hallucinated data
-- [ ] Creatives render correctly for all 4 platform sizes
-- [ ] Dealer branding (logo, colors, contact) appears on every creative
-- [ ] If inventory data exists for the mentioned vehicle, it is automatically pulled into the creative
-- [ ] Hindi caption variant is available when dealer language preference includes Hindi
-- [ ] Edit creative and edit caption flows work without page reload
-- [ ] Regenerate produces genuinely different variants (not minor rewording)
+Each template: 4 platform sizes + JSON spec + thumbnail + usage counter.
 
 ---
 
-## 6. Module 2 — Multi-Platform Publisher (P0)
+## 10. Module 2 — Multi-Platform Publisher (P0)
 
-### 6.1 Functional Requirements
+### 10.1 Platform OAuth Connection
 
-#### 6.1.1 Platform Connection (Onboarding Prerequisite)
+**Facebook Page:**
+- OAuth 2.0 via Meta Graph API
+- Permissions: `pages_manage_posts`, `pages_read_engagement`, `pages_manage_metadata`, `pages_messaging`
+- Store long-lived Page Access Token (60-day expiry, auto-refresh)
 
-Before a dealer can publish, they must connect their social accounts. Build a **Platform Connection** screen in Settings:
+**Instagram Business:**
+- Connected through Meta OAuth (requires linked Facebook Page)
+- Permissions: `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`, `instagram_manage_messages`
 
-- **Facebook Page:** OAuth 2.0 via Meta Graph API. Dealer grants `pages_manage_posts`, `pages_read_engagement`, `pages_manage_metadata`, `pages_messaging` permissions. Store the long-lived Page Access Token (60-day expiry, auto-refresh).
-- **Instagram Business:** Connected through the same Meta OAuth flow. Requires a linked Facebook Page. Permissions: `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`, `instagram_manage_messages`.
-- **Google My Business:** OAuth 2.0 via Google Business Profile API. Permissions: `https://www.googleapis.com/auth/business.manage`. Store refresh token.
-
-For each connected platform, display:
-- Platform icon + account name + connection status (green/red indicator)
-- "Reconnect" button if token is expired
-- "Disconnect" button with confirmation modal
+**Google My Business:**
+- OAuth 2.0 via Google Business Profile API
+- Scope: `https://www.googleapis.com/auth/business.manage`
+- Store refresh token for silent renewal
 
 **Token Refresh Strategy:**
-- Run a daily background job that checks all tokens expiring within 7 days
-- Attempt silent refresh using stored refresh tokens
-- If refresh fails, send the dealer a push notification + email: "Your [Platform] connection needs to be renewed. Tap here to reconnect."
-- Mark the platform as "Disconnected" in the UI until renewed
+- Daily background job checks tokens expiring within 7 days
+- Attempt silent refresh using refresh token
+- On failure: push notification + in-app alert "Your Instagram connection needs renewal"
+- Platform marked "Disconnected" in UI until renewed
 
-#### 6.1.2 Post Scheduling & Publishing
+### 10.2 Publishing Flows
 
-**Post Now Flow:**
-1. After creative selection (from Module 1), dealer selects target platforms via toggle buttons (FB, IG, GMB — only connected platforms are enabled)
-2. Dealer taps "Post Now"
-3. Backend immediately enqueues a publish job per platform
-4. UI shows real-time status per platform: Queued → Publishing → Published (or Failed with retry option)
-5. On success, show the live post URL (tappable link)
+**Post Now:**
+1. Select creative + caption variant + platforms
+2. "Post Now" button
+3. Backend immediately adds publish jobs to BullMQ queue
+4. UI shows real-time status per platform: Queued → Publishing → Published (or Failed)
+5. Success: shows live post URL (tappable link)
 
-**Schedule for Later Flow:**
-1. After creative selection, dealer taps "Schedule"
-2. Date/time picker opens — default to next "best time" suggested by the AI (based on historical engagement data for this dealer, or industry defaults if no data)
-3. Dealer confirms schedule
-4. Post appears in the Content Calendar as "Scheduled" (yellow badge)
-5. BullMQ delayed job fires at the scheduled time and publishes to all selected platforms
-6. If any platform publish fails, retry 3 times with exponential backoff (1 min, 5 min, 15 min). If all retries fail, mark as "Failed" and notify dealer.
+**Schedule for Later:**
+1. "Schedule" button → date/time picker
+2. Default: AI-suggested best time based on dealer's historical engagement (or industry default: Tue–Thu, 10am–12pm IST for auto category)
+3. BullMQ delayed job fires at scheduled time
+4. Retry policy: 3 attempts with exponential backoff (1 min, 5 min, 15 min)
+5. Final failure: push notification to dealer
 
-**Bulk Schedule (Weekly Content Planning):**
-1. Dealer opens Content Calendar → Week View
-2. AI pre-populates the week with suggested posts based on: inventory changes, upcoming festivals, dealer posting patterns, and content category balance
-3. Each day shows 1–2 suggested post cards with thumbnails and captions
-4. Dealer can: Approve (schedule at suggested time), Edit (modify before scheduling), Swap (replace with different suggestion), Delete (remove from week), Add (create new post for that day)
-5. "Schedule All Approved" button at the bottom queues all approved posts for their respective times
+**Publishing Endpoints Used:**
+- Facebook: `POST /{pageId}/photos` with `url` + `message`
+- Instagram: `POST /{igUserId}/media` → `creation_id` → `POST /{igUserId}/media_publish`
+- GMB: `POST /v1/{locationName}/localPosts` with `LocalPost` object
 
-#### 6.1.3 Content Calendar
+### 10.3 Content Calendar
 
 **Week View (Default):**
-- 7-column grid (Mon–Sun), each column shows scheduled/published/draft posts as cards
-- Card shows: thumbnail, platform icons, time, status badge
-- Drag-and-drop to reschedule (desktop only)
-- Tap a card to view details / edit / delete
+- 7-column grid, each column = one day
+- Post cards: thumbnail, platform icons, time, status badge
+- Drag-and-drop reschedule (desktop only)
+- Tap card to view/edit/delete
 
 **Month View:**
-- Standard calendar grid, each date shows post count dots (colored by status)
-- Tap a date to see all posts for that day in a bottom sheet (mobile) or side panel (desktop)
+- Standard calendar grid
+- Date dots colored by post status
+- Tap date → bottom sheet (mobile) or side panel (desktop) with that day's posts
 
-**Statuses:**
-- Draft (grey) — created but not scheduled
-- Scheduled (yellow) — queued for future publish
-- Publishing (blue, animated) — currently being sent to platforms
-- Published (green) — live on all platforms
-- Partially Published (orange) — live on some platforms, failed on others
-- Failed (red) — publish failed on all platforms
+**Post Status System:**
+| Status | Color | Meaning |
+|--------|-------|---------|
+| Draft | Grey | Created, not yet scheduled |
+| Scheduled | Yellow | Queued for future publish |
+| Publishing | Blue (animated) | Currently sending to platforms |
+| Published | Green | Live on all selected platforms |
+| Partially Published | Orange | Live on some platforms, failed on others |
+| Failed | Red | Failed on all platforms, retry exhausted |
 
-#### 6.1.4 Post Analytics (Per-Post)
+### 10.4 Post-Publish Analytics
 
-After a post is published, show basic metrics on the post card (fetched from platform APIs periodically):
+Fetched via platform APIs after publishing:
+- **Facebook:** Reach, Likes, Comments, Shares — via `/{postId}/insights`
+- **Instagram:** Reach, Likes, Comments, Saves — via `/{mediaId}/insights`
+- **GMB:** Views, Clicks, Direction Requests — via GBP Insights API
 
-- **Facebook:** Reach, Likes, Comments, Shares
-- **Instagram:** Reach, Likes, Comments, Saves
-- **GMB:** Views, Clicks, Direction Requests
-
-Polling frequency: every 6 hours for the first 7 days after publish, then daily for 30 days, then stop.
-
-### 6.2 Technical Implementation Notes
-
-**Platform Publishing APIs:**
-
-- **Facebook:** `POST /{page_id}/photos` (for image posts) with `message` and `url` parameters via Meta Graph API v19.0+
-- **Instagram:** Two-step process — (1) Create media container: `POST /{ig_user_id}/media` with `image_url` and `caption`, (2) Publish: `POST /{ig_user_id}/media_publish` with `creation_id`. Instagram does NOT support direct scheduling via API — you must hold the job in BullMQ and publish at the scheduled time.
-- **GMB:** `POST /v1/{name}/localPosts` with `media`, `summary`, and `callToAction` via Google Business Profile API.
-
-**Multi-Location Support:**
-- A single Cardeko account (Enterprise tier) can manage multiple dealer locations.
-- Each location has its own platform connections, inventory, and content calendar.
-- The dealer can switch between locations via a dropdown in the sidebar/header.
-- Posts can be cross-posted to all locations with one action (content shared, platform connections per-location).
-
-### 6.3 Acceptance Criteria
-
-- [ ] Dealer can connect Facebook, Instagram, and GMB accounts via OAuth
-- [ ] Token refresh runs automatically; expired tokens trigger dealer notification
-- [ ] "Post Now" publishes to all selected platforms in under 30 seconds
-- [ ] Scheduled posts fire within 60 seconds of scheduled time
-- [ ] Failed publishes retry 3 times with exponential backoff and notify dealer on final failure
-- [ ] Content Calendar shows week and month views with correct status badges
-- [ ] Bulk schedule allows dealer to approve and queue an entire week's content in one action
-- [ ] AI-suggested best posting times are shown and are based on dealer engagement history (or industry defaults for new dealers)
-- [ ] Per-post analytics display within 6 hours of publishing
-- [ ] Multi-location dealers can manage each location independently
+Polling schedule: every 6 hours for first 7 days → daily for days 8–30 → stop.
 
 ---
 
-## 7. Module 3 — One-Click Boost (P0)
+## 11. Module 3 — One-Click Boost (P0)
 
-This is the single biggest revenue wedge. Most Indian dealers do not boost posts because Meta Ads Manager is intimidating. We simplify it to 3 choices: pick a post, set a budget, hit launch.
+This module is the primary revenue driver. The goal: make ad boosting as simple as ordering food on Swiggy.
 
-### 7.1 Functional Requirements
+### 11.1 Boost Setup Flow (3 Taps)
 
-#### 7.1.1 Boost Setup Flow
+**Tap 1 — Budget:**
+- Pre-set: ₹500/day, ₹1,000/day, ₹2,500/day, or Custom
+- Show estimated reach range below (from Meta Ads Reach Estimate API)
 
-1. On any published or scheduled post, show a "Boost" button (lightning bolt icon)
-2. Tapping "Boost" opens a bottom sheet (mobile) or modal (desktop) with:
+**Tap 2 — Duration:**
+- Pre-set: 3 days, 7 days, 14 days, or Custom date range
+- Show total spend: budget × days
 
-**Step 1 — Budget Selection:**
-- Pre-set buttons: ₹500/day, ₹1,000/day, ₹2,500/day, Custom
-- Custom opens a number input (minimum ₹200/day, no maximum)
-- Show estimated reach range below the selected budget (fetched from Meta Ads API reach estimate)
+**Tap 3 — Launch:**
+- Summary: post thumbnail, budget, duration, estimated reach, audience summary
+- "Launch Boost" CTA
+- Legal disclaimer about Meta's ad policies
 
-**Step 2 — Duration Selection:**
-- Pre-set buttons: 3 days, 7 days, 14 days, Custom
-- Custom opens a date range picker
-- Show total estimated spend: (daily budget × days)
+**Audience (Pre-configured by Cardeko):**
+- Location: dealer's coordinates + 25km radius
+- Age: 25–55
+- Interests: "Automobile," "Car Dealership," dealer brand interests
+- Language: based on dealer's region
+- Advanced toggle (optional): radius slider, age range, gender, additional interest keywords
 
-**Step 3 — Audience (Pre-Configured, Advanced Optional):**
-- Default audience is pre-configured by Cardeko:
-  - Location: Dealer's city + radius (configurable in settings, default 25 km)
-  - Age: 25–55
-  - Interests: Auto-intenders (Facebook targeting: "Automobile" interest, "Car Dealership" interest, vehicle brand interests)
-  - Language: Based on dealer's region
-- "Advanced" toggle (collapsed by default) reveals:
-  - Location radius slider (5 km — 50 km)
-  - Age range slider
-  - Gender toggle (All / Male / Female)
-  - Additional interest keywords (text input with suggestions)
+### 11.2 Meta Ads API Campaign Creation (Backend)
 
-**Step 4 — Confirmation:**
-- Summary card showing: post thumbnail, budget, duration, estimated reach, audience summary
-- "Launch Boost" button (primary CTA)
-- Legal disclaimer: "By boosting, you agree to Meta's advertising policies. Actual results may vary."
+```
+Step 1: POST /act_{ad_account_id}/campaigns
+        objective: "OUTCOME_TRAFFIC" | "OUTCOME_AWARENESS"
+        status: "PAUSED"
 
-#### 7.1.2 Boost Management Dashboard
+Step 2: POST /act_{ad_account_id}/adsets
+        targeting_spec: { geo_locations, age_min, age_max, interests }
+        daily_budget: <paisa amount>
+        billing_event: "IMPRESSIONS"
 
-Accessible from the "Boost" tab in the sidebar:
+Step 3: POST /act_{ad_account_id}/ads
+        creative: { object_story_id: <published post ID> }
 
-- **Active Boosts:** Cards showing each running campaign with: post thumbnail, daily spend, total spent, remaining budget, reach so far, clicks, CTR, cost per click
-- **Pause/Resume** button per campaign
-- **Stop** button with confirmation (remaining budget is not charged)
-- **Completed Boosts:** Historical list with final metrics
-- **Total Spend This Month:** Summary metric at top
+Step 4: Update campaign status to "ACTIVE"
+```
 
-#### 7.1.3 Performance Metrics (Per Boost)
-
-Poll Meta Ads Reporting API every 4 hours for active campaigns:
-
-| Metric | Display Name | Source |
-|--------|-------------|--------|
-| `reach` | People Reached | Meta |
-| `impressions` | Times Shown | Meta |
-| `clicks` | Link Clicks | Meta |
-| `cpc` | Cost per Click | Calculated |
-| `ctr` | Click Rate | Calculated |
-| `spend` | Amount Spent | Meta |
-| `actions` (calls) | Calls Generated | Meta |
-
-### 7.2 Technical Implementation — Meta Ads API
-
-**Campaign Creation Flow (Backend):**
-
-1. Create Campaign: `POST /act_{ad_account_id}/campaigns` with `objective: "OUTCOME_TRAFFIC"` or `"OUTCOME_AWARENESS"`, `status: "PAUSED"`
-2. Create Ad Set: `POST /act_{ad_account_id}/adsets` with targeting spec, budget, schedule, billing event
-3. Create Ad: `POST /act_{ad_account_id}/ads` with the creative (post) linked
-4. Activate: Update campaign status to `"ACTIVE"`
-
-**Targeting Spec Structure:**
+**Targeting Spec:**
 ```json
 {
   "geo_locations": {
-    "custom_locations": [{
-      "latitude": "{dealer_lat}",
-      "longitude": "{dealer_lng}",
-      "radius": 25,
-      "distance_unit": "kilometer"
-    }]
+    "custom_locations": [{ "latitude": "<lat>", "longitude": "<lng>", "radius": 25, "distance_unit": "kilometer" }]
   },
   "age_min": 25,
   "age_max": 55,
   "interests": [
     { "id": "6003346953805", "name": "Automobile" },
-    { "id": "{brand_interest_id}", "name": "{brand_name}" }
-  ],
-  "locales": [{ "key": "en_GB" }]
+    { "id": "<brand_interest_id>", "name": "<brand_name>" }
+  ]
 }
 ```
 
-**Ad Account Requirement:**
-- Dealers must have an active Meta Ad Account linked to their Facebook Page.
-- During onboarding, Cardeko checks for an existing Ad Account. If none exists, guide the dealer through creation (or create one via API if permissions allow).
-- Store `ad_account_id` in dealer profile.
+### 11.3 Boost Dashboard
 
-**Revenue Model:**
-- Cardeko charges a 5–10% service fee on ad spend routed through the platform.
-- Implementation: Dealer pre-pays Cardeko (Razorpay/Cashfree). Cardeko funds the Meta campaign from its own Ad Account with the dealer as the advertiser, or uses the dealer's Ad Account directly. Define the billing model clearly before Phase 2 build begins. For MVP, use the dealer's own Ad Account and bill the service fee separately.
+- **Active Boosts:** Running campaigns with daily spend, total spent, remaining budget, reach, clicks, CTR, CPC
+- **Pause / Resume / Stop** per campaign
+- **Completed Boosts:** Historical campaigns with final metrics
+- **Total Spend This Month:** Summary card at top
 
-### 7.3 Acceptance Criteria
-
-- [ ] Boost setup completes in 3 taps: budget → duration → launch
-- [ ] Pre-configured audience targets auto-intenders within dealer's city radius
-- [ ] Estimated reach is displayed before launching
-- [ ] Campaign launches on Meta within 60 seconds of dealer confirmation
-- [ ] Active campaigns show real-time spend and performance metrics (updated every 4 hours)
-- [ ] Dealer can pause, resume, and stop campaigns
-- [ ] Boost dashboard shows historical campaigns with final metrics
-- [ ] Total monthly spend summary is visible at the top of the boost dashboard
+**Metrics polled every 4 hours** from Meta Ads Reporting API for active campaigns.
 
 ---
 
-## 8. Module 4 — Unified Inbox (P1)
+## 12. Module 4 — Unified Inbox (P1)
 
-### 8.1 Functional Requirements
+### 12.1 Message Sources
 
-#### 8.1.1 Message Aggregation
+| Source | Types | Collection Method | Frequency |
+|--------|-------|------------------|-----------|
+| Facebook | Page comments, DMs | Meta Webhooks (primary) → polling fallback | Real-time / every 5 min |
+| Instagram | Post comments, Direct messages | Meta Webhooks (primary) → polling fallback | Real-time / every 5 min |
+| Google Reviews | New reviews | GBP Reviews API polling | Every 15 min |
 
-The Inbox pulls messages from 3 sources into a single chronological stream:
+### 12.2 Inbox UI
 
-| Source | Message Types | Polling Method | Polling Frequency |
-|--------|--------------|----------------|-------------------|
-| Facebook | Comments on posts, Page messages (DMs) | Meta Webhooks (preferred) or polling via Graph API | Real-time via webhooks, fallback: every 5 min |
-| Instagram | Comments on posts, Direct Messages | Meta Webhooks (preferred) or polling via Graph API | Real-time via webhooks, fallback: every 5 min |
-| Google Reviews | New reviews, review replies | Google Business Profile API polling | Every 15 min |
+**Mobile:** Full-screen vertical list, newest first. Row: platform icon, name, preview, timestamp, tag, unread dot.  
+**Desktop:** Two-panel. Left: message list. Right: full message + AI reply + action buttons.
 
-**Webhook Setup (Meta):**
-- Register webhooks for `page` subscriptions: `feed`, `messages`, `messaging_postbacks`
-- Verify webhook with challenge token
-- Process incoming events and store messages in the database
-- If webhook delivery fails, fall back to polling
+**Filter tabs:** All, Unread, Facebook, Instagram, Google Reviews  
+**Search:** Message content + customer name
 
-#### 8.1.2 Inbox UI Layout
+### 12.3 AI Reply Generation
 
-**Mobile — Full Screen List:**
-- Vertical list of messages sorted by recency (newest first)
-- Each row: platform icon, customer name/avatar, message preview (1 line), timestamp, tag badge (if tagged), unread indicator (blue dot)
-- Tap to open message thread
-- Filter tabs at top: All, Unread, Facebook, Instagram, Google Reviews
-- Search bar (searches message content and customer name)
-
-**Desktop — Two-Panel:**
-- Left panel: message list (same as mobile)
-- Right panel: selected message thread with AI-suggested reply, conversation history, and action buttons
-
-#### 8.1.3 AI-Suggested Responses
-
-For every incoming message, the backend generates a suggested response using GPT-4o:
-
-**System Prompt for Reply Generation:**
+System prompt for reply:
 ```
-You are a helpful customer service assistant for {dealer_name}, an automobile dealership in {dealer_city}.
+You are a customer service assistant for {dealer_name}, an automobile dealership in {dealer_city}.
 
 RULES:
 1. Be polite, professional, and helpful.
-2. If the customer is asking about a specific vehicle, include basic info if available from inventory.
-3. If the customer is complaining, acknowledge their concern and offer to have a manager call them.
-4. Never make promises about pricing or discounts unless provided in dealer settings.
-5. Always include a call-to-action: visit showroom, call {dealer_phone}, or WhatsApp {dealer_whatsapp}.
-6. Keep responses under 100 words for comments, under 200 words for DMs/reviews.
-7. Match the language of the customer's message (Hindi reply for Hindi message, etc.).
+2. If asking about a specific vehicle, include info from inventory if available.
+3. If complaining, acknowledge and offer to have a manager call them.
+4. Never make promises about pricing or discounts unless in dealer settings.
+5. Always include a CTA: visit showroom / call {dealer_phone} / WhatsApp {dealer_whatsapp}.
+6. Keep under 80 words for comments, under 180 words for DMs/reviews.
+7. Match the language of the customer's message.
+8. For reviews: thank positive reviewers; apologize and offer resolution for negative.
 
-SENTIMENT: {detected_sentiment} (positive/neutral/negative)
-CUSTOMER MESSAGE: {message_text}
-CONTEXT: {post_context_if_comment}
+SENTIMENT: {sentiment}
+MESSAGE: {message_text}
+POST CONTEXT (if comment): {post_caption}
 ```
 
-**Response Display:**
-- AI-suggested reply appears in a highlighted box below the customer's message
-- Two buttons: "Send" (sends as-is) and "Edit" (opens text editor for modification)
-- For **negative sentiment** messages (detected by GPT-4o or keyword rules), the response box is bordered in red with a warning: "⚠️ Negative sentiment detected. Review suggested response carefully before sending."
-- Negative review responses ALWAYS require human approval (the "Send" button is replaced with "Approve & Send")
+**Display:** Suggested reply in a highlighted box. Buttons: "Send" and "Edit."  
+**Negative sentiment:** Red border + warning "Negative sentiment detected. Review carefully." + "Approve & Send" (not "Send").
 
-#### 8.1.4 Tagging System
+### 12.4 Auto-Tagging
 
-Every message can be tagged (manually or auto-tagged by AI):
-
-| Tag | Color | Auto-Tag Rule |
-|-----|-------|---------------|
-| Lead | Green | Message contains: price, availability, test drive, booking, EMI, finance, loan |
+| Tag | Color | Auto-Tag Trigger |
+|-----|-------|-----------------|
+| Lead | Green | Contains: price / availability / test drive / booking / EMI / finance |
 | Complaint | Red | Negative sentiment detected |
-| General Enquiry | Blue | Default for questions that don't match Lead or Complaint |
-| Spam | Grey | Detected spam patterns (links, promotional content) |
+| General | Blue | Default — questions that don't match Lead or Complaint |
+| Spam | Grey | Spam pattern detection (links, promotional keywords) |
 
-Auto-tags can be overridden manually by the dealer. Tags are filterable in the inbox list.
+Auto-tags can be manually overridden. Tags filterable in inbox list.
 
-#### 8.1.5 Lead Handoff
+### 12.5 Lead Creation from Inbox
 
-When a message is tagged as "Lead":
-- Show a "Create Lead" button that opens a quick form: customer name, phone (if extractable from message), vehicle interest, source (FB/IG/Google)
-- Store in leads table for the Lead Attribution Dashboard (Module 7)
-- Optionally trigger a WhatsApp notification to the dealer's sales team (if WhatsApp Business API is connected)
-
-### 8.2 Acceptance Criteria
-
-- [ ] Messages from Facebook, Instagram, and Google Reviews appear in a single inbox within 5 minutes of being received
-- [ ] Webhook integration for Meta delivers messages in real-time
-- [ ] Every message has an AI-suggested response generated within 5 seconds
-- [ ] Negative sentiment messages are visually flagged and require manual approval
-- [ ] Messages can be tagged as Lead, Complaint, General, or Spam
-- [ ] Auto-tagging works with 80%+ accuracy on Lead and Complaint detection
-- [ ] Dealer can search messages by content and customer name
-- [ ] Filter by platform and tag works correctly
-- [ ] "Create Lead" from inbox captures customer details and stores in leads table
+On any Lead-tagged message, show "Create Lead" → quick form: customer name, phone, vehicle interest, source platform. Stored in `Lead` table for analytics.
 
 ---
 
-## 9. Module 5 — Inventory Connector (P1)
+## 13. Module 5 — Inventory Connector (P1)
 
-### 9.1 Functional Requirements
+### 13.1 CSV / Excel Upload
 
-#### 9.1.1 Phase 1 — CSV/Excel Upload
+- Drag-and-drop zone on desktop, file picker on mobile
+- Supported: `.csv`, `.xlsx`, `.xls`
+- Required fields: Make, Model, Variant, Year, Price, Condition, Image URL(s)
+- Optional: Color, Fuel Type, Transmission, Mileage (used), Stock Count, VIN
 
-- **Upload Screen:** Simple drag-and-drop zone (mobile: file picker button)
-- **Supported formats:** `.csv`, `.xlsx`, `.xls`
-- **Required columns:** Make, Model, Variant, Year, Price, Condition (New/Used), Image URL(s)
-- **Optional columns:** Color, Fuel Type, Transmission, Mileage (for used), Stock Count, VIN/Registration
-- **Column Mapping UI:** After upload, show a mapping screen where the dealer maps their file's column headers to Cardeko's expected fields (with auto-detection for common header names)
-- **Validation:** Show errors inline (missing required fields, invalid prices, broken image URLs) and allow the dealer to fix before confirming import
-- **Import confirmation:** Show summary — "Importing 47 vehicles. 3 errors found (click to fix)."
-- **Incremental updates:** Subsequent uploads can append, update (matched by Make+Model+Variant+Year), or replace all inventory
+**Column Mapping UI:**
+- Auto-detect common DMS export headers (Make/Brand/Manufacturer, Price/Cost/MRP, etc.)
+- Show mapping screen for unrecognized headers
+- Dealer maps their columns to system fields
 
-#### 9.1.2 Inventory Management Screen
+**Validation:**
+- Missing required fields: inline error
+- Invalid prices (non-numeric): flag row
+- Broken image URLs: flag row with option to fix or skip
+- Pre-import summary: "Importing 47 vehicles. 3 errors found."
 
-- **Table/Grid view** of all inventory items
-- Columns: Image thumbnail, Make, Model, Variant, Year, Price, Status (In Stock / Sold / Reserved), Date Added
-- **Filters:** Make, Model, Year, Price Range, Condition, Status
-- **Sort:** Price, Date Added, Make
-- **Quick Actions per row:** Edit, Mark as Sold, Generate Post (opens Create Post with this vehicle pre-filled), Delete
-- **Bulk Actions:** Select multiple → Mark as Sold, Generate Group Showcase Post, Delete
+**Incremental updates:** Subsequent uploads upsert on Make + Model + Variant + Year.
 
-#### 9.1.3 Auto-Creative Triggers
+### 13.2 Inventory Management Screen
 
-When new inventory items are added (via upload or manual entry):
-- Show a notification: "12 new vehicles added to inventory. Generate showcase posts?"
-- If dealer confirms, auto-generate creative variants for each new vehicle (or a combined showcase for multiple vehicles of the same make)
-- These appear as drafts in the Content Calendar
+- Table view: image thumbnail, make, model, variant, year, price, status (In Stock / Sold / Reserved)
+- Filters: make, model, year, price range, condition, status
+- Sort: price, date added, make
+- Quick actions: Edit, Mark as Sold, **Generate Post** (opens Create Post with vehicle pre-filled), Delete
+- Bulk: select multiple → Mark as Sold / Generate Showcase Post / Delete
 
-When inventory items are marked as Sold:
-- Any scheduled (unpublished) posts featuring this vehicle are flagged: "⚠️ This vehicle has been marked as sold. Unpublish this post?"
-- Published posts are NOT automatically removed (dealer decides)
+### 13.3 Auto-Creative Triggers
 
-#### 9.1.4 Phase 2 — API Connector (Post-MVP, Design Now)
+**On new inventory added:**
+- Notification: "12 new vehicles added. Generate showcase posts?"
+- If confirmed: auto-generate drafts for each new vehicle (or combined showcase)
+- Drafts appear in Content Calendar
 
-- Design the database schema and API contracts now to support direct DMS/ERP integration
-- Target platforms: AutoVista, custom dealer ERPs
-- Webhook-based sync: dealer's DMS pushes inventory changes to Cardeko webhook endpoint
-- Polling-based sync: Cardeko polls dealer's API at configurable intervals
-- Build a generic `InventorySource` interface that both CSV upload and API connectors implement
-
-### 9.2 Acceptance Criteria
-
-- [ ] Dealer can upload CSV/Excel and see inventory in under 60 seconds for files up to 500 rows
-- [ ] Column mapping UI auto-detects common headers and allows manual override
-- [ ] Validation catches missing required fields and broken image URLs before import
-- [ ] Inventory table supports filtering, sorting, and pagination
-- [ ] "Generate Post" from inventory row opens Create Post with vehicle data pre-filled
-- [ ] New inventory additions trigger optional auto-creative generation
-- [ ] Sold vehicles flag associated scheduled posts for review
-- [ ] Incremental upload correctly updates existing vehicles and adds new ones
+**On vehicle marked as Sold:**
+- Flag any scheduled (unpublished) posts featuring this vehicle: "This vehicle has been sold. Unpublish this post?"
+- Published posts are NOT auto-removed (dealer decides)
 
 ---
 
-## 10. Module 6 — India Context Pack (P1)
+## 14. Module 6 — India Context Pack (P1)
 
-### 10.1 Functional Requirements
+### 14.1 Festival Calendar Engine
 
-#### 10.1.1 Festival Calendar Engine
+**Pre-loaded festivals:** 12 months of Indian festivals, national holidays, automotive buying occasions (see Appendix A).
 
-- **Pre-loaded database** of Indian festivals, national holidays, and automotive buying occasions for the next 12 months (see Appendix A for initial data)
-- **Auto-campaign suggestions:** 14 days before each festival, the system generates a notification and pre-populates the Content Calendar with suggested festival posts for that dealer's region
-- **Regional filtering:** Dealers set their region(s) during onboarding (North, South, East, West, or specific states). They only see festivals relevant to their region.
+**Auto-campaign suggestions:** 14 days before each festival relevant to the dealer's region, the system:
+- Sends a notification (in-app + WhatsApp if connected)
+- Pre-populates the Content Calendar with suggested festival posts for that day
 
-#### 10.1.2 Regional Language Support
+**Regional filtering:** Dealer sets region during onboarding (North / South / East / West / Central / specific state). Only sees regionally relevant festivals. Kerala dealer sees Onam, not Baisakhi. Punjab dealer sees Baisakhi, not Onam.
 
-| Language | Script | Phase | Caption Generation | Template Text |
-|----------|--------|-------|-------------------|---------------|
-| English | Latin | Phase 1 | GPT-4o | Yes |
-| Hindi | Devanagari | Phase 1 | GPT-4o | Yes |
-| Tamil | Tamil | Phase 2 | GPT-4o | Yes |
-| Telugu | Telugu | Phase 2 | GPT-4o | Yes |
-| Kannada | Kannada | Phase 2 | GPT-4o | Yes |
-| Malayalam | Malayalam | Phase 2 | GPT-4o | Yes |
-| Marathi | Devanagari | Phase 2 | GPT-4o | Yes |
+### 14.2 Regional Language Support
 
-**Important:** This is NOT translation. The AI must generate culturally native phrasing. "Diwali ki Dhoom Dhamaka Offer" is correct. "Diwali's Grand Celebration Offer" translated to Hindi is wrong. The GPT-4o system prompt must specify: "Generate content natively in {language}. Do not translate from English. Use idioms, references, and phrasing natural to {language}-speaking automobile buyers."
+| Language | Script | Phase | Generation Method |
+|----------|--------|-------|-------------------|
+| English | Latin | Phase 1 | Groq/OpenAI (primary) |
+| Hindi | Devanagari | Phase 1 | Groq/OpenAI (native, not translated) |
+| Tamil | Tamil | Phase 2 | OpenAI GPT-4o |
+| Telugu | Telugu | Phase 2 | OpenAI GPT-4o |
+| Kannada | Kannada | Phase 2 | OpenAI GPT-4o |
+| Malayalam | Malayalam | Phase 2 | OpenAI GPT-4o |
+| Marathi | Devanagari | Phase 2 | OpenAI GPT-4o |
 
-#### 10.1.3 Festival Template Library
+**Critical instruction for AI:** "Generate content NATIVELY in {language}. Do NOT translate from English. Use idioms, references, and phrasing natural to {language}-speaking automobile buyers in {region}. 'Diwali ki Dhoom Dhamaka Offer' is correct. 'Diwali's Grand Celebration Offer' translated to Hindi is wrong."
 
-- Minimum 2 templates per major festival (see Appendix A)
-- Templates must incorporate festival-specific visual elements: Diwali diyas, Holi colors, Onam pookalam, etc.
-- Templates must support dealer branding overlay (logo, colors)
-- Region-specific templates: Onam templates for Kerala dealers only, Pongal for Tamil Nadu, Baisakhi for Punjab, etc.
+### 14.3 GMB-First Strategy
 
-#### 10.1.4 GMB-First Strategy
-
-Google is the primary discovery channel for local businesses in India. GMB posting is NOT an afterthought.
-
-- Every creative generated must include a GMB-optimized variant (1200×900, shorter text, CTA button)
-- GMB posts should include `callToAction` with type: `CALL`, `LEARN_MORE`, or `ORDER` (used for booking)
-- Weekly GMB update posts should be auto-suggested (hours update, service availability, stock highlights)
-- GMB review response is integrated into the Unified Inbox (Module 4)
-
-### 10.2 Acceptance Criteria
-
-- [ ] Festival calendar contains all major Indian festivals for 12 months with regional mapping
-- [ ] Auto-campaign suggestions appear 14 days before each relevant festival
-- [ ] Regional filtering works — Kerala dealer sees Onam, not Baisakhi
-- [ ] Hindi captions are culturally native (not translated English)
-- [ ] GMB-optimized creative variant is generated for every post
-- [ ] Festival templates render with festival-specific visual elements and dealer branding
-- [ ] Dealer can set language preference during onboarding and change in settings
+Google is the primary local discovery channel. GMB is not an afterthought:
+- Every creative generates a GMB-optimized variant (1200×900, shorter text, CTA button)
+- GMB posts include `callToAction` type: `CALL`, `LEARN_MORE`, or `ORDER`
+- Weekly GMB update posts auto-suggested (hours, stock highlights, service availability)
+- GMB review responses integrated into Unified Inbox
 
 ---
 
-## 11. Module 7 — Lead Attribution Dashboard (P2)
+## 15. Module 7 — Lead Attribution Dashboard (P2)
 
-### 11.1 Functional Requirements
+### 15.1 Tracked Actions
 
-This module connects marketing activity to business outcomes. It is P2 for MVP but must be architected now so data collection starts from Day 1.
+| Action | Tracking Method |
+|--------|----------------|
+| Click-to-call | UTM-tagged phone + Meta call tracking |
+| WhatsApp tap | UTM-tagged link: `wa.me/{number}?text={utm_msg}` |
+| Direction requests | GMB Insights API |
+| Website click | UTM-tagged URLs |
+| Inbox lead tag | Manual tag in Unified Inbox |
 
-#### 11.1.1 Tracked Actions
+**Data collection starts from Day 1.** Even if the dashboard is P2, UTM tagging must be applied to every post from Phase 1 onwards.
 
-| Action | Tracking Method | Source |
-|--------|----------------|--------|
-| Click-to-Call | UTM-tagged phone number + Meta Ads call tracking | Published posts, boosted ads |
-| WhatsApp Tap | UTM-tagged WhatsApp link (`https://wa.me/{number}?text={utm_msg}`) | Published posts |
-| Form Submission | Custom landing page form (if applicable) | Boost campaign destination |
-| Direction Requests | GMB Insights API | GMB posts |
-| Website Click | UTM-tagged URLs | All published posts |
-| Inbox Lead Tag | Manual tag in Unified Inbox | Inbox messages |
+### 15.2 Dashboard Widgets
 
-#### 11.1.2 Dashboard Widgets
+- Total Leads This Month (large number, trend arrow)
+- Leads by Source (donut: Facebook, Instagram, GMB, WhatsApp, Organic)
+- Leads by Campaign (table: campaign, leads, cost per lead)
+- Top Performing Posts (ranked by leads, not engagement)
+- Weekly Trend (8-week line chart)
+- Monthly Summary Card (WhatsApp-shareable)
 
-- **Total Leads This Month** (large number with trend arrow)
-- **Leads by Source** (pie/donut chart: Facebook, Instagram, GMB, WhatsApp, Organic)
-- **Leads by Campaign** (table: campaign name, leads generated, cost per lead if boosted)
-- **Top Performing Posts** (ranked by lead generation, not engagement)
-- **Weekly Trend** (line chart: leads per week over last 8 weeks)
-- **Monthly Summary Card** (auto-generated, suitable for WhatsApp-sharing with dealer owner)
+### 15.3 Monthly Report Auto-Generation
 
-#### 11.1.3 Monthly Report Auto-Generation
-
-- At the end of each month, auto-generate a summary report PDF/image
-- Include: total posts published, total reach, total leads, boost spend, cost per lead, top 3 performing posts
-- Send to dealer via WhatsApp (if connected) and email
-- Design the report to be "forward-friendly" — a dealer should proudly share it with their OEM or team
-
-### 11.2 Acceptance Criteria
-
-- [ ] UTM-tagged links are appended to every published post's CTA
-- [ ] Click-to-call and WhatsApp taps are tracked (at minimum via UTM analytics, ideally via Meta tracking)
-- [ ] Dashboard shows lead count, source breakdown, and campaign attribution
-- [ ] Monthly report auto-generates and is delivered to the dealer
+On the 1st of each month:
+- Auto-generate summary report (PDF or image card)
+- Include: total posts, total reach, total leads, boost spend, cost per lead, top 3 posts
+- Send via WhatsApp (if connected) and email
+- Design to be "forward-friendly" — dealer should proudly share with their OEM
 
 ---
 
-## 12. Authentication, Onboarding & Dealer Management
+## 16. Authentication, Onboarding & Dealer Management
 
-### 12.1 Authentication
+### 16.1 Authentication
 
-- **Method:** Phone number (OTP via SMS) as primary. Email/password as secondary.
-- **OTP Provider:** MSG91 or Twilio (Indian SMS delivery reliability is critical — test multiple providers)
-- **Session:** JWT (access token: 1 hour, refresh token: 30 days) stored in httpOnly cookies (web) and secure storage (mobile)
-- **Multi-device:** Support simultaneous sessions on web + mobile
+- **Primary:** Phone number + OTP (SMS via MSG91 primary, Twilio fallback)
+- **OTP validity:** 6 minutes, max 3 attempts
+- **Session:** JWT access token (15-minute expiry) + refresh token (30-day expiry)
+- **Multi-device:** Supported. Sessions tracked in `UserSession` table.
+- **Dev shortcut:** OTP = 1234 in development; no SMS sent.
 
-### 12.2 Onboarding Flow (First-Time Setup)
+### 16.2 Onboarding Flow (Target: < 15 minutes to first post)
 
-This is where we either win or lose the dealer in the first 15 minutes. The target is: **time to first post under 15 minutes from signup.**
-
-**Step 1 — Phone Verification (30 seconds):**
-- Enter phone number → receive OTP → verify → account created
+**Step 1 — Phone Verification (30 seconds):** Enter phone → OTP → verified.
 
 **Step 2 — Dealer Profile (2 minutes):**
 - Dealership name (required)
-- City / Location (required, auto-detect via geolocation with manual override)
-- Vehicle brands sold (multi-select from predefined list: Maruti Suzuki, Hyundai, Tata, Mahindra, Kia, Toyota, Honda, MG, Volkswagen, Skoda, BMW, Mercedes, Audi, etc. + "Other" with text input)
-- Showroom type: New Cars, Pre-Owned, Two-Wheeler, Multi-Brand (multi-select)
-- Contact phone (pre-filled from auth), WhatsApp number
-- Dealership logo upload (optional, can skip)
+- City (required, geolocation auto-detect + manual override)
+- Vehicle brands sold: multi-select (Maruti Suzuki, Hyundai, Tata, Mahindra, Kia, Toyota, Honda, MG, Volkswagen, Skoda, BMW, Mercedes, Audi, Renault, Nissan + Other)
+- Showroom type: New Cars / Pre-Owned / Two-Wheeler / Multi-Brand (multi-select)
+- Contact phone (pre-filled from auth) + WhatsApp number
+- Dealership logo upload (optional, skippable)
 
 **Step 3 — Brand Setup (1 minute):**
-- Auto-detect brand colors from uploaded logo (if available) using color extraction
-- Or: pick primary and secondary colors from a palette
-- Preview: "This is how your brand will look on posts" with a sample creative
+- Auto-detect brand colors from logo if uploaded
+- Or: color palette picker for primary + secondary colors
+- Preview: sample creative with dealer's brand applied
 
 **Step 4 — Connect Platforms (3 minutes):**
-- Show 3 cards: Facebook, Instagram, Google My Business
-- Each card: "Connect" button with OAuth flow
-- "Skip for now" option (all three can be connected later in Settings)
-- Minimum 1 platform connection required to proceed, OR allow skipping entirely with a warning: "You'll need to connect at least one platform to publish posts."
+- 3 cards: Facebook, Instagram, Google My Business
+- Each has an OAuth "Connect" button + "Skip for now"
+- Minimum 0 connections required to proceed (but warned: "You'll need to connect at least one platform to publish")
 
 **Step 5 — First Post (5 minutes):**
 - Auto-redirect to Create Post screen
-- Show a guided tutorial overlay: "Type your first prompt here or pick one of these suggestions"
-- Pre-select the most relevant prompt based on dealer profile (e.g., if they sell Hyundai, suggest "Showcase our latest Hyundai Creta stock")
-- After first creative is generated, confetti animation + congratulations message
+- Guided tooltip overlay: "Type your first prompt here, or pick one of these"
+- Pre-selected prompt based on dealer's brands
+- After first post generated: confetti animation + congratulations
 
-**Onboarding Progress:**
-- Show a progress bar throughout (Steps 1–5)
-- Allow going back to previous steps
-- Save progress — if dealer drops off at Step 3, they resume at Step 3 on next login
-- Onboarding completion is tracked as a metric
+**Drop-off handling:** Progress saved at each step. Returning user resumes at the step they left.
 
-### 12.3 Dealer Management (Admin)
+### 16.3 Role-Based Access
 
-Build an internal admin panel (accessible only by Cardeko team, not dealers) with:
+| Role | Access Level |
+|------|-------------|
+| owner | Global access to all dealer data |
+| admin | Full access within one dealer organization |
+| user | Granular permissions via JSON — can create posts but not publish, or view-only, etc. |
 
-- List all dealers with: name, city, plan, signup date, last active, platforms connected, posts published this month
-- Filter by plan, city, activity status
-- Impersonate (view dashboard as dealer — read-only, for support purposes)
-- Edit dealer plan, add/remove features, extend trial
-- View dealer's platform connection status and token health
-- Aggregate metrics: total dealers, active dealers (posted in last 7 days), total posts, total boost spend
+### 16.4 Subscription Tiers
 
-### 12.4 Subscription & Billing
+| Tier | Monthly Price | Post Limit | Boost | AI Inbox | Inventory |
+|------|-------------|-----------|-------|----------|-----------|
+| Starter | ₹4,999 | 30 posts/month | No | Basic | No |
+| Growth | ₹9,999 | Unlimited | Yes | Full + AI | Yes |
+| Enterprise | ₹19,999+ | Unlimited | Yes | Full + AI | Yes + Multi-location |
 
-**Pricing Tiers:**
-
-| Tier | Price/Month | Post Limit | Platforms | Boost | Inbox | Inventory | Multi-Location |
-|------|------------|------------|-----------|-------|-------|-----------|----------------|
-| Starter | ₹4,999 | 30 posts | 3 | No | Basic | No | No |
-| Growth | ₹9,999 | Unlimited | 3 | Yes | Full + AI | Yes | No |
-| Enterprise | ₹19,999+ | Unlimited | 3+ | Yes | Full + AI | Yes | Yes |
-
-**Billing Integration:**
-- Payment gateway: Razorpay (best coverage in India for recurring payments)
-- Support: Credit/debit cards, UPI, net banking
-- Subscription management: auto-renewal with 3-day pre-renewal reminder
-- Failed payment: retry 3 times over 7 days, then downgrade to limited access (view-only, no new posts)
-- Invoice generation: GST-compliant invoices auto-generated and emailed
-
-### 12.5 Acceptance Criteria
-
-- [ ] OTP-based signup works reliably with Indian phone numbers
-- [ ] Onboarding flow can be completed in under 10 minutes (measured)
-- [ ] Dealer can connect at least one social platform during onboarding
-- [ ] First post is generated within 15 minutes of signup
-- [ ] Onboarding progress is saved — drop-offs resume where they left off
-- [ ] Admin panel shows all dealers with key metrics and supports impersonation
-- [ ] Razorpay subscription handles auto-renewal, failed payments, and plan changes
-- [ ] GST-compliant invoices are auto-generated
+**Billing via Razorpay:** Recurring subscription, UPI/card/net banking, GST-compliant invoices, failed payment retry (3× over 7 days then downgrade to view-only).
 
 ---
 
-## 13. Database Schema
+## 17. Database Schema
 
-### 13.1 Core Tables
+All tables use: `id` (UUID PK), `created_at` (timestamptz UTC), `updated_at` (timestamptz UTC).
 
-Design the following PostgreSQL tables. All tables include: `id` (UUID, primary key), `created_at` (timestamptz), `updated_at` (timestamptz). Use `timestamptz` (not `timestamp`) everywhere — always store in UTC.
+### Core Tables
 
 ```
-dealers
-├── id (UUID PK)
-├── phone (varchar, unique, indexed)
-├── email (varchar, nullable)
-├── name (varchar) -- dealership name
-├── city (varchar)
-├── state (varchar)
-├── latitude (decimal)
-├── longitude (decimal)
-├── brands (jsonb) -- array of brand names
-├── showroom_type (varchar[]) -- new, pre_owned, two_wheeler, multi_brand
-├── logo_url (varchar, nullable)
-├── primary_color (varchar, default '#1A1A2E')
-├── secondary_color (varchar, default '#FFFFFF')
-├── contact_phone (varchar)
-├── whatsapp_number (varchar, nullable)
-├── plan (enum: starter, growth, enterprise)
-├── plan_expires_at (timestamptz)
-├── onboarding_step (int, default 1)
-├── onboarding_completed (boolean, default false)
-├── language_preferences (varchar[], default ['en'])
-├── region (varchar) -- north, south, east, west, or state code
-├── timezone (varchar, default 'Asia/Kolkata')
-├── is_active (boolean, default true)
-├── created_at, updated_at
+Dealer
+├── phone (unique, indexed) — primary identifier, phone-based auth
+├── email (nullable)
+├── name, city, state, latitude, longitude
+├── brands (jsonb) — ["Maruti Suzuki", "Hyundai"]
+├── showroom_type (varchar[]) — [new, pre_owned, two_wheeler, multi_brand]
+├── logo_url, primary_color, secondary_color
+├── contact_phone, whatsapp_number
+├── plan (enum: starter, growth, enterprise), plan_expires_at
+├── onboarding_step (int), onboarding_completed (boolean)
+├── language_preferences (varchar[]) — ["en", "hi"]
+├── region (varchar) — north/south/east/west/central or state code
+├── timezone (default: Asia/Kolkata)
 
-platform_connections
-├── id (UUID PK)
-├── dealer_id (UUID FK → dealers)
-├── platform (enum: facebook, instagram, gmb)
-├── platform_account_id (varchar) -- page ID, IG user ID, or GMB location ID
-├── platform_account_name (varchar)
-├── access_token (text, encrypted)
-├── refresh_token (text, encrypted, nullable)
-├── token_expires_at (timestamptz)
-├── ad_account_id (varchar, nullable) -- for Meta boost
-├── is_connected (boolean, default true)
-├── last_sync_at (timestamptz)
-├── created_at, updated_at
+DealerUser
+├── dealer_id (FK), user_id, role (enum: owner, admin, user)
+├── permissions (jsonb) — granular per-action permissions
+
+PlatformConnection
+├── dealer_id (FK), platform (enum: facebook, instagram, gmb)
+├── platform_account_id, platform_account_name
+├── access_token (encrypted), refresh_token (encrypted)
+├── token_expires_at, ad_account_id (for Meta Ads)
+├── is_connected (boolean), last_sync_at
 ├── UNIQUE(dealer_id, platform)
 
-templates
-├── id (UUID PK)
-├── name (varchar)
-├── category (enum: new_arrival, festival, service_camp, testimonial, inventory_showcase, engagement, generic)
-├── spec (jsonb) -- full template JSON specification
-├── thumbnail_url (varchar)
-├── platforms (varchar[]) -- which platform sizes are supported
-├── regional_variants (varchar[]) -- supported languages
-├── festival_id (UUID FK → festivals, nullable)
-├── is_active (boolean, default true)
-├── usage_count (int, default 0)
-├── created_at, updated_at
-
-prompts
-├── id (UUID PK)
-├── category (enum, same as templates)
-├── text_en (text)
-├── text_hi (text, nullable)
-├── text_regional (jsonb, nullable) -- {ta: "...", te: "...", etc.}
-├── is_active (boolean, default true)
-├── usage_count (int, default 0)
-├── sort_order (int, default 0)
-├── created_at, updated_at
-
-posts
-├── id (UUID PK)
-├── dealer_id (UUID FK → dealers)
-├── prompt_text (text) -- what the dealer typed
-├── prompt_id (UUID FK → prompts, nullable) -- if selected from library
-├── selected_variant_index (int) -- which of the 3 variants was chosen
-├── caption_text (text)
-├── caption_hashtags (varchar[])
-├── creative_urls (jsonb) -- {facebook_post: "s3://...", instagram_post: "s3://...", ...}
-├── template_id (UUID FK → templates)
-├── inventory_item_ids (UUID[]) -- linked inventory items
-├── platforms (varchar[]) -- target platforms
+Post
+├── dealer_id (FK), prompt_text, prompt_id (FK, nullable)
+├── selected_variant_index (0, 1, or 2)
+├── caption_text, caption_hashtags (varchar[])
+├── creative_urls (jsonb) — {facebook_post: "...", instagram_post: "...", gmb_post: "..."}
+├── template_id (FK), inventory_item_ids (UUID[])
+├── platforms (varchar[]) — ["facebook", "instagram", "gmb"]
 ├── status (enum: draft, scheduled, publishing, published, partially_published, failed)
-├── scheduled_at (timestamptz, nullable)
-├── published_at (timestamptz, nullable)
-├── publish_results (jsonb) -- {facebook: {post_id: "...", status: "success"}, ...}
-├── metrics (jsonb) -- {facebook: {reach: 0, likes: 0, ...}, ...}
-├── metrics_last_fetched (timestamptz)
-├── created_at, updated_at
-├── INDEX on (dealer_id, status)
-├── INDEX on (dealer_id, scheduled_at)
+├── scheduled_at, published_at
+├── publish_results (jsonb) — {facebook: {post_id, status, url}, instagram: {...}}
+├── metrics (jsonb) — {facebook: {reach, likes, comments, shares}, ...}
+├── metrics_last_fetched
+├── INDEX on (dealer_id, status), (dealer_id, scheduled_at)
 
-boost_campaigns
-├── id (UUID PK)
-├── dealer_id (UUID FK → dealers)
-├── post_id (UUID FK → posts)
-├── meta_campaign_id (varchar)
-├── meta_adset_id (varchar)
-├── meta_ad_id (varchar)
-├── daily_budget (int) -- in paisa (₹500 = 50000)
-├── duration_days (int)
-├── start_date (date)
-├── end_date (date)
-├── targeting_spec (jsonb)
+BoostCampaign
+├── dealer_id (FK), post_id (FK)
+├── meta_campaign_id, meta_adset_id, meta_ad_id
+├── daily_budget (int, paisa), duration_days
+├── start_date, end_date, targeting_spec (jsonb)
 ├── status (enum: draft, active, paused, completed, failed)
-├── total_spent (int, default 0) -- in paisa
-├── metrics (jsonb) -- {reach, impressions, clicks, cpc, ctr}
-├── metrics_last_fetched (timestamptz)
-├── created_at, updated_at
+├── total_spent (int, paisa), metrics (jsonb)
+├── metrics_last_fetched
 
-inbox_messages
-├── id (UUID PK)
-├── dealer_id (UUID FK → dealers)
-├── platform (enum: facebook, instagram, google_reviews)
+InboxMessage
+├── dealer_id (FK), platform (enum: facebook, instagram, google)
 ├── message_type (enum: comment, dm, review)
-├── platform_message_id (varchar, unique)
-├── post_id (UUID FK → posts, nullable) -- if it's a comment on a post
-├── customer_name (varchar)
-├── customer_avatar_url (varchar, nullable)
-├── customer_platform_id (varchar)
-├── message_text (text)
-├── sentiment (enum: positive, neutral, negative, nullable)
-├── tag (enum: lead, complaint, general, spam, nullable)
-├── ai_suggested_reply (text, nullable)
-├── reply_text (text, nullable) -- actual reply sent
-├── replied_at (timestamptz, nullable)
-├── is_read (boolean, default false)
-├── requires_approval (boolean, default false) -- true for negative sentiment
-├── received_at (timestamptz)
-├── created_at, updated_at
+├── platform_message_id (unique), post_id (FK, nullable)
+├── customer_name, customer_avatar_url, customer_platform_id
+├── message_text, sentiment (enum: positive, neutral, negative)
+├── tag (enum: lead, complaint, general, spam)
+├── ai_suggested_reply, reply_text, replied_at
+├── is_read, requires_approval, received_at
 ├── INDEX on (dealer_id, is_read, received_at)
 
-inventory_items
-├── id (UUID PK)
-├── dealer_id (UUID FK → dealers)
-├── make (varchar)
-├── model (varchar)
-├── variant (varchar, nullable)
-├── year (int)
-├── price (int) -- in paisa
-├── condition (enum: new, used)
-├── color (varchar, nullable)
-├── fuel_type (varchar, nullable)
-├── transmission (varchar, nullable)
-├── mileage_km (int, nullable) -- for used cars
-├── stock_count (int, default 1)
-├── image_urls (varchar[])
+InventoryItem
+├── dealer_id (FK), make, model, variant, year
+├── price (int, paisa), condition (enum: new, used)
+├── color, fuel_type, transmission, mileage_km
+├── stock_count, image_urls (varchar[])
 ├── status (enum: in_stock, sold, reserved)
 ├── source (enum: csv_upload, api_sync, manual)
-├── created_at, updated_at
-├── INDEX on (dealer_id, status)
-├── INDEX on (dealer_id, make, model)
+├── INDEX on (dealer_id, status), (dealer_id, make, model)
 
-festivals
-├── id (UUID PK)
-├── name_en (varchar)
-├── name_hi (varchar, nullable)
-├── name_regional (jsonb, nullable)
-├── date (date) -- for current year; recalculate annually for lunar calendar festivals
-├── regions (varchar[]) -- applicable regions/states
-├── category (varchar) -- religious, national, automotive, seasonal
-├── campaign_type (varchar) -- offers, auspicious_purchase, patriotic, clearance
-├── template_ids (UUID[]) -- associated template IDs
-├── auto_suggest_days_before (int, default 14)
-├── is_active (boolean, default true)
-├── created_at, updated_at
+Festival
+├── name_en, name_hi, name_regional (jsonb)
+├── date, regions (varchar[]), category, campaign_type
+├── template_ids (UUID[]), auto_suggest_days_before (default: 14)
 
-leads
-├── id (UUID PK)
-├── dealer_id (UUID FK → dealers)
-├── customer_name (varchar, nullable)
-├── customer_phone (varchar, nullable)
-├── source_platform (varchar) -- facebook, instagram, gmb, whatsapp
-├── source_type (enum: click_to_call, whatsapp_tap, form_fill, direction_request, inbox_tag, website_click)
-├── source_post_id (UUID FK → posts, nullable)
-├── source_campaign_id (UUID FK → boost_campaigns, nullable)
-├── source_message_id (UUID FK → inbox_messages, nullable)
-├── vehicle_interest (varchar, nullable)
-├── notes (text, nullable)
-├── created_at, updated_at
+InspirationHandle
+├── dealer_id (FK), platform (enum: facebook, instagram)
+├── handle_url, posts_cache (jsonb), last_scraped_at
+
+Lead
+├── dealer_id (FK), customer_name, customer_phone
+├── source_platform, source_type (enum: click_to_call, whatsapp_tap, form_fill, direction_request, inbox_tag, website_click)
+├── source_post_id (FK), source_campaign_id (FK), source_message_id (FK)
+├── vehicle_interest, notes
 ├── INDEX on (dealer_id, created_at)
 ```
 
-### 13.2 Encryption
+### Encryption
 
-- All `access_token` and `refresh_token` fields must be encrypted at rest using AES-256-GCM
-- Encryption key stored in AWS Secrets Manager, NOT in environment variables or code
-- Database-level encryption: enable RDS encryption at rest
+- `access_token` and `refresh_token`: AES-256-GCM encrypted at rest
+- Encryption key: stored in environment variable (move to AWS Secrets Manager in production)
+- PII (phone, email): encrypted at database level
 
 ---
 
-## 14. API Design Standards
+## 18. API Design Standards
 
-### 14.1 General Conventions
+### Conventions
 
-- **Base URL:** `https://api.cardekosocial.com/v1`
-- **Authentication:** Bearer token (JWT) in `Authorization` header
-- **Content-Type:** `application/json` for all requests and responses
-- **Versioning:** URL-based (`/v1/`, `/v2/`)
-- **Pagination:** Cursor-based for lists (`?cursor=xxx&limit=20`), never offset-based
-- **Error Format:**
+- **Base URL:** `/v1/`
+- **Auth:** Bearer JWT in `Authorization` header
+- **Pagination:** Cursor-based (`?cursor=xxx&limit=20`) — never offset-based
+- **Error format:**
   ```json
-  {
-    "error": {
-      "code": "INVALID_PROMPT",
-      "message": "Prompt text is required and must be under 500 characters.",
-      "details": {}
-    }
-  }
+  { "error": { "code": "INVALID_PROMPT", "message": "Prompt is required and under 500 chars.", "details": {} } }
   ```
-- **Rate Limiting:** 100 req/min per dealer for standard endpoints, 10 req/min for AI generation endpoints. Return `429 Too Many Requests` with `Retry-After` header.
+- **Rate limits:** 100 req/min (standard), 10 req/min (AI generation). Return `429` with `Retry-After` header.
 
-### 14.2 Key API Endpoints
+### Key Endpoints
 
 ```
-POST   /v1/auth/otp/send          -- Send OTP to phone
-POST   /v1/auth/otp/verify        -- Verify OTP, return JWT
-POST   /v1/auth/refresh            -- Refresh JWT
+POST   /v1/auth/otp/send           Send OTP
+POST   /v1/auth/otp/verify         Verify OTP → JWT
+POST   /v1/auth/refresh            Refresh JWT
+POST   /v1/auth/logout             Invalidate session
 
-GET    /v1/dealer/profile          -- Get current dealer profile
-PUT    /v1/dealer/profile          -- Update dealer profile
-POST   /v1/dealer/logo             -- Upload dealer logo (multipart)
+GET    /v1/dealer/profile          Get dealer profile
+PUT    /v1/dealer/profile          Update profile
+POST   /v1/dealer/logo             Upload logo (multipart)
 
-GET    /v1/platforms                -- List connected platforms
-POST   /v1/platforms/connect       -- Initiate OAuth flow (returns redirect URL)
-GET    /v1/platforms/callback       -- OAuth callback handler
-DELETE /v1/platforms/{platform}     -- Disconnect platform
+GET    /v1/platforms               List connected platforms
+POST   /v1/platforms/connect       Initiate OAuth → redirect URL
+GET    /v1/platforms/callback      OAuth callback
+DELETE /v1/platforms/:platform     Disconnect
 
-GET    /v1/prompts                  -- List suggested prompts (filterable by category)
-POST   /v1/creative/generate        -- Generate 3 creative variants from prompt
-GET    /v1/creative/{id}            -- Get generated creative details
-PUT    /v1/creative/{id}            -- Update creative (edit caption/headline)
-POST   /v1/creative/{id}/regenerate -- Generate new variants
+GET    /v1/prompts                 List prompt library (by category)
+POST   /v1/creative/generate       Generate 3 variants from prompt
+PUT    /v1/creative/:id            Edit creative (caption/headline)
+POST   /v1/creative/:id/regenerate New variants for same prompt
 
-GET    /v1/templates                -- List available templates
-GET    /v1/templates/{id}           -- Get template spec
+POST   /v1/posts                   Create post (draft/schedule/publish now)
+GET    /v1/posts                   List posts (filter: status, date)
+GET    /v1/posts/:id               Post details + metrics
+PUT    /v1/posts/:id               Update (reschedule, edit caption)
+DELETE /v1/posts/:id               Delete (draft/scheduled only)
+POST   /v1/posts/:id/publish       Publish immediately
+GET    /v1/posts/calendar          Calendar view (date range)
+POST   /v1/posts/bulk-schedule     Schedule multiple posts
 
-POST   /v1/posts                    -- Create post (schedule or publish now)
-GET    /v1/posts                    -- List posts (filterable by status, date range)
-GET    /v1/posts/{id}               -- Get post details with metrics
-PUT    /v1/posts/{id}               -- Update post (reschedule, edit)
-DELETE /v1/posts/{id}               -- Delete post (only drafts/scheduled)
-POST   /v1/posts/{id}/publish       -- Immediately publish a scheduled/draft post
-GET    /v1/posts/calendar           -- Get posts for calendar view (date range)
-POST   /v1/posts/bulk-schedule      -- Schedule multiple posts at once
+POST   /v1/boost                   Create and launch campaign
+GET    /v1/boost                   List campaigns
+GET    /v1/boost/:id               Campaign + metrics
+PUT    /v1/boost/:id/pause         Pause
+PUT    /v1/boost/:id/resume        Resume
+PUT    /v1/boost/:id/stop          Stop
+GET    /v1/boost/estimate          Reach estimate for budget/targeting
 
-POST   /v1/boost                    -- Create and launch boost campaign
-GET    /v1/boost                    -- List campaigns (filterable by status)
-GET    /v1/boost/{id}               -- Get campaign details with metrics
-PUT    /v1/boost/{id}/pause         -- Pause campaign
-PUT    /v1/boost/{id}/resume        -- Resume campaign
-PUT    /v1/boost/{id}/stop          -- Stop campaign
-GET    /v1/boost/estimate           -- Get reach estimate for budget/targeting
+GET    /v1/inbox                   List messages (filter: platform, tag, read)
+GET    /v1/inbox/:id               Message + AI suggestion
+PUT    /v1/inbox/:id/reply         Send reply
+PUT    /v1/inbox/:id/tag           Update tag
+PUT    /v1/inbox/:id/read          Mark read
+GET    /v1/inbox/unread-count      Unread count per platform
 
-GET    /v1/inbox                    -- List messages (filterable by platform, tag, read status)
-GET    /v1/inbox/{id}               -- Get message with AI suggestion
-PUT    /v1/inbox/{id}/reply         -- Send reply
-PUT    /v1/inbox/{id}/tag           -- Update tag
-PUT    /v1/inbox/{id}/read          -- Mark as read
-GET    /v1/inbox/unread-count       -- Get unread count per platform
+POST   /v1/inventory/upload        CSV/Excel upload (multipart)
+GET    /v1/inventory               List items (filter/sort/paginate)
+PUT    /v1/inventory/:id           Update item
+PUT    /v1/inventory/:id/status    Mark sold/reserved/in_stock
+DELETE /v1/inventory/:id           Delete
 
-POST   /v1/inventory/upload         -- Upload CSV/Excel
-GET    /v1/inventory                -- List inventory items (filterable)
-GET    /v1/inventory/{id}           -- Get item details
-PUT    /v1/inventory/{id}           -- Update item
-PUT    /v1/inventory/{id}/status    -- Mark as sold/reserved/in_stock
-DELETE /v1/inventory/{id}           -- Delete item
-
-GET    /v1/festivals                -- List upcoming festivals for dealer's region
-GET    /v1/festivals/{id}           -- Get festival details with templates
-
-GET    /v1/analytics/dashboard      -- Dashboard metrics (date range)
-GET    /v1/analytics/leads          -- Lead list (filterable)
-GET    /v1/analytics/report/{month} -- Monthly report data
-POST   /v1/analytics/report/{month}/send -- Send report via WhatsApp/email
+GET    /v1/festivals               Upcoming festivals for dealer's region
+GET    /v1/analytics/dashboard     Dashboard metrics (date range)
+GET    /v1/analytics/leads         Lead list
+GET    /v1/analytics/report/:month Monthly report data
 ```
 
 ---
 
-## 15. Third-Party Integrations
+## 19. Third-Party Integrations
 
-### 15.1 Meta Graph API (Facebook + Instagram)
+### Meta Graph API (Facebook + Instagram)
 
-- **API Version:** Use the latest stable version (v19.0+ as of March 2026). Pin the version in config to avoid breaking changes.
-- **App Review:** The app must pass Meta App Review for production access. Required permissions: `pages_manage_posts`, `pages_read_engagement`, `pages_messaging`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`, `instagram_manage_messages`, `ads_management`, `ads_read`.
-- **Business Verification:** Required for production access. Begin this process in Week 1 — it can take 2–4 weeks.
-- **Rate Limits:** Meta applies rate limits per app and per user. Implement exponential backoff and respect the `x-app-usage` header.
-- **Webhook Setup:** Subscribe to `page/feed`, `page/messages`, `instagram/comments`, `instagram/messages`. Verify with hub challenge.
+- **Version:** v19.0+ (pinned in config — never auto-upgrade)
+- **Required permissions:** `pages_manage_posts`, `pages_read_engagement`, `pages_manage_metadata`, `pages_messaging`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`, `instagram_manage_messages`, `ads_management`, `ads_read`
+- **App Review:** Required for production. Start the process in Week 1 — takes 2–4 weeks.
+- **Business Verification:** Required. Apply in Week 1.
+- **Rate limits:** Respect `x-app-usage` header; implement exponential backoff
+- **Webhooks:** Subscribe to `page/feed`, `page/messages`, `instagram/comments`, `instagram/messages`. Validate HMAC-SHA256 signature on every incoming webhook.
 
-### 15.2 Google Business Profile API
+### Google Business Profile API
 
-- **API Access:** Apply for Google Business Profile API access through Google Cloud Console. This is NOT instant — plan for 1–2 weeks approval.
+- **API Access:** Apply via Google Cloud Console. Not instant — plan 1–2 weeks.
 - **OAuth Scope:** `https://www.googleapis.com/auth/business.manage`
-- **Location Management:** Each dealer may have multiple GMB locations. List locations via API and let dealer select which to connect.
-- **Posting:** `POST /v1/{name}/localPosts` with `LocalPost` object including `summary`, `media`, and `callToAction`.
-- **Reviews:** `GET /v1/{name}/reviews` to fetch reviews. Reply via `PUT /v1/{name}/reviews/{reviewId}/reply`.
+- **Multi-location:** List locations and let dealer select which to connect
+- **Posting:** `LocalPost` object with summary, media, callToAction
+- **Reviews:** `GET /reviews`, `PUT /reviews/{reviewId}/reply`
 
-### 15.3 OpenAI API
+### AI Providers
 
-- **Model:** GPT-4o for all text generation (captions, replies, sentiment)
-- **API Key:** Store in AWS Secrets Manager. Rotate quarterly.
-- **Rate Limits:** Monitor token usage. Implement request queuing to avoid 429 errors.
-- **Cost Management:** Track token usage per dealer per month. Set alerts at budget thresholds.
-- **Fallback:** If OpenAI API is down, show a manual caption input field with template-based suggestions (no AI). Never block the posting flow.
+| Provider | Use Case | Model | Tier |
+|----------|----------|-------|------|
+| Groq | Caption generation | llama-3.3-70b-versatile | Primary |
+| OpenRouter | Caption generation | meta-llama/llama-3.3-70b-instruct | Fallback 1 |
+| OpenAI | Caption + reply generation | gpt-4o | Fallback 2 |
+| Cloudflare Workers AI | Background image generation | stable-diffusion-xl-turbo | Primary |
+| remove.bg | Vehicle background removal | API (REST) | Primary |
 
-### 15.4 Razorpay (Payments)
+### Cloudflare R2 / AWS S3
 
-- **Subscription API:** Create plans for each tier, manage subscriptions programmatically
-- **Webhooks:** Subscribe to `subscription.charged`, `subscription.halted`, `payment.failed`
-- **Test Mode:** Use Razorpay test keys in staging environment
-- **GST:** Configure GSTIN in Razorpay dashboard for GST-compliant invoices
+- R2 is the primary storage for all generated creatives (zero egress fees)
+- S3-compatible API — same SDK, different endpoint URL
+- Local disk in development (via `uploads/` directory)
 
-### 15.5 SMS (OTP)
+### SMS / OTP
 
-- **Provider:** MSG91 (primary), Twilio (fallback)
-- **Template Registration:** Pre-register OTP templates with DLT platform (mandatory in India)
-- **Rate Limiting:** Max 3 OTPs per phone per hour. Cooldown between retries: 30s, 60s, 120s.
+- **MSG91:** Primary, registered DLT templates, Indian compliance
+- **Twilio:** Fallback, global coverage
+- **OTP rate limits:** Max 3 per phone per hour; cooldown 30s → 60s → 120s between retries
 
----
+### Razorpay (Billing — Phase 3)
 
-## 16. Job Queue & Background Workers
-
-### 16.1 BullMQ Queue Architecture
-
-| Queue Name | Purpose | Concurrency | Retry Policy |
-|------------|---------|-------------|--------------|
-| `creative-generation` | AI caption + template rendering | 5 | 2 retries, 30s backoff |
-| `post-publish` | Push content to social platforms | 3 | 3 retries, exponential (1m, 5m, 15m) |
-| `boost-management` | Create/pause/stop Meta campaigns | 2 | 3 retries, 2m backoff |
-| `inbox-poll` | Poll platforms for new messages | 1 | No retry (runs on schedule) |
-| `metrics-fetch` | Pull post/boost metrics from APIs | 2 | 2 retries, 5m backoff |
-| `token-refresh` | Refresh expiring OAuth tokens | 1 | 3 retries, 1h backoff |
-| `report-generation` | Monthly report PDF creation | 1 | 2 retries, 10m backoff |
-| `inventory-process` | CSV/Excel parsing and import | 1 | No retry (user re-uploads) |
-
-### 16.2 Scheduled Jobs (Cron)
-
-| Job | Schedule | Description |
-|-----|----------|-------------|
-| `token-health-check` | Daily at 02:00 IST | Check all tokens expiring within 7 days, attempt refresh |
-| `metrics-poll` | Every 6 hours | Fetch post metrics for posts published in last 30 days |
-| `boost-metrics` | Every 4 hours | Fetch spend/performance for active boost campaigns |
-| `inbox-poll` | Every 5 minutes | Poll platforms for new messages (fallback for webhooks) |
-| `festival-reminder` | Daily at 09:00 IST | Check festivals in next 14 days, generate suggestions |
-| `monthly-report` | 1st of month, 10:00 IST | Generate and send monthly reports for all active dealers |
-| `stale-creative-cleanup` | Weekly, Sunday 03:00 IST | Delete unselected creative variants older than 30 days from S3 |
+- Subscription API for plan management
+- Webhooks: `subscription.charged`, `subscription.halted`, `payment.failed`
+- GST-compliant invoices
+- Supported: Credit card, debit card, UPI, net banking
 
 ---
 
-## 17. Mobile Responsiveness & React Native
+## 20. Job Queue & Background Workers
 
-### 17.1 Web (React) — Mobile-First
+### Queue Architecture
 
-- All screens designed for 360px width first, then scaled up
-- Use CSS Grid / Flexbox, not fixed pixel widths
-- Touch targets: minimum 44px × 44px
-- Swipe gestures: left-swipe on inbox messages for quick actions, horizontal swipe on creative variants
-- Bottom sheet pattern for all secondary actions (boost setup, platform selection, scheduling)
-- No hover-dependent interactions — everything must work on tap
+| Queue | Worker | Concurrency | Retry Policy |
+|-------|--------|-------------|--------------|
+| `post-publish` | `publishWorker.ts` | 5 | 3 retries, exponential (1m, 5m, 15m) |
+| `metrics-fetch` | `metricsWorker.ts` | 2 | 2 retries, 5m backoff |
+| `boost-management` | (inline in boost route) | 2 | 3 retries, 2m backoff |
+| `inbox-poll` | Cron | 1 | No retry (runs on schedule) |
+| `token-refresh` | Cron | 1 | 3 retries, 1h backoff |
+| `report-generation` | Cron | 1 | 2 retries, 10m backoff |
 
-### 17.2 React Native App
+### Scheduled Jobs (Cron)
 
-**Phase 1 (MVP):** Web app only, optimised for mobile browsers.  
-**Phase 2 (Post-MVP):** React Native app with shared business logic.
-
-For MVP, ensure the web app is PWA-ready:
-- `manifest.json` with app name, icons, theme color
-- Service worker for offline awareness (show "You're offline" message, not broken UI)
-- "Add to Home Screen" prompt after 3rd visit
-- Push notifications via Web Push API (for inbox messages, boost alerts, scheduled post reminders)
-
----
-
-## 18. Testing Strategy
-
-### 18.1 Unit Tests
-
-- **Coverage target:** 80% on all service modules
-- **Framework:** Jest (backend), React Testing Library (frontend)
-- **Critical paths that must have 100% coverage:**
-  - AI caption generation guardrails (no hallucinated prices, no wrong model names)
-  - Boost campaign creation and budget calculation
-  - Token encryption/decryption
-  - Inventory CSV parsing and validation
-
-### 18.2 Integration Tests
-
-- Meta API publishing (use Meta test pages and test app)
-- Google Business Profile API (use test locations)
-- OpenAI API (mock responses for deterministic testing, real API for smoke tests)
-- Razorpay subscription lifecycle (use test mode)
-
-### 18.3 End-to-End Tests
-
-- **Framework:** Playwright
-- **Critical flows to automate:**
-  1. Signup → Onboarding → First Post Published (complete flow)
-  2. Create Post → Schedule → Post Goes Live at Scheduled Time
-  3. Boost Setup → Campaign Launches on Meta
-  4. Inbox Message Received → AI Reply Sent
-  5. CSV Upload → Inventory Visible → Post Generated from Inventory
-
-### 18.4 Performance Tests
-
-- Load test the creative generation endpoint: must handle 50 concurrent generation requests (across all dealers) without degradation
-- Load test the publish queue: must handle 100 scheduled posts firing in the same minute
-- Database: test with 500 dealers × 100 posts each (50,000 posts) — all queries must return in under 200ms
+| Job | Schedule | Purpose |
+|-----|----------|---------|
+| Token health check | Daily 02:00 IST | Refresh tokens expiring in 7 days |
+| Metrics poll | Every 6 hours | Post metrics for posts < 30 days old |
+| Boost metrics | Every 4 hours | Spend + performance for active campaigns |
+| Inbox poll | Every 5 minutes | Fallback message fetch if webhooks fail |
+| Festival reminder | Daily 09:00 IST | Festivals in next 14 days → content suggestions |
+| Monthly report | 1st of month, 10:00 IST | Auto-generate and send reports |
+| Creative cleanup | Weekly Sunday 03:00 IST | Delete unselected creatives > 30 days from R2 |
 
 ---
 
-## 19. DevOps, CI/CD & Infrastructure
+## 21. AI Prompt Engineering Specifications
 
-### 19.1 Infrastructure (AWS ap-south-1)
+### 21.1 Caption Generation System Prompt (Full Template)
 
-| Service | AWS Resource | Config |
-|---------|-------------|--------|
-| API Server | ECS Fargate (or EC2 t3.medium for MVP) | 2 instances, auto-scaling on CPU > 70% |
-| Database | RDS PostgreSQL 16 (db.t3.medium) | Multi-AZ for production, single-AZ for staging |
-| Cache/Queue | ElastiCache Redis 7 (cache.t3.micro) | Single node for MVP, cluster post-MVP |
-| Object Storage | S3 | Lifecycle: delete unselected creatives after 30 days |
-| CDN | CloudFront | Distribution for S3 assets, API caching for static endpoints |
-| Secrets | AWS Secrets Manager | API keys, encryption keys, OAuth secrets |
-| DNS | Route 53 | `api.cardekosocial.com`, `app.cardekosocial.com` |
-| Monitoring | CloudWatch + Sentry | Alarms: API error rate > 5%, queue backlog > 100, disk > 80% |
+```
+You are an expert social media marketing copywriter for Indian automobile dealerships.
+You write captions that drive real-world outcomes: showroom visits, test drive bookings, phone calls, and WhatsApp enquiries.
 
-### 19.2 Environments
+DEALER CONTEXT:
+- Name: {dealer_name}
+- City: {dealer_city}
+- State: {dealer_state}
+- Region: {dealer_region} (North/South/East/West/Central India)
+- Vehicle Brands Sold: {dealer_brands}
+- Primary Language: {primary_language}
+- Contact Phone: {dealer_phone}
+- WhatsApp: {dealer_whatsapp}
 
-| Environment | Purpose | Database | API Keys |
-|------------|---------|----------|----------|
-| `local` | Developer machines | Local PostgreSQL + Redis (Docker Compose) | Test/sandbox keys |
-| `staging` | QA, demo, UAT | RDS staging instance | Meta test app, Razorpay test mode |
-| `production` | Live dealers | RDS production (Multi-AZ) | Production keys |
+VEHICLE CONTEXT (if applicable):
+- Make: {vehicle_make}
+- Model: {vehicle_model}
+- Variant: {vehicle_variant}
+- Year: {vehicle_year}
+- Price: {vehicle_price} (USE THIS EXACT PRICE — NEVER APPROXIMATE OR INVENT)
+- Fuel Type: {fuel_type}
+- Key Features: {vehicle_features}
+- Stock Count: {stock_count}
 
-### 19.3 CI/CD Pipeline
+CURRENT DATE CONTEXT:
+- Today: {current_date}
+- Upcoming Festival (if within 14 days): {festival_name} on {festival_date}
+- Festival Campaign Angle: {festival_campaign_type}
 
-- **Repository:** Monorepo (Turborepo or Nx) with packages: `api`, `web`, `mobile`, `shared`
-- **CI:** GitHub Actions
-  - On PR: lint + type check + unit tests + build
-  - On merge to `main`: all above + integration tests + deploy to staging
-  - On release tag (`v*`): deploy to production
-- **CD:** Docker images → ECR → ECS deployment with blue/green strategy
-- **Database Migrations:** Use `node-pg-migrate` or Prisma migrations, run automatically on deploy
+BRAND VOICE PROFILE:
+{brand_voice_profile_for_primary_brand}
 
-### 19.4 Logging & Observability
+REGIONAL TONE:
+{regional_tone_profile_for_dealer_region}
 
-- Structured JSON logging (use `pino` with Fastify)
-- Request ID tracing across all services
-- Log levels: `error`, `warn`, `info`, `debug` (debug only in local/staging)
-- Key metrics to dashboard: API response time (p50, p95, p99), queue latency, AI generation time, publish success rate, error rate by endpoint
+INSPIRATION (real posts from top dealers in this city/category):
+{inspiration_posts_from_pattern_engine}
+
+DEALER PROMPT (what the dealer wants to post about):
+"{dealer_prompt}"
+
+GUARDRAILS — ABSOLUTE RULES:
+1. NEVER invent, approximate, or round vehicle prices. If no price is in the context, omit pricing entirely.
+2. NEVER invent vehicle specifications, features, or safety ratings not provided above.
+3. NEVER make false claims about mileage, safety, or awards.
+4. Always include a call-to-action: visit the showroom / call {dealer_phone} / WhatsApp {dealer_whatsapp}.
+5. Use the dealer's city name for local relevance (e.g., "Mumbai's best Tata showroom").
+6. Professional but warm tone — this is a trusted local business, not a meme page.
+7. If festival context is provided, weave it naturally — never force it.
+
+OUTPUT — Generate exactly 3 caption variants in the following JSON format:
+{
+  "variants": [
+    {
+      "style": "punchy",
+      "caption_text": "<under 60 words, bold, urgent, Instagram-optimized>",
+      "hashtags": ["<5-10 relevant hashtags>"],
+      "emoji_suggestions": ["<2-3 tasteful emojis>"],
+      "platform_notes": "<any platform-specific adjustments>"
+    },
+    {
+      "style": "detailed",
+      "caption_text": "<100-150 words, specs, EMI, features, informational>",
+      "hashtags": ["<5-10 relevant hashtags>"],
+      "emoji_suggestions": ["<2-3 emojis>"],
+      "platform_notes": ""
+    },
+    {
+      "style": "emotional",
+      "caption_text": "<80-120 words, aspirational, lifestyle, family-oriented>",
+      "hashtags": ["<5-10 relevant hashtags>"],
+      "emoji_suggestions": ["<2-3 emojis>"],
+      "platform_notes": ""
+    }
+  ]
+}
+
+Return valid JSON only. No other text before or after the JSON.
+```
+
+### 21.2 AI Reply Generation System Prompt
+
+```
+You are a customer service assistant for {dealer_name}, an automobile dealership in {dealer_city}.
+Your job is to write professional, helpful, and conversion-focused replies to customer messages.
+
+DEALER DETAILS:
+- Phone: {dealer_phone}
+- WhatsApp: {dealer_whatsapp}
+- Showroom Location: {dealer_city}
+
+RULES:
+1. Be polite, professional, and genuinely helpful.
+2. If the customer asks about a specific vehicle, include info from inventory if available.
+3. If the customer is complaining, acknowledge sincerely and offer to have a manager call them.
+4. Never make specific promises about pricing or discounts unless configured in dealer settings.
+5. Always end with a CTA: visit showroom / call {dealer_phone} / WhatsApp {dealer_whatsapp}.
+6. For comments: keep under 80 words. For DMs: under 180 words. For reviews: under 150 words.
+7. Match the language of the customer's message (Hindi reply for Hindi message, etc.).
+8. For positive reviews: express genuine gratitude, invite them back.
+9. For negative reviews: apologize sincerely, ask for a chance to resolve it, provide contact.
+
+SENTIMENT: {sentiment}
+MESSAGE TYPE: {message_type} (comment / dm / review)
+CUSTOMER MESSAGE: {message_text}
+POST CONTEXT: {post_caption_if_comment}
+INVENTORY CONTEXT (if vehicle mentioned): {relevant_inventory_data}
+
+Write the reply. Return only the reply text — no labels, no quotes, no explanation.
+```
+
+### 21.3 Image Generation Prompt (Cloudflare AI)
+
+```
+Template for background generation:
+"Professional automobile dealership interior, {brand_name} branding, 
+ {primary_color_description} accent lighting, luxury showroom ambiance, 
+ modern architecture, clean and premium aesthetic, high-end automotive photography, 
+ 8K resolution, photorealistic, no text, no people, no cars visible, 
+ suitable as background for a car advertisement"
+```
 
 ---
 
-## 20. Security & Compliance
+## 22. Mobile Responsiveness & PWA
 
-### 20.1 Application Security
+### Web (React) — Mobile-First
 
-- Input validation on all endpoints (use `zod` or `joi` schemas)
-- SQL injection prevention: use parameterised queries (never string concatenation)
-- XSS prevention: sanitise all user-generated content before rendering
-- CSRF protection: SameSite cookies + CSRF token for state-changing requests
-- CORS: restrict to `app.cardekosocial.com` and mobile app origins
-- Rate limiting: per-dealer and per-IP
-- File upload validation: restrict to allowed MIME types and max size (10MB for logos, 50MB for inventory CSVs)
+- Design at 360px width, scale up to 768px (tablet), 1024px (desktop with sidebar)
+- Touch targets: minimum 44×44px everywhere
+- Swipe gestures: left-swipe on inbox messages, horizontal swipe on creative variants
+- Bottom sheets for secondary actions (boost setup, platform selection, scheduling)
+- No hover-dependent interactions — everything must work by tap
 
-### 20.2 Data Security
+### Breakpoints
 
-- All API traffic over HTTPS (TLS 1.3)
-- OAuth tokens encrypted at rest (AES-256-GCM)
-- PII (phone numbers, emails) encrypted at rest in database
-- S3 buckets: private by default, accessed only via signed URLs (24-hour expiry)
-- Regular dependency vulnerability scanning (`npm audit`, `snyk`)
+- `sm`: 640px — small phones to large phones
+- `md`: 768px — tablets
+- `lg`: 1024px — sidebar appears (desktop layout activates)
+- `xl`: 1280px — max content width 1200px
 
-### 20.3 Compliance
+### PWA Configuration
 
-- **India IT Act:** Data stored in India (AWS Mumbai region)
-- **Meta Platform Terms:** Comply with Meta's Platform Policy, especially around data usage and ad transparency
-- **Google Business Profile Terms:** Comply with Google's API Terms of Service
-- **GSTIN:** Required for billing. Collect dealer's GSTIN during subscription setup for B2B invoicing.
+- `manifest.json`: app name, icons (192×192, 512×512), theme color, display: standalone
+- Service worker: offline awareness — show "You're offline" state, not broken UI
+- Push notifications: Web Push API for inbox messages, boost alerts, post reminders
+- "Add to Home Screen" prompt after 3rd visit (deferred prompt)
 
 ---
 
-## 21. Performance Benchmarks
+## 23. Testing Strategy
 
-These are non-negotiable performance targets for MVP:
+### Unit Tests (Target: 80% coverage on all service modules)
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Time to Interactive (web) | < 3 seconds on 3G | Lighthouse mobile audit |
-| API Response Time (p95) | < 500ms for CRUD, < 15s for AI generation | CloudWatch metrics |
-| Creative Generation (end-to-end) | < 15 seconds for 3 variants | From prompt submission to UI display |
-| Post Publish Latency | < 30 seconds from "Publish Now" to live on platform | Queue processing time |
-| Scheduled Post Accuracy | Within 60 seconds of scheduled time | BullMQ job execution variance |
-| Inbox Message Delivery | < 5 minutes from platform receipt to inbox display | Webhook/polling latency |
+**100% coverage required on:**
+- AI caption generation guardrails (no hallucinated prices, no wrong model names)
+- Boost campaign budget calculation (daily_budget × duration = total)
+- Token encryption/decryption
+- CSV parsing and column mapping
+
+**Framework:** Jest (backend), React Testing Library (frontend)
+
+### Integration Tests
+
+- Meta API: use Meta test pages + test app mode
+- Google Business Profile API: use test locations
+- OpenAI API: mock for deterministic tests, real API for smoke tests
+- Razorpay: test mode keys
+
+### End-to-End Tests (Playwright)
+
+Critical flows to automate:
+1. Signup → Onboarding → First Post Published (full happy path)
+2. Create Post → Schedule → Post Goes Live At Scheduled Time
+3. Boost Setup → Campaign Launches on Meta
+4. Inbox Message Received → AI Reply Sent
+5. CSV Upload → Inventory Visible → Post Generated from Inventory Item
+
+### Performance Tests
+
+- Creative generation endpoint: 50 concurrent requests without SLA degradation
+- Publish queue: 100 scheduled posts firing in the same minute
+- Database: 500 dealers × 100 posts = 50,000 posts — all queries < 200ms
+
+---
+
+## 24. DevOps, CI/CD & Infrastructure
+
+### Local Development
+
+```bash
+docker-compose up -d              # PostgreSQL 16 + Redis 7
+npx prisma migrate dev            # Apply migrations
+npm run dev                       # API (:3000) + Web (:5173) concurrently
+```
+
+### Environments
+
+| Environment | Database | Keys | Purpose |
+|------------|----------|------|---------|
+| local | Docker PostgreSQL | Mock/test | Developer machines |
+| staging | Supabase staging | Test/sandbox | QA, demos, UAT |
+| production | Supabase production | Live | Real dealers |
+
+### Deployment
+
+**API:** Render.com, Singapore region (`render.yaml` at repo root)
+- Build: `npm install && npx prisma generate && npm run build`
+- Start: `node --experimental-specifier-resolution=node dist/index.js`
+- Health check: `GET /health`
+
+**Frontend:** Vercel, automatic on push to `main`
+- Environment: `VITE_API_BASE_URL`
+
+### CI/CD Pipeline (GitHub Actions)
+
+- **On PR:** lint + TypeScript check + unit tests + build
+- **On merge to main:** above + integration tests + deploy to staging
+- **On release tag:** deploy to production
+
+### Monitoring
+
+- **Error tracking:** Sentry (before pilot launch — not yet configured)
+- **Uptime:** Synthetic monitoring via Render health checks
+- **Logging:** Structured JSON (Pino) with request ID tracing
+- **Metrics to watch:** API p95 response time, queue backlog, AI generation latency, publish success rate, token refresh failure rate
+
+---
+
+## 25. Security & Compliance
+
+### Application Security
+
+- Input validation: Fastify JSON schema on all endpoints
+- SQL injection: Prisma parameterized queries (never string concatenation)
+- XSS: sanitize all user content before rendering
+- CORS: whitelist `*.vercel.app` + `app.cardekosocial.com`
+- Rate limiting: per-dealer (100 req/min standard, 10 req/min AI)
+- File upload: MIME type check, max 10MB for logos, 50MB for CSV
+
+### Data Security
+
+- HTTPS only (TLS 1.3)
+- OAuth tokens: AES-256-GCM encrypted at rest
+- PII: encrypted in database
+- S3/R2: private by default, accessed via CDN (public-read for creatives only)
+- Webhook validation: HMAC-SHA256 for Meta webhooks
+
+### Compliance
+
+- **India IT Act:** Data stored in India or Singapore (Render)
+- **Meta Platform Terms:** Comply with usage policies, ad transparency
+- **Google API Terms:** Comply with Google Business Profile API ToS
+- **GSTIN:** Collect dealer GSTIN for B2B invoicing (Razorpay)
+- **DLT Registration:** MSG91 and Twilio OTP templates registered with TRAI DLT platform
+
+---
+
+## 26. Performance Benchmarks
+
+| Metric | Target | How Measured |
+|--------|--------|--------------|
+| Time to Interactive (web, mobile) | < 3 seconds on 3G | Lighthouse mobile audit |
+| API response time (non-AI, p95) | < 500ms | Render metrics |
+| Creative generation end-to-end | < 15 seconds | From prompt submit to 3 variants shown |
+| Post publish latency (Post Now) | < 30 seconds | Queue processing time |
+| Scheduled post accuracy | Within 60 seconds | BullMQ execution variance |
+| Inbox message delivery | < 5 minutes | Webhook/polling latency |
 | First Contentful Paint (mobile) | < 1.5 seconds | Lighthouse |
-| Bundle Size (web) | < 300KB gzipped (initial load) | Webpack bundle analyzer |
-| Database Query Time | < 200ms for all common queries | pg_stat_statements |
-| Uptime | 99.5% monthly | CloudWatch synthetic monitoring |
+| Initial bundle size (web) | < 300KB gzipped | Vite bundle analyzer |
+| Database query time | < 200ms all common queries | Prisma query logging |
+| Uptime (production) | 99.5% monthly | Render uptime monitoring |
 
 ---
 
-## 22. Phased Delivery Plan
+## 27. Phased Delivery Plan
 
-### Phase 1: Foundation (Weeks 1–4)
+### Phase 1 — Foundation (Weeks 1–4)
 
-**Deliverables:**
-- Backend: project scaffolding (Fastify + TypeScript + PostgreSQL + Redis + BullMQ), database schema, auth (OTP), dealer CRUD, platform OAuth (Facebook only)
-- AI Engine: GPT-4o integration for caption generation, template rendering engine v1 (20 templates), creative generation pipeline
-- Frontend: dealer onboarding flow, dashboard shell, Create Post screen, prompt library (basic), creative preview/selection
-- Publisher: Facebook publishing (post now + schedule)
-- Infrastructure: AWS setup, CI/CD pipeline, staging environment
+**Goal:** Dealer can sign up, onboard, generate a creative, and publish to Facebook.
 
-**Milestone:** Dealer can sign up, onboard, generate a creative with AI captions, and publish to Facebook.
+- Backend: Fastify + PostgreSQL + Redis + BullMQ scaffolding, auth (OTP + JWT), dealer profile API, platform OAuth (Facebook), creative generation API (Groq + fallbacks)
+- AI Engine: Caption generation (3 variants), 3-layer image composition, S3/R2 upload
+- Frontend: Login, onboarding flow, dashboard shell, Create Post screen, prompt library, creative preview
+- Publisher: Facebook publishing (post now + schedule), Content Calendar (basic)
+- Infrastructure: Supabase, Upstash Redis, Render, Vercel, CI/CD pipeline
 
-### Phase 2: Core Loop (Weeks 5–8)
+### Phase 2 — Core Product Loop (Weeks 5–8)
 
-**Deliverables:**
-- Publisher: Instagram publishing, GMB publishing, Content Calendar (week + month views), bulk scheduling
-- Boost: One-click boost setup, Meta Ads API integration, boost dashboard with metrics
-- Creative: 30 more templates (total: 50), Hindi caption support, creative editing
-- India Pack: Festival calendar engine, auto-campaign suggestions, first festival templates
-- Frontend: mobile-responsive polish, boost UI, calendar UI
+**Goal:** Dealer can manage the full weekly social media cycle across 3 platforms with boost.
 
-**Milestone:** Dealer can manage their entire weekly social media across 3 platforms with boosting, in Hindi.
+- Publisher: Instagram publishing, GMB publishing, Content Calendar (full week + month views), bulk scheduling, drag-and-drop reschedule
+- Boost: One-click boost UI, Meta Ads API integration, Boost dashboard with real-time metrics
+- Creative: 30 additional templates (50 total), Hindi caption generation, creative editing (headline/image swap)
+- India Pack: Festival calendar engine, auto-campaign suggestions, festival templates
+- Frontend: Mobile-responsive polish pass, bottom sheet patterns, boost UI, calendar drag-and-drop
 
-### Phase 3: Engagement (Weeks 9–12)
+### Phase 3 — Engagement Layer (Weeks 9–12)
 
-**Deliverables:**
-- Inbox: Facebook comments + Instagram DMs + Google Reviews aggregation, Meta webhooks, AI reply suggestions, sentiment detection, tagging
-- Inventory: CSV/Excel upload, inventory management screen, auto-creative triggers, inventory-to-creative pipeline
-- India Pack: remaining festival templates, GMB-first posting strategy
-- Analytics: basic post metrics display, lead tracking setup (UTM tagging)
+**Goal:** Full MVP feature set complete. Ready for 10-dealer pilot.
 
-**Milestone:** Full MVP feature set complete. Ready for pilot.
+- Inbox: Facebook + Instagram + Google Reviews aggregation, Meta webhooks, AI reply suggestions, sentiment detection, lead tagging
+- Inventory: CSV/Excel upload (backend + frontend), inventory management screen, inventory-to-post flow, auto-creative triggers on new arrivals
+- India Pack: Remaining festival templates, GMB-first strategy (CTA buttons on all GMB posts)
+- Analytics: Post metrics display, lead tracking start (UTM tagging on all posts)
+- Security: Meta webhook HMAC validation, Sentry integration
 
-### Phase 4: Pilot & Iterate (Weeks 13–16)
+### Phase 4 — Pilot & Iteration (Weeks 13–16)
 
-**Deliverables:**
-- Pilot: onboard 10 dealers, dedicated success manager
-- Bug fixes, performance optimisation, UX refinements based on pilot feedback
-- Lead Dashboard v1: click-to-call and WhatsApp tracking, dashboard widgets
-- Monthly report auto-generation
-- Billing: Razorpay subscription integration, plan management, invoicing
-- Onboarding refinement based on pilot drop-off analysis
-- NPS collection, qualitative feedback interviews
+**Goal:** 10 dealers using the platform, retention and NPS data collected.
 
-**Milestone:** 10 dealers actively using the platform. Retention and NPS data collected. Roadmap for v1.1 defined.
+- Pilot: Onboard 10 selected dealers, dedicated success manager
+- Billing: Razorpay subscription integration, plan management, GST invoicing
+- Lead Dashboard v1: Click-to-call + WhatsApp tracking, dashboard widgets
+- Monthly report: Auto-generate and WhatsApp-deliver
+- Bug fixes, UX refinements based on pilot feedback
+- Admin panel v1: Dealer list, platform health, usage metrics, impersonation (read-only)
+- NPS collection (in-app, after 30 days or 10 posts)
 
 ---
 
-## 23. Acceptance Criteria Summary
+## 28. Acceptance Criteria Summary
 
-This is the master checklist. Every item must pass before the MVP is considered complete.
+### P0 — Must Ship Before Any Dealer Touches the Product
 
-### P0 — Must Ship
 - [ ] Dealer completes onboarding in under 15 minutes
 - [ ] AI generates 3 creative variants with captions in under 15 seconds
 - [ ] Captions contain zero hallucinated data (prices, specs, model names)
-- [ ] Templates render correctly across all 4 platform sizes
+- [ ] Templates render correctly for all 4 platform sizes
 - [ ] Publishing works on Facebook, Instagram, and Google My Business
 - [ ] Scheduling posts works with under 60-second accuracy
-- [ ] Content Calendar shows week and month views
+- [ ] Content Calendar shows week and month views with correct status
 - [ ] One-click boost launches a Meta campaign in under 60 seconds
 - [ ] Boost dashboard shows real-time spend and metrics
 - [ ] All OAuth tokens refresh automatically before expiry
 
 ### P1 — Must Ship for Pilot
+
 - [ ] Unified Inbox aggregates messages from all 3 platforms
-- [ ] AI-suggested replies generate in under 5 seconds
-- [ ] Negative sentiment messages are flagged and require approval
-- [ ] Inventory CSV/Excel upload works for files up to 500 rows
-- [ ] Inventory items can be used to auto-populate creatives
-- [ ] Festival calendar shows region-appropriate festivals
-- [ ] Hindi caption generation is culturally native (not translated)
+- [ ] AI suggested replies generate in under 5 seconds
+- [ ] Negative sentiment messages flagged, require manual approval
+- [ ] Inventory CSV upload works for files up to 500 rows
+- [ ] Inventory items pre-fill the Create Post flow
+- [ ] Festival calendar shows region-appropriate festivals with auto-suggestions
+- [ ] Hindi captions are culturally native (not translated English)
 - [ ] GMB posts include call-to-action buttons
 
 ### P2 — Ship During Pilot
+
 - [ ] Lead attribution tracks click-to-call and WhatsApp taps
 - [ ] Monthly report auto-generates and can be sent to dealer
 - [ ] Billing and subscription management works via Razorpay
 
 ### Non-Functional
-- [ ] Web app loads in under 3 seconds on 3G
-- [ ] API p95 response time under 500ms (non-AI endpoints)
+
+- [ ] Web app loads in under 3 seconds on 3G (Lighthouse test)
+- [ ] API p95 response time < 500ms (non-AI endpoints)
 - [ ] 99.5% uptime in production
 - [ ] All OAuth tokens and PII encrypted at rest
-- [ ] CI/CD pipeline runs lint + tests + build on every PR
+- [ ] Meta webhook HMAC validation implemented
+- [ ] CI/CD pipeline runs lint + type check + tests + build on every PR
 
 ---
 
 ## Appendix A — Festival Calendar Data
 
-Pre-load the following festivals into the `festivals` table. Dates are for the current year; recalculate annually for lunar-calendar festivals.
+Pre-load the following into the `Festival` table. Lunar calendar dates must be recalculated each year.
 
-| Month | Festival / Event | Campaign Type | Regions |
-|-------|-----------------|---------------|---------|
-| January | Republic Day | Patriotic offers | Pan-India |
+| Month | Festival | Campaign Type | Regions |
+|-------|----------|--------------|---------|
+| January | Republic Day (Jan 26) | Patriotic offers | Pan-India |
 | January | Pongal | Harvest season deals | Tamil Nadu |
 | January | Makar Sankranti | Auspicious purchase | Maharashtra, Gujarat, Karnataka |
-| March | Holi | Colourful offer campaigns | North India, Pan-India |
-| March | Ugadi / Gudi Padwa | New year new car | Andhra Pradesh, Telangana, Maharashtra, Karnataka |
+| March | Holi | Colorful offer campaigns | North India, Pan-India |
+| March | Ugadi / Gudi Padwa | New year, new car | AP, Telangana, Maharashtra, Karnataka |
 | April | Baisakhi | Auspicious purchase | Punjab, Haryana |
 | April | Vishu | New year celebrations | Kerala |
 | April | Tamil New Year | Auspicious purchase | Tamil Nadu |
-| May | Akshaya Tritiya | Gold and big purchases | Pan-India |
-| August | Independence Day | Freedom offers | Pan-India |
+| May | Akshaya Tritiya | Big purchase season | Pan-India |
+| August | Independence Day (Aug 15) | Freedom / patriotic offers | Pan-India |
 | August | Onam | Festive buying season | Kerala |
 | August | Raksha Bandhan | Family offers | North India |
 | August | Janmashtami | Festive period | Pan-India |
 | September | Ganesh Chaturthi | Festival season kickoff | Maharashtra, Goa, Karnataka |
-| October | Navratri | 9-day offer marathon | Pan-India, Gujarat |
-| October | Dussehra / Durga Puja | Auspicious purchase | Pan-India, West Bengal |
-| November | Dhanteras | Biggest buying day | Pan-India |
+| October | Navratri | 9-day offer marathon | Pan-India, especially Gujarat |
+| October | Dussehra / Durga Puja | Auspicious purchase | Pan-India, especially West Bengal |
+| November | Dhanteras | Biggest single buying day | Pan-India |
 | November | Diwali | Peak buying season | Pan-India |
 | November | Bhai Dooj | Extended festive offers | North India |
 | December | Christmas | Year-end celebrations | Pan-India, Goa, Kerala, Northeast |
-| December | Year-End Clearance | Stock clearance, exchange offers | Pan-India |
+| December | Year-End Clearance | Stock clearance, exchange | Pan-India |
 
 ---
 
 ## Appendix B — Template Category Taxonomy
 
-| Category ID | Name | Sub-Categories | Template Count (MVP) |
-|------------|------|----------------|---------------------|
-| `new_arrival` | New Arrivals | Single car spotlight, multi-car grid, comparison, specs highlight | 10 |
-| `festival` | Festival Offers | Diwali, Navratri, Onam, Holi, Independence Day, etc. | 10 |
-| `service_camp` | Service Camp | Free check-up, AC service, oil change, brake service | 5 |
-| `testimonial` | Customer Testimonial | Photo + quote, video thumbnail, star rating | 5 |
-| `inventory_showcase` | Inventory Showcase | Price list, weekly arrivals, comparison, "just arrived" | 10 |
+| Category ID | Name | Sub-types | MVP Count |
+|------------|------|-----------|-----------|
+| `new_arrival` | New Arrivals | Spotlight, multi-car grid, comparison, specs highlight | 10 |
+| `festival` | Festival Offers | Diwali, Navratri, Onam, Holi, Republic Day, Dussehra | 10 |
+| `service_camp` | Service Camp | Free check-up, AC service, oil change, annual service | 5 |
+| `testimonial` | Customer Testimonial | Photo + quote, video thumbnail, star rating card | 5 |
+| `inventory_showcase` | Inventory Showcase | Price list, "just arrived," weekly arrivals, comparison | 10 |
 | `engagement` | Engagement Posts | Poll, quiz, this-or-that, trivia, "caption this" | 5 |
-| `generic` | Generic / Seasonal | Republic Day, year-end, monsoon care, summer tips | 5 |
-
-Each template must have:
-- Unique `template_id`
-- JSON spec (layer-based, as defined in Module 1)
-- Thumbnail preview (generated from the spec with placeholder data)
-- Supported platforms (all 4 sizes)
-- Tags for search/filter
-- Usage counter (incremented each time a dealer selects it)
+| `generic` | Generic / Seasonal | Republic Day, Independence Day, year-end, monsoon tips | 5 |
+| **Total** | | | **50** |
 
 ---
 
 ## Appendix C — Design Mockup Reference
 
-All approved UI/UX mockups are available at:
-
+All approved UI/UX mockups:  
 **https://app.superdesign.dev/share/280a8852e1bdeb23f0089ed9fdf5c273acf2eb94ee95aaba0394757f04d6f79e**
 
-When implementing any screen, cross-reference the mockup for:
-- Layout and spacing
-- Component styles and states
-- Color usage and typography
-- Mobile vs desktop variations
-- Empty states and loading states
-- Error states and edge cases
+Every screen built must reference the mockup for: layout, spacing, component styles, color usage, typography, mobile vs desktop variants, empty states, loading states, error states.
 
-If a mockup does not exist for a specific screen described in this document, follow the design system established in the existing mockups and flag it for the design team to create before development begins.
+---
+
+## Appendix D — Indian Auto Brand Voice Profiles
+
+When a dealer sells a specific brand, the AI system prompt includes the corresponding brand voice to calibrate caption tone:
+
+| Brand | Voice Profile |
+|-------|--------------|
+| Maruti Suzuki | Trustworthy family brand. Value-for-money focus. Use Hindi phrases naturally. Emphasize reliability, mileage, service network. |
+| Hyundai | Aspirational Korean quality at Indian prices. Modern, stylish. Appeal to young professionals and first-time buyers. |
+| Tata Motors | Pride of India narrative. Safety-first messaging. Emphasize crash test ratings, homegrown success story, EV future. |
+| Mahindra | Adventure, power, and ruggedness. SUV dominance messaging. Appeal to farmers, entrepreneurs, and outdoor enthusiasts. |
+| MG Motor | British premium heritage with Chinese manufacturing efficiency. Tech-forward (WiFi, digital dashboards). Appeal to urban tech-savvy buyers. |
+| Kia | Bold design, sporty aesthetics. Aspirational but accessible. Appeal to image-conscious buyers who want something different. |
+| Toyota | Legendary reliability. "Once a Toyota, always a Toyota." Long-term value, service record, global trust. |
+| Honda | Engineering precision, fuel efficiency, Japanese quality. City-practical vehicles for the urban commuter. |
+| Volkswagen / Skoda | German engineering in India. Premium positioning below BMW/Mercedes. Emphasize build quality, safety, driving feel. |
+| BMW / Mercedes / Audi | Ultra-premium. Lifestyle and status. Sophisticated language, aspirational imagery, discretion over aggressive offers. |
+
+---
+
+## Appendix E — Regional Tone Profiles
+
+| Region | Tone Guidance |
+|--------|--------------|
+| North India (Delhi, UP, Punjab, Haryana, Rajasthan) | Direct and bold. Price-forward — mention EMI and exchange offers prominently. Hindi phrases mix naturally with English. Aggressive CTAs work. Festive season messaging is especially powerful. |
+| West India (Maharashtra, Gujarat) | Business-minded, value-focused. Gujarati communities respond to specific numbers and terms. Maharashtrians respond to pride-of-city messaging. Both respond strongly to Diwali and Akshaya Tritiya. |
+| South India (Tamil Nadu, Andhra Pradesh, Telangana, Karnataka, Kerala) | Trust-first. Quality and reliability over price. Local language elements in Tamil/Telugu captions resonate. Community and family angles work better than urgency. Regional festivals (Onam, Pongal, Ugadi) are critical anchor points. |
+| East India (West Bengal, Odisha, Northeast) | Community and family-oriented. Durga Puja / Navratri is the biggest marketing moment. Warm, relationship-driven tone. Less aggressive than North India. |
+| Central India (Madhya Pradesh, Chhattisgarh, Jharkhand) | Value-conscious. Rural-urban mix. Practical benefits (fuel economy, ground clearance, service availability) resonate more than lifestyle. |
 
 ---
 
 **END OF DOCUMENT**
 
-*This document is the single source of truth for the Cardeko Social AI MVP build. If there is a conflict between this document and any other source, this document takes precedence. If there is ambiguity, escalate to the Product Manager before making assumptions.*
+*This document is the single source of truth for the Cardeko Social AI MVP build. In case of conflict with any other source, this document takes precedence. Ambiguities should be escalated to the Product Manager before making assumptions.*
 
-*Last updated: March 2026*
+*Last updated: May 2026*

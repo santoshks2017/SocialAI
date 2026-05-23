@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Car, Sparkles, RefreshCw, Phone } from 'lucide-react';
+import { Sparkles, RefreshCw, Phone } from 'lucide-react';
 import api from '../services/api';
 import { authService } from '../services/auth';
 import type { UserInfo } from '../lib/permissions';
@@ -113,36 +113,34 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f1117] via-[#141824] to-[#1a1f2e] flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100/50 to-slate-200/50 flex flex-col items-center justify-center p-4">
       {/* Background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-blue-500/8 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-slate-500/5 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-orange-500/30 mb-4">
-            <Car className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            Social<span className="text-orange-400">Genie</span>
+          <img src="/logo.png" className="w-20 h-20 rounded-2xl shadow-lg shadow-orange-500/10 mb-4 object-cover border border-slate-200/80" />
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            CarDekho <span className="text-orange-600">Social AI</span>
           </h1>
-          <p className="text-white/40 text-sm mt-1 text-center">
+          <p className="text-slate-500 text-sm mt-1 text-center font-medium">
             AI-powered social media for Indian auto dealers
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm shadow-2xl">
-          <h2 className="text-white font-bold text-lg mb-1 text-center">Get Started</h2>
-          <p className="text-white/40 text-sm text-center mb-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xl shadow-slate-200/50">
+          <h2 className="text-slate-900 font-bold text-lg mb-1 text-center">Get Started</h2>
+          <p className="text-slate-500 text-sm text-center mb-6">
             Connect your accounts to start posting
           </p>
 
           {error && (
-            <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-sm">
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 text-red-600 text-sm font-medium">
               {error}
             </div>
           )}
@@ -152,7 +150,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             <button
               onClick={() => handleSocialConnect('facebook')}
               disabled={loading !== null}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-semibold text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
             >
               {loading === 'facebook' ? (
                 <RefreshCw className="w-5 h-5 animate-spin flex-shrink-0" />
@@ -166,10 +164,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             <button
               onClick={() => handleSocialConnect('gmb')}
               disabled={loading !== null}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white hover:bg-gray-50 text-gray-800 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
             >
               {loading === 'gmb' ? (
-                <RefreshCw className="w-5 h-5 animate-spin flex-shrink-0 text-gray-500" />
+                <RefreshCw className="w-5 h-5 animate-spin flex-shrink-0 text-slate-500" />
               ) : (
                 <GoogleIcon />
               )}
@@ -178,21 +176,21 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
             {/* Divider */}
             <div className="flex items-center gap-3 my-1">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-white/30 text-xs">or</span>
-              <div className="flex-1 h-px bg-white/10" />
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-slate-400 text-xs font-semibold">or</span>
+              <div className="flex-1 h-px bg-slate-200" />
             </div>
 
             {/* Demo login */}
             <button
               onClick={handleDemoLogin}
               disabled={loading !== null}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/20 text-orange-400 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-orange-50 border border-orange-200 hover:bg-orange-100 text-orange-700 font-semibold text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
             >
               {loading === 'demo' ? (
                 <RefreshCw className="w-4 h-4 animate-spin flex-shrink-0" />
               ) : (
-                <Sparkles className="w-4 h-4 flex-shrink-0" />
+                <Sparkles className="w-4 h-4 flex-shrink-0 text-orange-600" />
               )}
               <span className="flex-1 text-left">Try Demo (no sign-up needed)</span>
             </button>
@@ -201,7 +199,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             {!showOtp ? (
               <button
                 onClick={() => setShowOtp(true)}
-                className="w-full text-center text-white/30 hover:text-white/60 text-xs py-1 transition-colors"
+                className="w-full text-center text-slate-400 hover:text-slate-600 text-xs py-1 transition-colors cursor-pointer font-medium"
               >
                 <Phone className="w-3 h-3 inline mr-1" />
                 Sign in with phone number
@@ -214,13 +212,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+91 98765 43210"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                   />
                   {!otpSent && (
                     <button
                       onClick={handleSendOtp}
                       disabled={!phone.trim() || loading === 'otp'}
-                      className="px-3 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
+                      className="px-3 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-xs"
                     >
                       {loading === 'otp' ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Send'}
                     </button>
@@ -234,12 +232,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                       onChange={(e) => setOtp(e.target.value)}
                       placeholder="Enter OTP"
                       maxLength={6}
-                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-orange-500/50 tracking-widest"
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 tracking-widest transition-all"
                     />
                     <button
                       onClick={handleVerifyOtp}
                       disabled={!otp.trim() || loading === 'otp'}
-                      className="px-3 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
+                      className="px-3 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-xs"
                     >
                       {loading === 'otp' ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Verify'}
                     </button>
@@ -251,7 +249,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
 
         {/* Social proof */}
-        <div className="mt-6 flex items-center justify-center gap-6 text-white/25 text-xs">
+        <div className="mt-6 flex items-center justify-center gap-6 text-slate-400 text-xs font-semibold">
           <span>AI Captions</span>
           <span>·</span>
           <span>One-click post</span>
@@ -259,7 +257,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <span>Live preview</span>
         </div>
 
-        <p className="text-center text-white/20 text-[11px] mt-4">
+        <p className="text-center text-slate-400 text-[11px] mt-4 font-semibold">
           Built for Indian automobile dealerships
         </p>
       </div>

@@ -100,6 +100,7 @@ export async function generateInboxReply(
   sentiment: string,
   dealer: DealerContext,
   messageType: 'comment' | 'dm' | 'review',
+  tone?: string,
 ): Promise<string> {
   const groq = getClient();
   const maxWords = messageType === 'comment' ? 80 : 180;
@@ -109,7 +110,7 @@ export async function generateInboxReply(
     messages: [
       {
         role: 'system',
-        content: `You are a customer service assistant for ${dealer.name} in ${dealer.city}. Be polite and professional. Always include CTA: call ${dealer.phone} or WhatsApp ${dealer.whatsapp}. Under ${maxWords} words. SENTIMENT: ${sentiment}. Return JSON: {"reply":"..."}`,
+        content: `You are a customer service assistant for ${dealer.name} in ${dealer.city}. Be polite and professional. Always include CTA: call ${dealer.phone} or WhatsApp ${dealer.whatsapp}. Under ${maxWords} words. SENTIMENT: ${sentiment}.${tone ? ` TONE OF RESPONSE: Use a strictly ${tone} tone.` : ''} Return JSON: {"reply":"..."}`,
       },
       { role: 'user', content: `Customer ${messageType}: "${messageText}"` },
     ],

@@ -7,7 +7,7 @@ async function scrapePublicPagePosts(url: string): Promise<string[]> {
   try {
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SocialGenieBot/1.0; +http://localhost)',
+        'User-Agent': 'Mozilla/5.0 (compatible; CarDekhoSocialAIBot/1.0; +http://localhost)',
       },
       signal: AbortSignal.timeout(10000),
     });

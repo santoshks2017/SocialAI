@@ -21,12 +21,13 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
   // Only attempt verification when an Authorization header is actually present;
   // otherwise the jwtVerify() path would send 401 and block anonymous uploads.
   fastify.post('/image', async (request, reply) => {
-    if (request.headers.authorization) {
-      try { await fastify.authenticate(request, reply); } catch { /* ignore verify errors */ }
+    // Production: always require a valid JWT token
+    if (process.env['NODE_ENV'] === 'production') {
+      try { await fastify.authenticate(request, reply); } catch { /* authenticate sends the reply */ }
       if (reply.sent) return;
-    } else if (process.env['NODE_ENV'] !== 'production') {
-      // Dev-only: set a dev user so downstream code can reference request.user
-      try { await fastify.authenticate(request, reply); } catch { /* DB may not be running — proceed */ }
+    } else if (request.headers.authorization) {
+      // Dev: verify only when a token is provided, ignore failures so local testing is easy
+      try { await fastify.authenticate(request, reply); } catch { /* ignore verify errors */ }
       if (reply.sent) return;
     }
 
@@ -56,11 +57,12 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
 
   // POST /v1/upload/video
   fastify.post('/video', async (request, reply) => {
-    if (request.headers.authorization) {
-      try { await fastify.authenticate(request, reply); } catch { /* ignore verify errors */ }
+    // Production: always require a valid JWT token
+    if (process.env['NODE_ENV'] === 'production') {
+      try { await fastify.authenticate(request, reply); } catch { /* authenticate sends the reply */ }
       if (reply.sent) return;
-    } else if (process.env['NODE_ENV'] !== 'production') {
-      try { await fastify.authenticate(request, reply); } catch { /* proceed */ }
+    } else if (request.headers.authorization) {
+      try { await fastify.authenticate(request, reply); } catch { /* ignore verify errors */ }
       if (reply.sent) return;
     }
 

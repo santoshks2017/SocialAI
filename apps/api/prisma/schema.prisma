@@ -22,6 +22,8 @@ model Dealer {
   brands               Json?
   showroom_type        String[]
   logo_url             String?
+  font                 String   @default("Arial")
+  address              String?
   primary_color        String?  @default("#1A1A2E")
   secondary_color      String?  @default("#FFFFFF")
   contact_phone        String?
@@ -34,6 +36,7 @@ model Dealer {
   region               String?
   timezone             String?  @default("Asia/Kolkata")
   is_active            Boolean  @default(true)
+  auto_reply_enabled   Boolean  @default(false)
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
@@ -42,6 +45,7 @@ model Dealer {
   activity_logs        ActivityLog[]
   dealer_users         DealerUser[]
   inspiration_handles  InspirationHandle[]
+  social_connections   SocialConnection[]
 }
 
 // ─── Role-based user accounts ───────────────────────────────────────────────
@@ -178,6 +182,7 @@ model InboxMessage {
   customer_name        String
   customer_avatar_url  String?
   customer_platform_id String?
+  email_subject        String?
   message_text         String
   sentiment            String?
   tag                  String?
@@ -318,3 +323,63 @@ model PlatformAccount {
   @@unique([userId, platform, accountId])
   @@index([userId])
 }
+
+model AutoReplyRule {
+  id              String             @id @default(uuid())
+  dealer_id       String
+  platform        String             // "facebook" | "instagram" | "gmb" | "email" | "all"
+  message_type    String             // "comment" | "dm" | "review" | "email" | "all"
+  condition_type  String             // "sentiment_is" | "rating_is" | "contains_keywords" | "always"
+  condition_value String             // "positive", "1,2", "price,discount"
+  action_type     String             // "ai" | "template" | "manual"
+  ai_tone         String?            // "friendly" | "professional" | "apologetic" | "casual"
+  template_id     String?
+  template        AutoReplyTemplate? @relation(fields: [template_id], references: [id], onDelete: SetNull)
+  is_active       Boolean            @default(true)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+}
+
+model AutoReplyTemplate {
+  id         String          @id @default(uuid())
+  dealer_id  String
+  name       String
+  text       String          // Response body text with placeholders
+  created_at DateTime        @default(now())
+  updated_at DateTime        @updatedAt
+  rules      AutoReplyRule[]
+}
+
+model SyncedModel {
+  id           String   @id @default(uuid())
+  dealer_id    String
+  brand        String   // e.g. "Hyundai"
+  model_name   String   // e.g. "Creta"
+  canonical_id String   // e.g. "hyundai_creta_2024"
+  alias_names  String[] // for matching (e.g. ["creta", "hyundai creta"])
+  variants     String[] // e.g. ["E", "EX", "S", "SX"]
+  colours      Json     // Array of { name: string, hex: string, images: string[] }
+  images       Json     // Array of { angle: string, url: string, resolution?: string }
+  synced_at    DateTime @default(now())
+  source       String   @default("cardekho_oem_db") // "cardekho_oem_db" | "manual_upload"
+
+  @@unique([dealer_id, canonical_id])
+}
+
+model SocialConnection {
+  id               String    @id @default(uuid())
+  dealer_id        String
+  dealer           Dealer    @relation(fields: [dealer_id], references: [id], onDelete: Cascade)
+  platform         String    // 'facebook' | 'instagram' | 'google'
+  account_id       String    // Facebook Page ID or Instagram Account ID
+  account_name     String?   // Page name or @username
+  access_token     String    // Encrypted at rest
+  token_expires_at DateTime?
+  scopes           String[]  // Permissions granted
+  connected_at     DateTime  @default(now())
+  is_active        Boolean   @default(true)
+
+  @@unique([dealer_id, platform])
+  @@map("social_connections")
+}
+
