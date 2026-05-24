@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "apps/api/src/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "memory": 1024,
+        "maxDuration": 30,
+        "includeFiles": ["apps/api/src/generated/client/**"]
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/apps/api/src/index.ts" }
+  ],
+  "crons": [
+    {
+      "path": "/v1/cron/publish",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

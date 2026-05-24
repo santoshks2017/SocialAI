@@ -72,3 +72,4 @@ apps/uploads/
 
 # Spreadsheets (domain research artifacts)
 *.xlsx
+.vercel
