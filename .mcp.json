@@ -2,7 +2,17 @@
   "mcpServers": {
     "supabase": {
       "type": "http",
+<<<<<<< HEAD
       "url": "https://mcp.supabase.com/mcp?project_ref=fhavfpnizjmvhbwbbchx"
     }
   }
 }
+=======
+      "url": "https://mcp.supabase.com/mcp?project_ref=fhavfpnizjmvhbwbbchx",
+      "headers": {
+        "Authorization": "Bearer sbp_2428e840f66909a720b8111c8e2af6d90282eb12"
+      }
+    }
+  }
+}
+>>>>>>> origin/worktree-fluffy-questing-treasure
