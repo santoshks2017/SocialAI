@@ -1,4 +1,6 @@
 import axios from "axios";
+import type { DealerContext, InventoryContext, GeneratedCaptions } from "./openai.js";
+import { buildEnrichedSystemPrompt } from "../data/indianAutoPatterns.js";
 
 export interface GeminiCreativeOptionOutput {
   headline: string;
@@ -578,4 +580,84 @@ The background_prompt MUST NOT ask for any text, headlines, dealer names, phone 
   // 3. Final fallback to high-quality hardcoded defaults
   console.warn("All LLM creative content generation failed, falling back to local defaults.");
   return { brief, options: getHardcodedDefaults(userPrompt).options };
+}
+
+export function isGeminiTextAvailable(): boolean {
+  return !!(process.env.GEMINI_API_KEY);
+}
+
+export async function generateGeminiCaptions(
+  prompt: string,
+  dealer: DealerContext,
+  inventory?: InventoryContext,
+  inspirationPosts?: string[],
+  postType?: string,
+  languageMode: 'en' | 'hi' | 'hinglish' | 'bilingual' = 'en',
+): Promise<GeneratedCaptions> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+
+  const systemPrompt = buildEnrichedSystemPrompt(dealer.city, dealer.brands ?? [], postType, languageMode);
+  const includeHindi = languageMode === 'bilingual';
+
+  const vehicleBlock = inventory
+    ? `VEHICLE: ${inventory.make ?? ''} ${inventory.model ?? ''} ${inventory.variant ?? ''} | Price: ${inventory.price ? `₹${(inventory.price / 100000).toFixed(2)} Lakhs` : 'not provided — omit pricing'} | Stock: ${inventory.stock_count ?? 'available'}`
+    : 'VEHICLE: Use prompt details only.';
+
+  const inspirationBlock = inspirationPosts && inspirationPosts.length > 0
+    ? `\n\nINSPIRATION POSTS (real posts from similar Indian auto dealers — match the energy and style, do NOT copy):\n${inspirationPosts.slice(0, 6).map((p, i) => `${i + 1}. "${p}"`).join('\n')}`
+    : '';
+
+  const userMessage = `${systemPrompt}
+
+DEALER: ${dealer.name}, ${dealer.city} | Phone: ${dealer.phone} | WhatsApp: ${dealer.whatsapp} | Brands: ${(dealer.brands ?? []).join(', ')}
+${vehicleBlock}
+POST REQUEST: "${prompt}"${inspirationBlock}
+
+Generate 3 caption variants as JSON.${includeHindi ? ' Include hindi_variants.' : ''}`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const payload = {
+    contents: [{ parts: [{ text: userMessage }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          variants: {
+            type: 'ARRAY',
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: 'OBJECT',
+              properties: {
+                caption_text: { type: 'STRING' },
+                hashtags: { type: 'ARRAY', items: { type: 'STRING' } },
+                suggested_emoji: { type: 'ARRAY', items: { type: 'STRING' } },
+                platform_notes: { type: 'STRING' },
+                style: { type: 'STRING', enum: ['punchy', 'detailed', 'emotional'] },
+              },
+              required: ['caption_text', 'hashtags', 'suggested_emoji', 'platform_notes', 'style'],
+            },
+          },
+        },
+        required: ['variants'],
+      },
+    },
+  };
+
+  const response = await axios.post(url, payload, {
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 30000,
+  });
+
+  const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty response from Gemini captions API');
+
+  const parsed = JSON.parse(text.trim()) as { variants: GeneratedCaptions['variants'] };
+  if (!Array.isArray(parsed.variants) || parsed.variants.length < 3) {
+    throw new Error('Invalid caption variants from Gemini');
+  }
+  return { variants: parsed.variants };
 }
