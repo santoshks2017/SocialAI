@@ -35,7 +35,11 @@ import {
   compositeLayered,
   type DealerBranding,
 } from "../services/layeredCompositor.js"
-import { generateGeminiCreativeContent } from "../services/geminiService.js"
+import {
+  generateGeminiCreativeContent,
+  generateGeminiCaptions,
+  isGeminiTextAvailable,
+} from "../services/geminiService.js"
 import { getBrandLogoSvg } from "../services/brandLogoService.js"
 
 
@@ -86,7 +90,16 @@ async function generateCaptionsAI(
   inspirationPosts?: string[],
   postType?: string,
 ): Promise<GeneratedCaptions> {
-  // 1. Try Groq (primary)
+  // 1. Try Gemini direct (primary)
+  if (isGeminiTextAvailable()) {
+    try {
+      return await generateGeminiCaptions(prompt, dealerContext, inventoryContext, inspirationPosts, postType, languageMode)
+    } catch (err) {
+      console.error("Gemini caption generation failed, falling back to Groq:", err)
+    }
+  }
+
+  // 2. Try Groq (fallback)
   if (isGroqAvailable()) {
     try {
       return await groqGenerateCaptions(prompt, dealerContext, inventoryContext, inspirationPosts, postType, languageMode)
@@ -95,7 +108,7 @@ async function generateCaptionsAI(
     }
   }
 
-  // 2. Try OpenRouter (fallback)
+  // 3. Try OpenRouter (fallback)
   if (isOpenRouterAvailable()) {
     try {
       return await openrouterGenerateCaptions(
