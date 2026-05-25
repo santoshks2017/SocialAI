@@ -13,7 +13,7 @@ export async function generateGeminiImage(prompt: string): Promise<Buffer> {
   const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
 
   if (model.startsWith("gemini-") || model.includes("banana")) {
-    // Use generateContent API for Gemini-based image models (e.g. gemini-3.1-flash-image-preview / Nano Banana 2)
+    // Use generateContent API for Gemini-based image models (e.g. gemini-3.1-flash-image-preview / nano-banana-pro-preview)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const payload = {
       contents: [
@@ -25,6 +25,9 @@ export async function generateGeminiImage(prompt: string): Promise<Buffer> {
           ],
         },
       ],
+      generationConfig: {
+        responseModalities: ["IMAGE", "TEXT"],
+      },
     };
 
     const response = await axios.post(url, payload, {
