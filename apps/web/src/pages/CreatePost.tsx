@@ -11,7 +11,7 @@ import {
   Tag, Sparkles, Heart, Gift, PenLine,
   ArrowLeft, RefreshCw, Check, ImagePlus, Video, X,
   Send, Download, Zap, Globe, Calendar, Film, Clock, Wand2,
-  Languages, Minimize2, Hash, ChevronDown, AlertCircle,
+  Languages, Minimize2, Hash, ChevronDown, AlertCircle, Clipboard,
 } from 'lucide-react';
 import api from '../services/api';
 import { CanvasStudio } from '../components/CreatePost/CanvasStudio';
@@ -944,7 +944,7 @@ export default function CreatePost() {
         {/* ════ MAIN CONTENT ════ */}
         <div className="flex-1 overflow-y-auto p-8 space-y-6 min-w-0 max-w-5xl mx-auto">
 
-         {/* ── COLLAPSIBLE: Upload Images Only ── */}
+         {/* ── COLLAPSIBLE: Reference Image ── */}
           <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden transition-all duration-200">
             {/* Header / Toggle Button */}
             <button
@@ -955,7 +955,7 @@ export default function CreatePost() {
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                     <ImagePlus className="w-5 h-5 text-orange-500 shrink-0" />
-                    Upload Images Only
+                    Reference Image
                   </h2>
                   {(uploadedImageUrl || uploadedVideoName) && (
                     <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -964,7 +964,7 @@ export default function CreatePost() {
                   )}
                 </div>
                 <p className="text-sm text-slate-500 truncate">
-                  For delivery posts and actual customer photos. Not needed for standard posts — your model library handles those.
+                  Add any car photo, screenshot, or reference image — AI uses it to guide caption and creative generation.
                 </p>
               </div>
               <ChevronDown
@@ -1002,7 +1002,7 @@ export default function CreatePost() {
                         <X className="w-4 h-4 text-white" />
                       </button>
                       <span className="absolute bottom-3 left-3 text-xs text-white font-bold bg-black/50 px-3 py-1.5 rounded-full">
-                        Photo attached
+                        Image attached
                       </span>
                     </div>
                   ) : uploadedVideoName ? (
@@ -1014,25 +1014,60 @@ export default function CreatePost() {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex gap-4">
-                      <button
-                        onClick={() => imageInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="flex-1 flex flex-col items-center gap-3 py-8 rounded-xl border border-dashed border-slate-200 hover:border-orange-500 hover:bg-orange-50/30 transition-all text-slate-400 hover:text-orange-600 disabled:opacity-40 cursor-pointer"
-                      >
-                        <ImagePlus className="w-8 h-8" />
-                        <span className="text-sm font-semibold">{isUploading ? 'Uploading…' : 'Upload Photo'}</span>
-                        <span className="text-xs">JPG, PNG, WEBP</span>
-                      </button>
-                      <button
-                        onClick={() => videoInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="flex-1 flex flex-col items-center gap-3 py-8 rounded-xl border border-dashed border-slate-200 hover:border-orange-500 hover:bg-orange-50/30 transition-all text-slate-400 hover:text-orange-600 disabled:opacity-40 cursor-pointer"
-                      >
-                        <Video className="w-8 h-8" />
-                        <span className="text-sm font-semibold">{isUploading ? 'Uploading…' : 'Upload Video'}</span>
-                        <span className="text-xs">MP4, MOV</span>
-                      </button>
+                    <div
+                      className="flex flex-col gap-3"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file?.type.startsWith('image/')) handleImageUploadEvent(file);
+                      }}
+                    >
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => imageInputRef.current?.click()}
+                          disabled={isUploading}
+                          className="flex-1 flex flex-col items-center gap-3 py-8 rounded-xl border border-dashed border-slate-200 hover:border-orange-500 hover:bg-orange-50/30 transition-all text-slate-400 hover:text-orange-600 disabled:opacity-40 cursor-pointer"
+                        >
+                          <ImagePlus className="w-8 h-8" />
+                          <span className="text-sm font-semibold">{isUploading ? 'Uploading…' : 'Upload Image'}</span>
+                          <span className="text-xs">JPG, PNG, WEBP or drag & drop</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const clipItems = await navigator.clipboard.read();
+                              for (const clipItem of clipItems) {
+                                const imageType = clipItem.types.find(t => t.startsWith('image/'));
+                                if (imageType) {
+                                  const blob = await clipItem.getType(imageType);
+                                  const file = new File([blob], 'pasted-image.png', { type: imageType });
+                                  await handleImageUploadEvent(file);
+                                  return;
+                                }
+                              }
+                              addToast({ type: 'error', title: 'No image in clipboard', message: 'Copy an image first, then click Paste.' });
+                            } catch {
+                              addToast({ type: 'error', title: 'Paste failed', message: 'Use Ctrl+V / Cmd+V anywhere on the page to paste an image.' });
+                            }
+                          }}
+                          disabled={isUploading}
+                          className="flex-1 flex flex-col items-center gap-3 py-8 rounded-xl border border-dashed border-slate-200 hover:border-orange-500 hover:bg-orange-50/30 transition-all text-slate-400 hover:text-orange-600 disabled:opacity-40 cursor-pointer"
+                        >
+                          <Clipboard className="w-8 h-8" />
+                          <span className="text-sm font-semibold">Paste Screenshot</span>
+                          <span className="text-xs">Ctrl+V / Cmd+V also works</span>
+                        </button>
+                        <button
+                          onClick={() => videoInputRef.current?.click()}
+                          disabled={isUploading}
+                          className="flex-1 flex flex-col items-center gap-3 py-8 rounded-xl border border-dashed border-slate-200 hover:border-orange-500 hover:bg-orange-50/30 transition-all text-slate-400 hover:text-orange-600 disabled:opacity-40 cursor-pointer"
+                        >
+                          <Video className="w-8 h-8" />
+                          <span className="text-sm font-semibold">{isUploading ? 'Uploading…' : 'Upload Video'}</span>
+                          <span className="text-xs">MP4, MOV</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
