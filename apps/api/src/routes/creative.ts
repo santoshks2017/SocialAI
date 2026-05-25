@@ -831,111 +831,85 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           branding.brandLogoSvg = brandLogoSvg
         }
 
-        // ── Composite and upload each option ──────────────────────────────────
-        const options = []
+        // ── Composite and upload each option — parallel for speed ─────────────
+        const templateStyles: Array<'festive' | 'premium' | 'value'> = ['festive', 'premium', 'value']
+        const optionBrandLogoSvg = getBrandLogoSvg(activeBrand, "#ffffff")
+        const optionBranding = { ...branding, brandLogoSvg: optionBrandLogoSvg }
 
-        for (let i = 0; i < creativeOptions.length; i++) {
-          const option = creativeOptions[i]
-          if (!option) continue
-          const bgPrompt = option.background_prompt
+        const options = await Promise.all(
+          creativeOptions.map(async (option, i) => {
+            if (!option) return null
+            const bgPrompt = option.background_prompt
 
-          let backgroundBuffer: Buffer | null = null
-          let isGradient = false
+            let backgroundBuffer: Buffer | null = null
+            let isGradient = false
 
-          if (bgPrompt) {
-            if (isGeminiImageAvailable()) {
-              try {
-                backgroundBuffer = await generateGeminiImage(bgPrompt)
-              } catch (err) {
-                fastify.log.error(err, `Gemini background generation failed for option ${i}, falling back`)
+            if (bgPrompt) {
+              if (isGeminiImageAvailable()) {
+                try {
+                  backgroundBuffer = await generateGeminiImage(bgPrompt)
+                } catch (err) {
+                  fastify.log.error(err, `Gemini background generation failed for option ${i}, falling back`)
+                }
+              }
+              if (!backgroundBuffer && isCloudflareAvailable()) {
+                try {
+                  backgroundBuffer = await cfGenerateImage(bgPrompt.slice(0, 500))
+                } catch (err) {
+                  fastify.log.error(err, `Cloudflare background generation failed for option ${i}, falling back`)
+                }
+              }
+              if (!backgroundBuffer && isOpenRouterImageAvailable()) {
+                try {
+                  backgroundBuffer = await generateOpenRouterImage(bgPrompt.slice(0, 500))
+                } catch (err) {
+                  fastify.log.error(err, `OpenRouter background generation failed for option ${i}, falling back`)
+                }
               }
             }
-            if (!backgroundBuffer && isCloudflareAvailable()) {
-              try {
-                backgroundBuffer = await cfGenerateImage(bgPrompt.slice(0, 500))
-              } catch (err) {
-                fastify.log.error(err, `Cloudflare background generation failed for option ${i}, falling back`)
-              }
+
+            if (!backgroundBuffer) {
+              backgroundBuffer = await generateGradientBackground(dealer.primary_color ?? "#f97316")
+              isGradient = true
             }
-            if (!backgroundBuffer && isOpenRouterImageAvailable()) {
-              try {
-                backgroundBuffer = await generateOpenRouterImage(bgPrompt.slice(0, 500))
-              } catch (err) {
-                fastify.log.error(err, `OpenRouter background generation failed for option ${i}, falling back`)
-              }
-            }
-          }
 
-          if (!backgroundBuffer) {
-            backgroundBuffer = await generateGradientBackground(dealer.primary_color ?? "#f97316")
-            isGradient = true
-          }
+            const subjectBuffer = (isGradient && subjectBuffers.length > 0)
+              ? subjectBuffers[i % subjectBuffers.length]
+              : undefined
 
-          // Select matching subject image index modulo count of images
-          // Pass the car cutout buffer as subjectBuffer ONLY if image generation fell back to a gradient
-          const subjectBuffer = (isGradient && subjectBuffers.length > 0)
-            ? subjectBuffers[i % subjectBuffers.length]
-            : undefined
+            const templateStyle = templateStyles[i % templateStyles.length] as 'festive' | 'premium' | 'value'
 
-          // Select template style based on option index
-          const templateStyles: Array<'festive' | 'premium' | 'value'> = ['festive', 'premium', 'value']
-          const templateStyle = templateStyles[i % templateStyles.length] as 'festive' | 'premium' | 'value'
-
-          // Generate brand logo SVG with matching color for this option style
-          const logoColor = "#ffffff"
-          const optionBrandLogoSvg = getBrandLogoSvg(activeBrand, logoColor)
-
-          const optionBranding = {
-            ...branding,
-            brandLogoSvg: optionBrandLogoSvg,
-          }
-
-          const { finalBuffer, pngBuffer } = await compositeLayered({
-            backgroundBuffer,
-            ...(subjectBuffer !== undefined ? { subjectBuffer } : {}),
-            dealer: optionBranding,
-            headline: option.headline,
-            templateStyle,
-            colorMood: promptBrief.color_mood,
-          })
-
-          const filePrefix = randomUUID()
-          const filenameJpg = `${filePrefix}_gemini_creative_${i}.jpg`
-          const filenamePng = `${filePrefix}_gemini_creative_${i}.png`
-
-          const urlJpg = await uploadFile(
-            finalBuffer,
-            `creatives/${filenameJpg}`,
-            "image/jpeg",
-            CREATIVES_DIR
-          )
-
-          const urlPng = await uploadFile(
-            pngBuffer,
-            `creatives/${filenamePng}`,
-            "image/png",
-            CREATIVES_DIR
-          )
-
-          const mockSeed = Math.floor(Math.random() * 1000000000)
-
-          options.push({
-            creativeUrl: urlJpg,
-            pngUrl: urlPng,
-            headline: option.headline,
-            copy: option.caption_text,
-            hashtags: option.hashtags,
-            backgroundPrompt: option.background_prompt,
-            metadata: {
-              prompt: option.background_prompt,
-              negativePrompt: promptBrief.negative_prompt,
+            const { finalBuffer, pngBuffer } = await compositeLayered({
+              backgroundBuffer,
+              ...(subjectBuffer !== undefined ? { subjectBuffer } : {}),
+              dealer: optionBranding,
+              headline: option.headline,
+              templateStyle,
               colorMood: promptBrief.color_mood,
-              seed: mockSeed,
-              modelVersion: "gemini-2.5-flash",
-              timestamp: new Date().toISOString(),
+            })
+
+            const filePrefix = randomUUID()
+            const urlJpg = await uploadFile(finalBuffer, `creatives/${filePrefix}_gemini_creative_${i}.jpg`, "image/jpeg", CREATIVES_DIR)
+            const urlPng = await uploadFile(pngBuffer, `creatives/${filePrefix}_gemini_creative_${i}.png`, "image/png", CREATIVES_DIR)
+
+            return {
+              creativeUrl: urlJpg,
+              pngUrl: urlPng,
+              headline: option.headline,
+              copy: option.caption_text,
+              hashtags: option.hashtags,
+              backgroundPrompt: option.background_prompt,
+              metadata: {
+                prompt: option.background_prompt,
+                negativePrompt: promptBrief.negative_prompt,
+                colorMood: promptBrief.color_mood,
+                seed: Math.floor(Math.random() * 1000000000),
+                modelVersion: process.env.GEMINI_IMAGE_MODEL ?? "gemini-3.1-flash-image-preview",
+                timestamp: new Date().toISOString(),
+              }
             }
           })
-        }
+        ).then(results => results.filter(Boolean))
 
         return {
           success: true,
