@@ -715,7 +715,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/google', async (request, reply) => {
     const GOOGLE_CLIENT_ID = process.env['GOOGLE_CLIENT_ID'];
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
-    const GOOGLE_REDIRECT_URI_AUTH = `${API_BASE_URL}/v1/auth/google/callback`;
+    const GOOGLE_REDIRECT_URI_AUTH = process.env['GOOGLE_REDIRECT_URI'] ?? `${API_BASE_URL}/v1/auth/google/callback`;
     const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
 
     if (!GOOGLE_CLIENT_ID) {
@@ -890,7 +890,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const { code, error: gError } = request.query as { code?: string; error?: string };
     const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
-    const GOOGLE_REDIRECT_URI_AUTH = `${API_BASE_URL}/v1/auth/google/callback`;
+    const GOOGLE_REDIRECT_URI_AUTH = process.env['GOOGLE_REDIRECT_URI'] ?? `${API_BASE_URL}/v1/auth/google/callback`;
 
     if (gError || !code) {
       fastify.log.warn(`[Google OAuth] Callback error: ${gError ?? 'no_code'}`);

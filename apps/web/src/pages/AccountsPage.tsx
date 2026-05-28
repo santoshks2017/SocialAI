@@ -249,19 +249,27 @@ export default function AccountsPage() {
       let oauthUrl = '';
 
       if (platform.id === 'facebook' || platform.id === 'instagram') {
-        // Facebook & Instagram use the Supabase Edge Function to initiate OAuth (P0)
-        const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/functions/v1/social/facebook/auth-url`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dealer_id: dealerId }),
-        });
+        // Try local Fastify endpoint first to use the newly configured Meta credentials from .env
+        try {
+          const res = await api.get<{ success: boolean; redirect_url: string }>(
+            `/platforms/connect/${platform.connectPlatform}`
+          );
+          oauthUrl = res.redirect_url;
+        } catch {
+          // Fallback to Supabase Edge Function if local API is unreachable or fails
+          const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/functions/v1/social/facebook/auth-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dealer_id: dealerId }),
+          });
 
-        if (!response.ok) {
-          throw new Error('Failed to generate Facebook authorization URL');
+          if (!response.ok) {
+            throw new Error('Failed to generate Facebook authorization URL');
+          }
+
+          const data = await response.json();
+          oauthUrl = data.oauth_url;
         }
-
-        const data = await response.json();
-        oauthUrl = data.oauth_url;
       } else {
         // Google uses the standard Fastify endpoint
         const res = await api.get<{ success: boolean; redirect_url: string }>(
