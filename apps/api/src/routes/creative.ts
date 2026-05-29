@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify"
+import axios from "axios"
 import { randomUUID } from "crypto"
 import { readFile, writeFile, mkdir, unlink } from "fs/promises"
 import path from "path"
@@ -39,6 +40,7 @@ import {
   generateGeminiCreativeContent,
   generateGeminiCaptions,
   isGeminiTextAvailable,
+  elaboratePromptBrief,
 } from "../services/geminiService.js"
 import { getBrandLogoSvg } from "../services/brandLogoService.js"
 
@@ -1312,6 +1314,345 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
       }
     },
   )
+
+  // POST /v1/creatives/elaborate-prompt — prompt detailing layers generator
+  fastify.post(
+    "/elaborate-prompt",
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string;
+      const { prompt } = request.body as { prompt: string };
+
+      if (!prompt?.trim()) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "prompt is required" },
+        });
+      }
+
+      try {
+        const models = await prisma.syncedModel.findMany({
+          where: { dealer_id }
+        });
+
+        let matchedModel = null;
+        const lowerPrompt = prompt.toLowerCase();
+        for (const model of models) {
+          const matchAlias = model.alias_names.some((alias: string) =>
+            lowerPrompt.includes(alias.toLowerCase())
+          );
+          if (matchAlias) {
+            matchedModel = model;
+            break;
+          }
+        }
+
+        const brief = await elaboratePromptBrief(prompt, matchedModel);
+
+        return {
+          success: true,
+          brief,
+          matchedModel: matchedModel ? {
+            id: matchedModel.id,
+            brand: matchedModel.brand,
+            model_name: matchedModel.model_name,
+            imageUrl: (matchedModel.images as any)?.[0]?.url || (matchedModel.colours as any)?.[0]?.images?.[0]?.url || ""
+          } : null
+        };
+      } catch (err) {
+        fastify.log.error(err, "Elaborate prompt failed");
+        return reply.code(500).send({
+          error: { code: "AI_ERROR", message: "Failed to elaborate campaign prompt. Please try again." }
+        });
+      }
+    }
+  );
+
+  // POST /v1/creatives/generate-detailed-post — structured creative generation pipeline
+  fastify.post(
+    "/generate-detailed-post",
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string;
+      const body = request.body as {
+        prompt: string;
+        brand: string;
+        model_name: string;
+        car_angle: string;
+        background_theme: string;
+        background_details: string;
+        background_details_option2?: string;
+        background_details_option3?: string;
+        lighting_mood: string;
+        headline: string;
+        caption: string;
+        caption_option2?: string;
+        caption_option3?: string;
+        hashtags: string[];
+        hashtags_option2?: string[];
+        hashtags_option3?: string[];
+        image_mode: 'add_creative' | 'add_inspiration' | 'generate_scratch';
+        uploaded_image_url?: string;
+        model_image_url?: string;
+      };
+
+      const dealer = await prisma.dealer.findUnique({
+        where: { id: dealer_id }
+      });
+      if (!dealer) {
+        return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Dealer not found" } });
+      }
+
+      const branding: DealerBranding = {
+        name: dealer.name,
+        city: dealer.city,
+        phone: dealer.contact_phone ?? dealer.phone,
+        primaryColor: dealer.primary_color ?? "#f97316",
+      };
+
+      const addressText = dealer.address || [dealer.city, dealer.state].filter(Boolean).join(", ");
+      if (addressText) branding.address = addressText;
+
+      const whatsappNum = dealer.whatsapp_number ?? dealer.contact_phone ?? dealer.phone;
+      if (whatsappNum) branding.whatsapp = whatsappNum;
+
+      if (dealer.logo_url) {
+        try {
+          const logoFilename = path.basename(dealer.logo_url);
+          const localLogoPath = path.join(ORIGINALS_DIR, logoFilename);
+          try {
+            branding.logoBuffer = await readFile(localLogoPath);
+          } catch {
+            const logoRes = await fetch(dealer.logo_url, { signal: AbortSignal.timeout(10_000) });
+            if (logoRes.ok) {
+              branding.logoBuffer = Buffer.from(await logoRes.arrayBuffer());
+            }
+          }
+        } catch (err) {
+          fastify.log.warn(err, `Failed to load dealer logo from: ${dealer.logo_url}`);
+        }
+      }
+
+      const activeBrand = body.brand || (Array.isArray(dealer.brands) && dealer.brands.length > 0 ? (dealer.brands[0] as string) : "Car");
+      branding.brandLogoSvg = getBrandLogoSvg(activeBrand, "#ffffff");
+
+      try {
+        // 1. Check database for different angle images of the matched model
+        let frontImage: string | undefined;
+        let sideImage: string | undefined;
+        let rearImage: string | undefined;
+
+        if (body.model_name) {
+          const matchedDbModel = await prisma.syncedModel.findFirst({
+            where: {
+              dealer_id,
+              model_name: { equals: body.model_name, mode: 'insensitive' }
+            }
+          });
+          if (matchedDbModel) {
+            const images = [...((matchedDbModel.images as any[]) || [])];
+            if (images.length === 0 && Array.isArray(matchedDbModel.colours)) {
+              for (const col of matchedDbModel.colours as any[]) {
+                if (Array.isArray(col.images)) {
+                  images.push(...col.images);
+                }
+              }
+            }
+
+            const frontObj = images.find(img => img.angle === 'front_exterior');
+            const sideObj = images.find(img => img.angle === 'side_exterior');
+            const rearObj = images.find(img => img.angle === 'rear_exterior');
+
+            frontImage = frontObj?.url;
+            sideImage = sideObj?.url;
+            rearImage = rearObj?.url;
+          }
+        }
+
+        // 2. Fetch car image buffers for the respective options/angles in parallel
+        const fetchBuffer = async (url?: string) => {
+          if (!url) return undefined;
+          try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+            if (res.ok) {
+              return Buffer.from(await res.arrayBuffer());
+            }
+          } catch (err) {
+            fastify.log.warn(err, `Failed to fetch image from ${url}`);
+          }
+          return undefined;
+        };
+
+        const [carFrontBuffer, carSideBuffer, carRearBuffer] = await Promise.all([
+          fetchBuffer(frontImage || body.model_image_url),
+          fetchBuffer(sideImage || body.model_image_url),
+          fetchBuffer(rearImage || body.model_image_url)
+        ]);
+
+        // Helper to generate option image (using multimodal prompt if carImgBuf is present)
+        const generateOptionImage = async (
+          bgPrompt: string, 
+          style: 'festive' | 'premium' | 'value', 
+          carImgBuf?: Buffer
+        ) => {
+          let backgroundBuffer: Buffer | null = null;
+          let isBlended = false;
+
+          if (isGeminiImageAvailable()) {
+            try {
+              // Call Gemini Image model with both bgPrompt and carImgBuf
+              backgroundBuffer = await generateGeminiImage(bgPrompt, carImgBuf, body.model_name);
+              if (carImgBuf) {
+                isBlended = true; // successfully generated blended car + background image
+              }
+            } catch (err) {
+              fastify.log.error(err, "Gemini background generation failed");
+            }
+          }
+          if (!backgroundBuffer && isCloudflareAvailable()) {
+            try {
+              backgroundBuffer = await cfGenerateImage(bgPrompt.slice(0, 500));
+            } catch (err) {
+              fastify.log.error(err, "Cloudflare background generation failed");
+            }
+          }
+          if (!backgroundBuffer) {
+            backgroundBuffer = await generateGradientBackground(branding.primaryColor);
+          }
+
+          // Composite the layers (branding footer, logos, headline)
+          const compositeInput: any = {
+            backgroundBuffer,
+            dealer: branding,
+            headline: body.headline,
+            templateStyle: style
+          };
+          if (!isBlended && carImgBuf) {
+            compositeInput.subjectBuffer = await removeBackground(carImgBuf);
+          }
+
+          const { finalBuffer } = await compositeLayered(compositeInput);
+
+          return finalBuffer;
+        };
+
+        const creatives: Array<{ creativeUrl: string }> = [];
+
+        if (body.image_mode === 'add_creative') {
+          if (!body.uploaded_image_url) {
+            return reply.code(400).send({
+              error: { code: "INVALID_INPUT", message: "uploaded_image_url is required for add_creative mode" }
+            });
+          }
+          // For Branded Creative, we just copy the uploaded creative 3 times
+          creatives.push({ creativeUrl: body.uploaded_image_url });
+          creatives.push({ creativeUrl: body.uploaded_image_url });
+          creatives.push({ creativeUrl: body.uploaded_image_url });
+
+        } else if (body.image_mode === 'add_inspiration') {
+          if (!body.uploaded_image_url) {
+            return reply.code(400).send({
+              error: { code: "INVALID_INPUT", message: "uploaded_image_url is required for add_inspiration mode" }
+            });
+          }
+
+          let inspirationBuf: Buffer;
+          const imgRes = await fetch(body.uploaded_image_url, { signal: AbortSignal.timeout(20_000) });
+          if (!imgRes.ok) {
+            throw new Error(`Failed to fetch inspiration image from ${body.uploaded_image_url}`);
+          }
+          inspirationBuf = Buffer.from(await imgRes.arrayBuffer());
+
+          const describeInstructions = "Analyze this automotive advertisement image. Describe the style, scene setting, lighting, colors, and background theme in detail. Do not mention any overlay text or logos. Provide only a single highly-detailed prompt (100-150 words) that can be used by an AI image generator to create a similar background scene, leaving empty space in the bottom-middle for a vehicle placement.";
+          
+          const describeUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          const describePayload = {
+            contents: [
+              {
+                parts: [
+                  { text: describeInstructions },
+                  {
+                    inlineData: {
+                      mimeType: imgRes.headers.get("content-type") || "image/jpeg",
+                      data: inspirationBuf.toString("base64")
+                    }
+                  }
+                ]
+              }
+            ]
+          };
+
+          const describeRes = await axios.post(describeUrl, describePayload, {
+            headers: { "Content-Type": "application/json" },
+            timeout: 30000
+          });
+
+          const backgroundPrompt = describeRes.data?.candidates?.[0]?.content?.parts?.[0]?.text || "A modern clean automotive showroom background with high-end lighting";
+
+          // Generate 3 visual variations based on the backgroundPrompt with different car angles
+          const bgPrompt1 = `${backgroundPrompt}. FRONT-THREE-QUARTER view of the car in the center.`;
+          const bgPrompt2 = `${backgroundPrompt}. SIDE-PROFILE view of the car in the center.`;
+          const bgPrompt3 = `${backgroundPrompt}. REAR-THREE-QUARTER view of the car in the center.`;
+
+          const [buf1, buf2, buf3] = await Promise.all([
+            generateOptionImage(bgPrompt1, 'value', carFrontBuffer),
+            generateOptionImage(bgPrompt2, 'premium', carSideBuffer),
+            generateOptionImage(bgPrompt3, 'festive', carRearBuffer)
+          ]);
+
+          const filePrefix = randomUUID();
+          const [url1, url2, url3] = await Promise.all([
+            uploadFile(buf1, `creatives/${filePrefix}_inspiration_recreate_1.jpg`, "image/jpeg", CREATIVES_DIR),
+            uploadFile(buf2, `creatives/${filePrefix}_inspiration_recreate_2.jpg`, "image/jpeg", CREATIVES_DIR),
+            uploadFile(buf3, `creatives/${filePrefix}_inspiration_recreate_3.jpg`, "image/jpeg", CREATIVES_DIR)
+          ]);
+
+          creatives.push({ creativeUrl: url1 });
+          creatives.push({ creativeUrl: url2 });
+          creatives.push({ creativeUrl: url3 });
+
+        } else {
+          // generate_scratch mode
+          const bgPrompt1 = `${body.background_details}. ${body.lighting_mood}. FRONT-THREE-QUARTER view of the car in the center.`;
+          const bgPrompt2 = `${body.background_details_option2 || body.background_details}. ${body.lighting_mood}. SIDE-PROFILE view of the car in the center.`;
+          const bgPrompt3 = `${body.background_details_option3 || body.background_details}. ${body.lighting_mood}. REAR-THREE-QUARTER view of the car in the center.`;
+
+          const [buf1, buf2, buf3] = await Promise.all([
+            generateOptionImage(bgPrompt1, 'value', carFrontBuffer),
+            generateOptionImage(bgPrompt2, 'premium', carSideBuffer),
+            generateOptionImage(bgPrompt3, 'festive', carRearBuffer)
+          ]);
+
+          const filePrefix = randomUUID();
+          const [url1, url2, url3] = await Promise.all([
+            uploadFile(buf1, `creatives/${filePrefix}_scratch_generate_1.jpg`, "image/jpeg", CREATIVES_DIR),
+            uploadFile(buf2, `creatives/${filePrefix}_scratch_generate_2.jpg`, "image/jpeg", CREATIVES_DIR),
+            uploadFile(buf3, `creatives/${filePrefix}_scratch_generate_3.jpg`, "image/jpeg", CREATIVES_DIR)
+          ]);
+
+          creatives.push({ creativeUrl: url1 });
+          creatives.push({ creativeUrl: url2 });
+          creatives.push({ creativeUrl: url3 });
+        }
+
+        const captions = [
+          { caption: body.caption, hashtags: body.hashtags },
+          { caption: body.caption_option2 || body.caption, hashtags: body.hashtags_option2 || body.hashtags },
+          { caption: body.caption_option3 || body.caption, hashtags: body.hashtags_option3 || body.hashtags }
+        ];
+
+        return {
+          success: true,
+          creatives,
+          captions
+        };
+      } catch (err) {
+        fastify.log.error(err, "Detailed creative generation failed");
+        return reply.code(500).send({
+          error: { code: "AI_ERROR", message: "Failed to generate branded post. Please try again." }
+        });
+      }
+    }
+  );
 }
 
 function mockCreatives() {

@@ -1,10 +1,11 @@
 import axios from "axios";
+import sharp from "sharp";
 
 /**
  * Generates an image using Google AI Studio (Gemini / Imagen 3 model).
  * Returns a Buffer of the generated image.
  */
-export async function generateGeminiImage(prompt: string): Promise<Buffer> {
+export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffer, modelName?: string): Promise<Buffer> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is not set. Please configure it in your .env file.");
@@ -15,13 +16,37 @@ export async function generateGeminiImage(prompt: string): Promise<Buffer> {
   if (model.startsWith("gemini-") || model.includes("banana")) {
     // Use generateContent API for Gemini-based image models (e.g. gemini-3.1-flash-image-preview / nano-banana-pro-preview)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    
+    let payloadBuffer = carImageBuffer;
+    if (carImageBuffer) {
+      try {
+        payloadBuffer = await sharp(carImageBuffer)
+          .resize({ width: 768, height: 768, fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+      } catch (err) {
+        console.error("Failed to resize car image buffer for Gemini payload:", err);
+      }
+    }
+
+    const carDetails = modelName ? `the ${modelName} car` : `the car`;
+    const textPart = carImageBuffer
+      ? `Create a high-quality, professional automotive commercial poster. Seamlessly integrate ${carDetails} from the attached photo into a new environment: ${prompt}. Place ${carDetails} in the center of the image, resting realistically on the road or surface. The perspective, ground shadows, lighting, reflections, and color grading must look completely natural and cohesive with the environment. Preserve the vehicle's features, brand badges, grille, headlights, and colors exactly as they appear in the photo without any distortion. Do not add any text overlays, labels, or logos to the image.`
+      : prompt;
+
     const payload = {
       contents: [
         {
           parts: [
             {
-              text: prompt,
+              text: textPart,
             },
+            ...(payloadBuffer ? [{
+              inlineData: {
+                mimeType: "image/jpeg",
+                data: payloadBuffer.toString("base64")
+              }
+            }] : [])
           ],
         },
       ],

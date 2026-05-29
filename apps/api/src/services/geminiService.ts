@@ -661,3 +661,118 @@ Generate 3 caption variants as JSON.${includeHindi ? ' Include hindi_variants.' 
   }
   return { variants: parsed.variants };
 }
+
+export interface ElaboratedPromptBrief {
+  brand: string;
+  model_name: string;
+  car_angle: string;
+  background_theme: string;
+  background_details: string;
+  background_details_option2: string;
+  background_details_option3: string;
+  lighting_mood: string;
+  headline: string;
+  caption: string;
+  caption_option2: string;
+  caption_option3: string;
+  hashtags: string[];
+  hashtags_option2: string[];
+  hashtags_option3: string[];
+}
+
+export async function elaboratePromptBrief(
+  userPrompt: string,
+  matchedModel?: { brand: string; model_name: string } | null
+): Promise<ElaboratedPromptBrief> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+
+  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+
+  const systemInstructions = `You are a premium automotive advertising director. 
+Analyze the user's campaign concept and output a detailed structure that outlines 3 distinct creative options and 3 distinct caption/hashtag copy options for a social media banner.
+You must return only a JSON object matching this schema:
+{
+  "brand": "Brand name, e.g. Hyundai",
+  "model_name": "Model name, e.g. Creta",
+  "car_angle": "Angle of the car in the image (e.g. front-three-quarter, side-profile, low-angle)",
+  "background_theme": "One-phrase summary of the background setting (e.g. summer beach, city skyline at dusk)",
+  "background_details": "Highly-detailed Imagen prompt describing ONLY the empty background scene for Option 1. Rules: Do NOT describe any cars, people, or text. The background must leave empty space in the bottom-middle for placing a vehicle later. Use professional photography terms like 'cinematic lighting, f/2.8 bokeh, shallow depth of field'.",
+  "background_details_option2": "Highly-detailed Imagen prompt describing ONLY the empty background scene for Option 2 (make this visually distinct from Option 1, e.g. different time of day or location).",
+  "background_details_option3": "Highly-detailed Imagen prompt describing ONLY the empty background scene for Option 3 (another visually distinct background).",
+  "lighting_mood": "Short phrase describing the lighting and mood (e.g. warm sunset glow, cool neon reflections)",
+  "headline": "A short, punchy marketing headline to overlay on the poster (max 6-8 words)",
+  "caption": "Primary Option 1: engaging Hinglish (conversational mix of Hindi and English) social media post caption.",
+  "caption_option2": "Option 2: professional English social media post caption.",
+  "caption_option3": "Option 3: bold, high-energy marketing social media post caption.",
+  "hashtags": ["Option 1 list of 4-6 hashtags"],
+  "hashtags_option2": ["Option 2 list of 4-6 hashtags"],
+  "hashtags_option3": ["Option 3 list of 4-6 hashtags"]
+}`;
+
+  const modelText = matchedModel 
+    ? `Target Vehicle: ${matchedModel.brand} ${matchedModel.model_name}.` 
+    : "No target vehicle matched. Infer appropriate brand and model name based on context.";
+
+  const userMessage = `Campaign Concept/Prompt: "${userPrompt}"
+${modelText}
+
+Generate the detailed layers and copy now.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const payload = {
+    contents: [
+      {
+        parts: [{ text: `${systemInstructions}\n\n${userMessage}` }]
+      }
+    ],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          brand: { type: 'STRING' },
+          model_name: { type: 'STRING' },
+          car_angle: { type: 'STRING' },
+          background_theme: { type: 'STRING' },
+          background_details: { type: 'STRING' },
+          background_details_option2: { type: 'STRING' },
+          background_details_option3: { type: 'STRING' },
+          lighting_mood: { type: 'STRING' },
+          headline: { type: 'STRING' },
+          caption: { type: 'STRING' },
+          caption_option2: { type: 'STRING' },
+          caption_option3: { type: 'STRING' },
+          hashtags: {
+            type: 'ARRAY',
+            items: { type: 'STRING' }
+          },
+          hashtags_option2: {
+            type: 'ARRAY',
+            items: { type: 'STRING' }
+          },
+          hashtags_option3: {
+            type: 'ARRAY',
+            items: { type: 'STRING' }
+          }
+        },
+        required: [
+          'brand', 'model_name', 'car_angle', 'background_theme', 
+          'background_details', 'background_details_option2', 'background_details_option3', 
+          'lighting_mood', 'headline', 'caption', 'caption_option2', 'caption_option3', 
+          'hashtags', 'hashtags_option2', 'hashtags_option3'
+        ]
+      }
+    }
+  };
+
+  const response = await axios.post(url, payload, {
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 30000,
+  });
+
+  const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty response from Gemini elaborate API');
+
+  return JSON.parse(text.trim()) as ElaboratedPromptBrief;
+}

@@ -104,6 +104,20 @@ export default async function modelLibraryRoutes(fastify: FastifyInstance) {
 
             // Save matched models in database
             for (const model of mockModels) {
+              const existing = await prisma.syncedModel.findUnique({
+                where: {
+                  dealer_id_canonical_id: {
+                    dealer_id,
+                    canonical_id: model.canonical_id
+                  }
+                }
+              });
+
+              if (existing && existing.source === 'manual_upload') {
+                // Skip overwriting user-customized/manually added models
+                continue;
+              }
+
               await prisma.syncedModel.upsert({
                 where: {
                   dealer_id_canonical_id: {
@@ -213,6 +227,79 @@ export default async function modelLibraryRoutes(fastify: FastifyInstance) {
       });
 
       return { success: true, model: newModel };
+    }
+  );
+
+  // PUT /v1/model-library/:id — update a model
+  fastify.put(
+    '/:id',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string;
+      const { id } = request.params as { id: string };
+      const body = request.body as {
+        brand: string;
+        model_name: string;
+        variants: string[];
+        colours: Array<{ name: string; hex: string; images: Array<{ angle: string; url: string }> }>;
+        images: Array<{ angle: string; url: string }>;
+      };
+
+      if (!body.brand || !body.model_name) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_INPUT', message: 'brand and model_name are required' }
+        });
+      }
+
+      const existing = await prisma.syncedModel.findFirst({
+        where: { id, dealer_id }
+      });
+
+      if (!existing) {
+        return reply.code(404).send({
+          error: { code: 'NOT_FOUND', message: 'Model not found or access denied' }
+        });
+      }
+
+      const updatedModel = await prisma.syncedModel.update({
+        where: { id },
+        data: {
+          brand: body.brand,
+          model_name: body.model_name,
+          variants: body.variants || [],
+          colours: (body.colours || []) as any,
+          images: (body.images || []) as any,
+          source: 'manual_upload' // Protect from future sync overwrites
+        }
+      });
+
+      return { success: true, model: updatedModel };
+    }
+  );
+
+  // DELETE /v1/model-library/:id — delete a model
+  fastify.delete(
+    '/:id',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string;
+      const { id } = request.params as { id: string };
+
+      const existing = await prisma.syncedModel.findFirst({
+        where: { id, dealer_id }
+      });
+
+      if (!existing) {
+        return reply.code(404).send({
+          error: { code: 'NOT_FOUND', message: 'Model not found or access denied' }
+        });
+      }
+
+      await prisma.syncedModel.delete({
+        where: { id }
+      });
+
+      return { success: true, message: 'Model deleted successfully' };
     }
   );
 }

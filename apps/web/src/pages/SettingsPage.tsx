@@ -153,16 +153,103 @@ export default function SettingsPage() {
   });
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedModelDetail, setSelectedModelDetail] = useState<SyncedModel | null>(null);
-  const [activeAnglePreview, setActiveAnglePreview] = useState<string>('front_exterior');
   const [activeColorPreview, setActiveColorPreview] = useState<string>('');
+  const [activePreviewUrl, setActivePreviewUrl] = useState<string>('');
 
-  // Manually Add Model form state
+  // Manually Add/Edit Model form state
   const [showAddModal, setShowAddModal] = useState(false);
   const [manualBrand, setManualBrand] = useState('Hyundai');
+  const [manualBrandType, setManualBrandType] = useState<'known' | 'custom'>('known');
+  const [customBrandName, setCustomBrandName] = useState('');
   const [manualModelName, setManualModelName] = useState('');
   const [manualVariants, setManualVariants] = useState('');
-  const [manualImageUrl, setManualImageUrl] = useState('');
-  const [uploadingManualImage, setUploadingManualImage] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingModelId, setEditingModelId] = useState<string | null>(null);
+  
+  // Unified Images List
+  const [manualImages, setManualImages] = useState<string[]>([]);
+  const [isPasteActive, setIsPasteActive] = useState(false);
+  const [uploadingImagesCount, setUploadingImagesCount] = useState(0);
+
+  // Deletion state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingModel, setDeletingModel] = useState<SyncedModel | null>(null);
+
+  const resetManualForm = () => {
+    setIsEditMode(false);
+    setEditingModelId(null);
+    setManualBrand('Hyundai');
+    setManualBrandType('known');
+    setCustomBrandName('');
+    setManualModelName('');
+    setManualVariants('');
+    setManualImages([]);
+    setIsPasteActive(false);
+    setUploadingImagesCount(0);
+  };
+
+  const handleImagePaste = async (e: React.ClipboardEvent) => {
+    if (!isPasteActive) return; // Only paste when the box is clicked/focused
+    
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    const imageFiles: File[] = [];
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          imageFiles.push(file);
+        }
+      }
+    }
+
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+
+    setUploadingImagesCount(prev => prev + imageFiles.length);
+    try {
+      const promises = imageFiles.map(async (file) => {
+        const res = await creativeService.uploadImage(file);
+        return res.url;
+      });
+      const urls = await Promise.all(promises);
+      setManualImages(prev => [...prev, ...urls]);
+      addToast({
+        type: 'success',
+        title: 'Images Pasted',
+        message: `Pasted and uploaded ${imageFiles.length} image(s) successfully.`
+      });
+    } catch {
+      addToast({ type: 'error', title: 'Upload Failed', message: 'Failed to upload some clipboard images.' });
+    } finally {
+      setUploadingImagesCount(prev => Math.max(0, prev - imageFiles.length));
+    }
+  };
+
+  const handleMultipleImagesUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
+    
+    setUploadingImagesCount(prev => prev + fileList.length);
+    try {
+      const promises = fileList.map(async (file) => {
+        const res = await creativeService.uploadImage(file);
+        return res.url;
+      });
+      const urls = await Promise.all(promises);
+      setManualImages(prev => [...prev, ...urls]);
+      addToast({
+        type: 'success',
+        title: 'Images Uploaded',
+        message: `Uploaded ${fileList.length} image(s) successfully.`
+      });
+    } catch {
+      addToast({ type: 'error', title: 'Upload Failed', message: 'Failed to upload some images.' });
+    } finally {
+      setUploadingImagesCount(prev => Math.max(0, prev - fileList.length));
+    }
+  };
 
   const fetchModels = () => {
     setLoadingModels(true);
@@ -222,35 +309,82 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAddManualModel = async () => {
+  const handleSaveManualModel = async () => {
+    const finalBrand = manualBrandType === 'known' ? manualBrand : customBrandName.trim();
+    if (!finalBrand) {
+      addToast({ type: 'warning', title: 'Brand Required', message: 'Please specify a brand for the model.' });
+      return;
+    }
     if (!manualModelName.trim()) {
       addToast({ type: 'warning', title: 'Model Name Required', message: 'Please enter a model name.' });
       return;
     }
-    if (!manualImageUrl) {
-      addToast({ type: 'warning', title: 'Image Required', message: 'Please upload a photo for the model.' });
+    if (manualImages.length === 0) {
+      addToast({ type: 'warning', title: 'Images Required', message: 'Please upload or paste at least one photo.' });
       return;
     }
 
+    const imagesArray = manualImages.map((url, idx) => ({
+      angle: idx === 0 ? 'front_exterior' : 'other',
+      url
+    }));
+
+    const coloursArray = [{
+      name: 'Default',
+      hex: '#888888',
+      images: imagesArray
+    }];
+
     try {
-      const res = await api.post<{ success: boolean; model: SyncedModel }>('/model-library', {
-        brand: manualBrand,
-        model_name: manualModelName.trim(),
-        variants: manualVariants.split(',').map((v) => v.trim()).filter(Boolean),
-        images: [{ angle: 'front_exterior', url: manualImageUrl }],
-        colours: [{ name: 'Default', hex: '#888888', images: [{ angle: 'front_exterior', url: manualImageUrl }] }]
-      });
+      let res;
+      if (isEditMode && editingModelId) {
+        res = await api.put<{ success: boolean; model: SyncedModel }>(`/model-library/${editingModelId}`, {
+          brand: finalBrand,
+          model_name: manualModelName.trim(),
+          variants: manualVariants.split(',').map((v) => v.trim()).filter(Boolean),
+          images: imagesArray,
+          colours: coloursArray
+        });
+      } else {
+        res = await api.post<{ success: boolean; model: SyncedModel }>('/model-library', {
+          brand: finalBrand,
+          model_name: manualModelName.trim(),
+          variants: manualVariants.split(',').map((v) => v.trim()).filter(Boolean),
+          images: imagesArray,
+          colours: coloursArray
+        });
+      }
 
       if (res.success) {
-        addToast({ type: 'success', title: 'Model Added', message: 'Custom model added to repository.' });
+        addToast({
+          type: 'success',
+          title: isEditMode ? 'Model Updated' : 'Model Added',
+          message: isEditMode ? 'Custom model updated successfully.' : 'Custom model added to repository.'
+        });
         setShowAddModal(false);
-        setManualModelName('');
-        setManualVariants('');
-        setManualImageUrl('');
+        resetManualForm();
+        fetchModels();
+        if (isEditMode) {
+          setSelectedModelDetail(res.model);
+        }
+      }
+    } catch (err) {
+      addToast({ type: 'error', title: 'Error', message: isEditMode ? 'Failed to update custom model.' : 'Failed to add custom model.' });
+    }
+  };
+
+  const handleDeleteModel = async (model: SyncedModel) => {
+    try {
+      const res = await api.delete<{ success: boolean }>(`/model-library/${model.id}`);
+      if (res.success) {
+        addToast({ type: 'success', title: 'Model Deleted', message: 'Model has been removed from repository.' });
+        setSelectedModelDetail(null);
+        setShowDeleteConfirm(false);
+        setDeletingModel(null);
         fetchModels();
       }
     } catch (err) {
-      addToast({ type: 'error', title: 'Error', message: 'Failed to add custom model.' });
+      addToast({ type: 'error', title: 'Deletion Failed', message: 'Failed to delete model.' });
     }
   };
 
@@ -811,7 +945,10 @@ export default function SettingsPage() {
                 <p className="text-xs text-slate-500 mt-0.5">Browse synced model specifications, color variants, and angle imagery.</p>
               </div>
               <Button
-                onClick={() => setShowAddModal(true)}
+                onClick={() => {
+                  resetManualForm();
+                  setShowAddModal(true);
+                }}
                 className="text-xs bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-350 flex items-center gap-1.5 cursor-pointer self-start sm:self-center"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -886,8 +1023,9 @@ export default function SettingsPage() {
                           key={model.id}
                           onClick={() => {
                             setSelectedModelDetail(model);
-                            setActiveAnglePreview('front_exterior');
                             setActiveColorPreview(model.colours?.[0]?.name || '');
+                            const firstImg = model.images?.[0]?.url || '';
+                            setActivePreviewUrl(firstImg);
                           }}
                           className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs hover:shadow-md hover:border-orange-300 transition-all duration-200 cursor-pointer flex flex-col group"
                         >
@@ -939,45 +1077,51 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Main Preview */}
-                <div className="aspect-video bg-slate-100 border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center relative">
-                  {(() => {
-                    const selColor = selectedModelDetail.colours.find(c => c.name === activeColorPreview);
-                    const selImg = (selColor?.images || selectedModelDetail.images).find(img => img.angle === activeAnglePreview)?.url
-                      || selectedModelDetail.images[0]?.url;
-                    return selImg ? (
-                      <img src={selImg} alt="Vehicle Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <Car className="w-16 h-16 text-slate-300" />
-                    );
-                  })()}
+                <div className="aspect-video bg-slate-100 border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center relative shadow-xs">
+                  {(activePreviewUrl || (selectedModelDetail.images && selectedModelDetail.images[0]?.url)) ? (
+                    <img src={activePreviewUrl || selectedModelDetail.images[0]?.url} alt="Vehicle Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <Car className="w-16 h-16 text-slate-350" />
+                  )}
                 </div>
 
-                {/* Angle Selector Tabs */}
-                <div className="grid grid-cols-4 gap-2">
-                  {(['front_exterior', 'rear_exterior', 'side_exterior', 'interior_dashboard'] as const).map(angle => (
-                    <button
-                      key={angle}
-                      onClick={() => setActiveAnglePreview(angle)}
-                      className={`text-[10px] font-bold py-2 rounded-lg border text-center transition-colors cursor-pointer capitalize ${
-                        activeAnglePreview === angle
-                          ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                          : 'bg-white text-slate-650 border-slate-200 hover:border-slate-350 hover:bg-slate-50'
-                      }`}
-                    >
-                      {angle.replace('_', ' ').replace('exterior', '').trim()}
-                    </button>
-                  ))}
-                </div>
+                {/* Image Thumbnails Strip */}
+                {selectedModelDetail.images && selectedModelDetail.images.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Available Views / Images</p>
+                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                      {selectedModelDetail.images.map((img, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setActivePreviewUrl(img.url);
+                          }}
+                          className={`w-16 h-12 rounded-lg border-2 overflow-hidden shrink-0 cursor-pointer transition-all duration-150 ${
+                            (activePreviewUrl === img.url || (!activePreviewUrl && idx === 0))
+                              ? 'border-orange-500 scale-[1.04] shadow-xs'
+                              : 'border-slate-200 hover:border-slate-350'
+                          }`}
+                        >
+                          <img src={img.url} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Color Swatch Selectors */}
-                {selectedModelDetail.colours.length > 0 && (
+                {selectedModelDetail.colours.length > 0 && selectedModelDetail.colours[0]?.name !== 'Default' && (
                   <div className="space-y-2">
                     <p className="text-xs font-semibold text-slate-600">Available Colors: <span className="text-slate-800 font-bold">{activeColorPreview}</span></p>
                     <div className="flex flex-wrap gap-2.5">
                       {selectedModelDetail.colours.map(color => (
                         <button
                           key={color.name}
-                          onClick={() => setActiveColorPreview(color.name)}
+                          onClick={() => {
+                            setActiveColorPreview(color.name);
+                            const colorImg = color.images?.[0]?.url;
+                            if (colorImg) setActivePreviewUrl(colorImg);
+                          }}
                           className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer relative ${
                             activeColorPreview === color.name ? 'border-orange-500 scale-[1.12] shadow-sm' : 'border-slate-200 hover:border-slate-400'
                           }`}
@@ -1009,48 +1153,161 @@ export default function SettingsPage() {
                     <p className="text-slate-600 font-medium mt-0.5">Synced At: {new Date(selectedModelDetail.synced_at).toLocaleDateString('en-IN')}</p>
                   </div>
                 </div>
+
+                {/* Edit & Delete Action Buttons */}
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
+                  <Button
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setEditingModelId(selectedModelDetail.id);
+                      
+                      const matchKnownBrand = BRANDS.find(b => b.toLowerCase() === selectedModelDetail.brand.toLowerCase());
+                      if (matchKnownBrand) {
+                        setManualBrand(matchKnownBrand);
+                        setManualBrandType('known');
+                        setCustomBrandName('');
+                      } else {
+                        setManualBrandType('custom');
+                        setCustomBrandName(selectedModelDetail.brand);
+                      }
+                      
+                      setManualModelName(selectedModelDetail.model_name);
+                      setManualVariants(selectedModelDetail.variants.join(', '));
+                      
+                      // Prepopulate unified images array
+                      const urls = selectedModelDetail.images.map(img => img.url);
+                      setManualImages(urls);
+                      
+                      setShowAddModal(true);
+                    }}
+                    className="text-xs bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-350 cursor-pointer flex items-center gap-1.5"
+                  >
+                    Edit Model
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setDeletingModel(selectedModelDetail);
+                      setShowDeleteConfirm(true);
+                    }}
+                    className="text-xs bg-red-500 hover:bg-red-600 text-white cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Model
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Deletion Confirmation Dialog */}
+          {showDeleteConfirm && deletingModel && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-sm w-full shadow-2xl space-y-4 text-center">
+                <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Delete Model?</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Are you sure you want to delete <span className="font-semibold text-slate-700">{deletingModel.brand} {deletingModel.model_name}</span>? This action cannot be undone and will remove all custom specifications.
+                  </p>
+                </div>
+                <div className="flex gap-2 justify-center pt-2">
+                  <Button
+                    onClick={() => handleDeleteModel(deletingModel)}
+                    className="text-xs bg-red-505 bg-red-500 hover:bg-red-600 text-white cursor-pointer px-4 shadow-sm"
+                  >
+                    Yes, Delete
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => { setShowDeleteConfirm(false); setDeletingModel(null); }}
+                    className="text-xs bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer px-4"
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             </div>
           )}
 
           {/* Manually Add Model Modal */}
           {showAddModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-md w-full shadow-2xl space-y-4 relative">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl space-y-4 relative my-8">
                 <button
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => { resetManualForm(); setShowAddModal(false); }}
                   className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-650 hover:bg-slate-100 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
 
-                <h3 className="text-base font-bold text-slate-900">Manually Add Model</h3>
+                <h3 className="text-base font-bold text-slate-900">
+                  {isEditMode ? 'Edit Custom Model' : 'Manually Add Model'}
+                </h3>
 
-                <div className="space-y-3.5">
+                <div className="space-y-4">
+                  {/* Brand Type Selector */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Brand</label>
-                    <select
-                      value={manualBrand}
-                      onChange={(e) => setManualBrand(e.target.value)}
-                      className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-805 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                    >
-                      {BRANDS.map(brand => (
-                        <option key={brand} value={brand} className="bg-white">{brand}</option>
-                      ))}
-                    </select>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Brand</label>
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setManualBrandType('known')}
+                        className={`flex-1 text-xs py-1.5 rounded-lg border font-medium cursor-pointer transition-all duration-150 ${
+                          manualBrandType === 'known'
+                            ? 'bg-orange-50 text-orange-600 border-orange-500 font-bold shadow-xs'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Select Brand
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setManualBrandType('custom')}
+                        className={`flex-1 text-xs py-1.5 rounded-lg border font-medium cursor-pointer transition-all duration-150 ${
+                          manualBrandType === 'custom'
+                            ? 'bg-orange-50 text-orange-600 border-orange-500 font-bold shadow-xs'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Custom Brand
+                      </button>
+                    </div>
+                    {manualBrandType === 'known' ? (
+                      <select
+                        value={manualBrand}
+                        onChange={(e) => setManualBrand(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-805 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-medium"
+                      >
+                        {BRANDS.map(brand => (
+                          <option key={brand} value={brand} className="bg-white">{brand}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={customBrandName}
+                        onChange={(e) => setCustomBrandName(e.target.value)}
+                        placeholder="e.g. Aston Martin, Yamaha, Ducati"
+                        className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-medium"
+                      />
+                    )}
                   </div>
 
+                  {/* Model Name */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Model Name</label>
                     <input
                       type="text"
                       value={manualModelName}
                       onChange={(e) => setManualModelName(e.target.value)}
-                      placeholder="e.g. Creta"
-                      className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                      placeholder="e.g. Creta, Thar, Activa"
+                      className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-medium"
                     />
                   </div>
 
+                  {/* Variants */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Variants (comma-separated)</label>
                     <input
@@ -1058,65 +1315,144 @@ export default function SettingsPage() {
                       value={manualVariants}
                       onChange={(e) => setManualVariants(e.target.value)}
                       placeholder="e.g. S, SX, SX(O)"
-                      className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                      className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-medium"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Model Photo (Front View)</label>
-                    <div className="flex items-center gap-3">
-                      {manualImageUrl ? (
-                        <img src={manualImageUrl} alt="Preview" className="w-16 h-16 rounded-xl object-cover border border-slate-200" />
+                  {/* Multi-image upload / Paste area */}
+                  <div className="space-y-3">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Model Photos (Upload or Paste)</label>
+                    
+                    <div
+                      tabIndex={0}
+                      onFocus={() => setIsPasteActive(true)}
+                      onBlur={() => setIsPasteActive(false)}
+                      onPaste={handleImagePaste}
+                      onClick={(e) => e.currentTarget.focus()}
+                      className={`aspect-[21/9] rounded-xl border border-dashed flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-all duration-200 outline-none select-none ${
+                        isPasteActive
+                          ? 'bg-orange-50/50 border-orange-500 ring-2 ring-orange-500/20'
+                          : 'bg-slate-50/50 border-slate-300 hover:border-orange-500 hover:bg-slate-50 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20'
+                      }`}
+                    >
+                      {uploadingImagesCount > 0 ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <RefreshCw className="w-5 h-5 animate-spin text-orange-500" />
+                          <span className="text-[10px] font-bold text-slate-700">Uploading {uploadingImagesCount} image(s)...</span>
+                        </div>
+                      ) : isPasteActive ? (
+                        <div className="space-y-1 animate-pulse">
+                          <Plus className="w-5 h-5 text-orange-500 mx-auto" />
+                          <span className="text-[11px] font-bold text-orange-600 block">Ready to Paste!</span>
+                          <span className="text-[9px] text-slate-550 block">
+                            Press Ctrl+V / Cmd+V to paste your clipboard images here, or{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                document.getElementById('manual-multiple-images-upload')?.click();
+                              }}
+                              className="text-orange-600 underline font-bold hover:text-orange-700 cursor-pointer inline-block bg-transparent border-0 p-0"
+                            >
+                              browse files
+                            </button>
+                          </span>
+                        </div>
                       ) : (
-                        <div className="w-16 h-16 rounded-xl bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-xs">No Photo</div>
+                        <div className="space-y-1">
+                          <Plus className="w-5 h-5 text-slate-400 mx-auto" />
+                          <span className="text-[11px] font-bold text-slate-700 block">
+                            Click here to focus & paste, or{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                document.getElementById('manual-multiple-images-upload')?.click();
+                              }}
+                              className="text-orange-600 underline font-bold hover:text-orange-700 cursor-pointer inline-block bg-transparent border-0 p-0"
+                            >
+                              browse files
+                            </button>
+                          </span>
+                          <span className="text-[9px] text-slate-400 block">Supports selecting multiple files or pasting clipboard images</span>
+                        </div>
                       )}
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          id="manual-car-photo-upload"
-                          className="hidden"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            setUploadingManualImage(true);
-                            try {
-                              const res = await creativeService.uploadImage(file);
-                              setManualImageUrl(res.url);
-                              addToast({ type: 'success', title: 'Image Uploaded', message: 'Model photo uploaded successfully!' });
-                            } catch {
-                              addToast({ type: 'error', title: 'Upload Failed', message: 'Failed to upload photo.' });
-                            } finally {
-                              setUploadingManualImage(false);
-                            }
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="text-xs border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
-                          disabled={uploadingManualImage}
-                          onClick={() => document.getElementById("manual-car-photo-upload")?.click()}
-                        >
-                          {uploadingManualImage ? "Uploading..." : "Upload Photo"}
-                        </Button>
-                      </div>
                     </div>
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="manual-multiple-images-upload"
+                      className="hidden"
+                      multiple
+                      onChange={(e) => handleMultipleImagesUpload(e.target.files)}
+                    />
+
+                    {/* Uploaded Images List Grid */}
+                    {manualImages.length > 0 && (
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Uploaded Photos ({manualImages.length})</label>
+                        <div className="grid grid-cols-4 gap-2.5 max-h-48 overflow-y-auto p-1.5 border border-slate-100 rounded-xl bg-slate-50/50 shadow-inner">
+                          {manualImages.map((url, idx) => (
+                            <div key={idx} className="relative aspect-square rounded-lg border border-slate-250 overflow-hidden bg-white shadow-xs group">
+                              <img src={url} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                              
+                              {/* Cover Badge or Set As Cover */}
+                              {idx === 0 ? (
+                                <span className="absolute top-1 left-1 bg-orange-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-xs">
+                                  Cover
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setManualImages(prev => {
+                                      const next = [...prev];
+                                      const [target] = next.splice(idx, 1);
+                                      if (target) next.unshift(target);
+                                      return next;
+                                    });
+                                  }}
+                                  className="absolute top-1 left-1 bg-black/60 hover:bg-orange-500 text-white text-[7px] font-bold px-1.5 py-0.5 rounded shadow-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                >
+                                  Set Cover
+                                </button>
+                              )}
+
+                              {/* Hover Delete Action */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setManualImages(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                                className="absolute top-1 right-1 p-1 bg-red-500/90 text-white rounded-full hover:bg-red-600 shadow-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
                   <Button
-                    onClick={handleAddManualModel}
-                    disabled={!manualModelName.trim() || !manualImageUrl}
-                    className="text-xs bg-orange-500 hover:bg-orange-600 text-white cursor-pointer shadow-sm shadow-orange-500/10"
+                    onClick={handleSaveManualModel}
+                    disabled={
+                      !manualModelName.trim() || 
+                      manualImages.length === 0 || 
+                      (manualBrandType === 'custom' && !customBrandName.trim())
+                    }
+                    className="text-xs bg-orange-500 hover:bg-orange-600 text-white cursor-pointer shadow-sm shadow-orange-500/10 font-semibold"
                   >
-                    Add Model
+                    {isEditMode ? 'Save Changes' : 'Add Model'}
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => { setShowAddModal(false); setManualImageUrl(''); setManualModelName(''); setManualVariants(''); }}
-                    className="text-xs bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    onClick={() => { resetManualForm(); setShowAddModal(false); }}
+                    className="text-xs bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer animate-none"
                   >
                     Cancel
                   </Button>
