@@ -40,7 +40,16 @@ export default function CreatePost() {
   const [published, setPublished] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [scheduleTime, setScheduleTime] = useState('');
+  const [scheduleTime, setScheduleTime] = useState(() => {
+    const d = searchParams.get('date');
+    const t = searchParams.get('time');
+    if (d && t) {
+      return `${d}T${t}`;
+    } else if (d) {
+      return `${d}T12:00`;
+    }
+    return '';
+  });
   const [connectedAccounts, setConnectedAccounts] = useState<string[]>([]);
 
   // Workflow modes
@@ -532,6 +541,12 @@ export default function CreatePost() {
         </NavLink>
         <span className="text-slate-300">/</span>
         <span className="text-slate-850 text-sm font-black uppercase tracking-wider">Create Social Post</span>
+        {scheduleTime && (
+          <span className="flex items-center gap-1.5 bg-orange-55 text-[10px] md:text-xs text-orange-650 font-bold px-2.5 py-1 rounded-full border border-orange-200/60 shadow-sm">
+            <Calendar className="w-3.5 h-3.5 shrink-0" />
+            Scheduling for: {new Date(scheduleTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+          </span>
+        )}
         {variants && (
           <span className="ml-auto flex items-center gap-1.5 text-xs text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" /> Post Draft Ready

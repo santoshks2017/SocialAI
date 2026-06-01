@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { postService } from '../services/creative';
 import type { Post } from '../services/creative';
 import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Clock, Trash2 } from 'lucide-react';
@@ -88,30 +88,7 @@ function PlatformBadge({ label }: { label: string }) {
   );
 }
 
-function PostCard({ post, onClick }: { post: CalendarPost; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full group rounded-lg border bg-white overflow-hidden hover:shadow-md transition-shadow text-left"
-    >
-      <div className="p-2 space-y-1">
-        <div className="flex items-start justify-between gap-1">
-          <p className="text-[11px] font-semibold text-gray-800 leading-tight line-clamp-2 flex-1">{post.title}</p>
-          <span className={`w-2 h-2 rounded-full mt-0.5 flex-shrink-0 ${STATUS_DOT[post.status]}`} />
-        </div>
-        <div className="flex items-center gap-1 flex-wrap">
-          {post.platforms.map((p) => <PlatformBadge key={p} label={p} />)}
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">{post.time}</span>
-          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${STATUS_STYLES[post.status]}`}>
-            {post.status}
-          </span>
-        </div>
-      </div>
-    </button>
-  );
-}
+
 
 interface PostDetailModalProps {
   post: CalendarPost;
@@ -229,13 +206,152 @@ function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailMo
   );
 }
 
+// Helper to format week date range like: 25 - 31 May 2026 or 28 May - 3 Jun 2026
+function formatWeekRange(dates: Date[]) {
+  if (dates.length < 7) return '';
+  const start = dates[0]!;
+  const end = dates[6]!;
+  
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
+  const startMonth = MONTHS[start.getMonth()];
+  const endMonth = MONTHS[end.getMonth()];
+  
+  if (startYear !== endYear) {
+    const sMonthAbbr = startMonth.slice(0, 3);
+    const eMonthAbbr = endMonth.slice(0, 3);
+    return `${start.getDate()} ${sMonthAbbr} ${startYear} - ${end.getDate()} ${eMonthAbbr} ${endYear}`;
+  }
+  
+  if (start.getMonth() !== end.getMonth()) {
+    const sMonthAbbr = startMonth.slice(0, 3);
+    const eMonthAbbr = endMonth.slice(0, 3);
+    return `${start.getDate()} ${sMonthAbbr} - ${end.getDate()} ${eMonthAbbr} ${startYear}`;
+  }
+  
+  return `${start.getDate()} - ${end.getDate()} ${startMonth} ${startYear}`;
+}
+
+interface PositionedPost extends CalendarPost {
+  top: number;
+  height: number;
+  left: string;
+  width: string;
+}
+
+// Overlap resolution layout algorithm for weekly timeline view
+function layoutColumnPosts(posts: CalendarPost[]): PositionedPost[] {
+  const sorted = [...posts].sort((a, b) => a._date.getTime() - b._date.getTime());
+  const positioned: PositionedPost[] = [];
+  const hourHeight = 60;
+  const cardHeight = 36;
+  
+  const blocks: PositionedPost[][] = [];
+  
+  for (const post of sorted) {
+    const h = post._date.getHours();
+    const m = post._date.getMinutes();
+    const top = (h + m / 60) * hourHeight;
+    
+    const item: PositionedPost = {
+      ...post,
+      top,
+      height: cardHeight,
+      left: '4px',
+      width: 'calc(100% - 8px)',
+    };
+    
+    let placed = false;
+    for (const block of blocks) {
+      const overlaps = block.some(b => {
+        return item.top < b.top + b.height && b.top < item.top + item.height;
+      });
+      
+      if (overlaps) {
+        block.push(item);
+        placed = true;
+        break;
+      }
+    }
+    
+    if (!placed) {
+      blocks.push([item]);
+    }
+  }
+  
+  for (const block of blocks) {
+    const columns: PositionedPost[][] = [];
+    
+    for (const item of block) {
+      let colIdx = 0;
+      while (true) {
+        if (!columns[colIdx]) {
+          columns[colIdx] = [];
+        }
+        
+        const col = columns[colIdx];
+        const lastInCol = col[col.length - 1];
+        
+        if (!lastInCol || !(item.top < lastInCol.top + lastInCol.height && lastInCol.top < item.top + item.height)) {
+          col.push(item);
+          break;
+        }
+        
+        colIdx++;
+      }
+    }
+    
+    const numCols = columns.length;
+    for (let c = 0; c < numCols; c++) {
+      for (const item of columns[c]) {
+        const leftPercent = (c / numCols) * 100;
+        const widthPercent = 100 / numCols;
+        
+        item.left = `calc(${leftPercent}% + 4px)`;
+        item.width = `calc(${widthPercent}% - 8px)`;
+        positioned.push(item);
+      }
+    }
+  }
+  
+  return positioned;
+}
+
 export default function CalendarPage() {
+  const navigate = useNavigate();
   const today = new Date();
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [view, setView] = useState<'week' | 'month'>('week');
   const [apiPosts, setApiPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
+  
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Real-time time updater for today's timeline marker
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const currentTimeOffset = useMemo(() => {
+    const h = currentTime.getHours();
+    const m = currentTime.getMinutes();
+    return (h + m / 60) * 60;
+  }, [currentTime]);
+
+  // Scroll to 9 AM or 2 hours before the current hour (whichever is lower) on load/view toggle
+  useEffect(() => {
+    if (view === 'week' && scrollContainerRef.current) {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const targetHour = Math.max(0, Math.min(currentHour - 2, 9));
+      scrollContainerRef.current.scrollTop = targetHour * 60;
+    }
+  }, [view]);
 
   const weekStart = new Date(today);
   weekStart.setHours(0, 0, 0, 0);
@@ -305,7 +421,7 @@ export default function CalendarPage() {
     fetchPosts();
   };
 
-  // Month grid: first day of month offset from Mon
+  // Month grid calculations
   const firstDayOffset = ((viewMonth.getDay() || 7) - 1);
   const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
   const monthGridCells = firstDayOffset + daysInMonth;
@@ -322,99 +438,191 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm bg-white shadow-sm">
             <button
               onClick={() => setView('week')}
-              className={`px-3 py-1.5 font-medium transition-colors ${view === 'week' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 font-medium transition-colors cursor-pointer ${view === 'week' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
               Week
             </button>
             <button
               onClick={() => setView('month')}
-              className={`px-3 py-1.5 font-medium transition-colors ${view === 'month' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 font-medium transition-colors cursor-pointer ${view === 'month' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
               Month
             </button>
           </div>
-          <NavLink to="/create" className="inline-flex items-center gap-1.5 bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
-            <Plus className="w-4 h-4" /> Add Post
+          <NavLink to="/create" className="inline-flex items-center gap-1 bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
+            <Plus className="w-4 h-4" /> New Post
           </NavLink>
         </div>
       </div>
 
-      {view === 'week' ? (
-        <>
-          {/* Week navigation */}
-          <div className="flex items-center gap-3">
-            <button onClick={() => setWeekOffset((o) => o - 1)} className="p-1.5 rounded-lg border hover:bg-gray-50">
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+      {/* Navigation Row */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => view === 'week' ? setWeekOffset((o) => o - 1) : setMonthOffset((o) => o - 1)} 
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm font-medium text-gray-700">
-              {weekDates[0]?.getDate()} {MONTHS[weekDates[0]?.getMonth() ?? 0]} — {weekDates[6]?.getDate()} {MONTHS[weekDates[6]?.getMonth() ?? 0]} {weekDates[6]?.getFullYear()}
-            </span>
-            <button onClick={() => setWeekOffset((o) => o + 1)} className="p-1.5 rounded-lg border hover:bg-gray-50">
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+            <button 
+              onClick={() => view === 'week' ? setWeekOffset((o) => o + 1) : setMonthOffset((o) => o + 1)} 
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
             </button>
-            {weekOffset !== 0 && (
-              <button onClick={() => setWeekOffset(0)} className="text-xs text-orange-600 hover:text-orange-700 font-semibold">
-                Today
-              </button>
-            )}
           </div>
+          <span className="text-sm font-semibold text-slate-800">
+            {view === 'week' ? formatWeekRange(weekDates) : `${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`}
+          </span>
+          {((view === 'week' && weekOffset !== 0) || (view === 'month' && monthOffset !== 0)) && (
+            <button 
+              onClick={() => view === 'week' ? setWeekOffset(0) : setMonthOffset(0)} 
+              className="text-xs text-orange-600 hover:text-orange-700 font-bold transition-colors cursor-pointer"
+            >
+              Today
+            </button>
+          )}
+        </div>
+      </div>
 
-          {/* Week grid */}
-          <div className="grid grid-cols-7 gap-2">
+      {view === 'week' ? (
+        <div className="flex flex-col">
+          {/* Week grid header */}
+          <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr_1fr_1fr] border border-slate-200 bg-white rounded-t-xl py-3 text-center shrink-0 shadow-sm">
+            <div />
             {weekDates.map((date, i) => {
-              const posts = getPostsForDate(date);
               const todayCol = isToday(date);
+              const festivals = getFestivalsForDate(date);
               return (
-                <div key={i} className={`min-h-[260px] rounded-xl border ${todayCol ? 'border-orange-300 bg-orange-50/40' : 'bg-white border-slate-200/80 shadow-sm'}`}>
-                  <div className={`px-2 py-2 text-center border-b ${todayCol ? 'border-orange-200 bg-orange-50/20' : 'border-slate-100 bg-slate-50/30'}`}>
-                    <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{DAYS[i]}</p>
-                    <p className={`text-lg font-bold mt-0.5 ${todayCol ? 'text-orange-600' : 'text-slate-800'}`}>
-                      {date.getDate()}
-                    </p>
-                    {getFestivalsForDate(date).map((f) => (
-                      <p key={f.name} className="text-[9px] text-orange-600 font-semibold leading-tight truncate" title={f.name}>
-                        {f.emoji} {f.name}
-                      </p>
-                    ))}
-                  </div>
-                  <div className="p-1.5 space-y-1.5">
-                    {posts.map((post) => (
-                      <PostCard key={post.id} post={post} onClick={() => setSelectedPost(post)} />
-                    ))}
-                    <NavLink
-                      to={`/create?date=${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}
-                      className="w-full flex items-center justify-center gap-1 py-2 rounded-lg border border-dashed border-slate-200 text-slate-400 hover:border-orange-300 hover:text-orange-600 transition-colors text-xs"
+                <div key={i} className="flex flex-col items-center justify-center border-r border-slate-100 last:border-r-0 px-1 min-w-0">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${todayCol ? 'text-orange-500 font-extrabold' : 'text-slate-400'}`}>
+                    {DAYS[i]}
+                  </span>
+                  <span className={`text-lg font-bold mt-0.5 leading-none ${todayCol ? 'text-orange-500 font-extrabold' : 'text-slate-800'}`}>
+                    {date.getDate()}
+                  </span>
+                  {festivals.map((f) => (
+                    <span 
+                      key={f.name} 
+                      className="text-[9px] text-orange-600 font-bold leading-tight truncate max-w-full mt-1 px-1 bg-orange-50 rounded"
+                      title={f.name}
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                    </NavLink>
-                  </div>
+                      {f.emoji} {f.name}
+                    </span>
+                  ))}
                 </div>
               );
             })}
           </div>
-        </>
+
+          {/* Week grid body timeline */}
+          <div 
+            ref={scrollContainerRef}
+            className="h-[600px] overflow-y-auto border border-slate-200 border-t-0 rounded-b-xl bg-white relative shadow-sm scroll-smooth"
+          >
+            <div className="relative w-full h-[1440px] flex">
+              {/* Hour labels column */}
+              <div className="w-[60px] flex-shrink-0 border-r border-slate-100 bg-white z-20">
+                {Array.from({ length: 24 }).map((_, h) => {
+                  const hourLabel = h === 0 ? '12 AM' : h === 12 ? '12 PM' : h > 12 ? `${h - 12} PM` : `${h} AM`;
+                  return (
+                    <div key={h} className="h-[60px] relative pr-2.5 flex justify-end select-none">
+                      <span className="absolute top-0 -translate-y-1/2 text-[9px] font-bold text-slate-400 bg-white px-1 leading-none">
+                        {hourLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Day columns + absolute cards */}
+              <div className="flex-1 relative h-full grid grid-cols-7 select-none">
+                {/* Horizontal hour lines */}
+                {Array.from({ length: 24 }).map((_, h) => (
+                  <div
+                    key={h}
+                    className="absolute left-0 right-0 border-t border-slate-100 pointer-events-none"
+                    style={{ top: `${h * 60}px` }}
+                  />
+                ))}
+
+                {/* 7 Columns */}
+                {weekDates.map((date, i) => {
+                  const posts = getPostsForDate(date);
+                  const todayCol = isToday(date);
+                  
+                  // Compute layout for overlapping cards
+                  const positionedPosts = layoutColumnPosts(posts);
+                  
+                  return (
+                    <div 
+                      key={i} 
+                      className={`relative h-full border-r border-slate-100 last:border-r-0 cursor-crosshair hover:bg-slate-50/20 transition-colors ${todayCol ? 'bg-orange-50/10' : ''}`}
+                      onClick={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickY = e.clientY - rect.top;
+                        const hourFraction = clickY / 60;
+                        const hour = Math.floor(hourFraction);
+                        const minsFraction = hourFraction - hour;
+                        const roundedMins = minsFraction < 0.25 ? 0 : minsFraction < 0.75 ? 30 : 0;
+                        const finalHour = minsFraction >= 0.75 ? Math.min(23, hour + 1) : hour;
+                        
+                        const timeString = `${String(finalHour).padStart(2, '0')}:${String(roundedMins).padStart(2, '0')}`;
+                        const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                        
+                        navigate(`/create?date=${dateString}&time=${timeString}`);
+                      }}
+                      title="Click empty slot to create & schedule a post at this time"
+                    >
+                      {/* Current Time Line inside today column */}
+                      {todayCol && (
+                        <div
+                          className="absolute left-0 right-0 flex items-center z-25 pointer-events-none"
+                          style={{ top: `${currentTimeOffset}px` }}
+                        >
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-[5px] flex-shrink-0 shadow-sm" />
+                          <div className="flex-1 h-0.5 bg-red-500" />
+                        </div>
+                      )}
+
+                      {/* Render Post Cards */}
+                      {positionedPosts.map((post) => (
+                        <button
+                          key={post.id}
+                          onClick={() => setSelectedPost(post)}
+                          style={{ 
+                            top: `${post.top}px`, 
+                            height: `${post.height}px`,
+                            left: post.left,
+                            width: post.width
+                          }}
+                          className="absolute rounded-lg border border-slate-200/80 bg-white hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left p-1.5 flex items-center gap-1.5 z-10 group cursor-pointer"
+                          title={`${post.title} (${post.time}) — ${post.status}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[post.status]}`} />
+                          <span className="text-[10px] font-semibold text-slate-700 leading-none truncate flex-1">
+                            {post.title}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
         /* Month view */
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b flex items-center gap-3">
-            <button onClick={() => setMonthOffset((o) => o - 1)} className="p-1.5 rounded-lg border hover:bg-gray-50">
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
-            </button>
-            <span className="font-semibold text-gray-800">{MONTHS[viewMonth.getMonth()]} {viewMonth.getFullYear()}</span>
-            <button onClick={() => setMonthOffset((o) => o + 1)} className="p-1.5 rounded-lg border hover:bg-gray-50">
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-            </button>
-            {monthOffset !== 0 && (
-              <button onClick={() => setMonthOffset(0)} className="text-xs text-orange-600 hover:text-orange-700 font-semibold ml-1">Today</button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-7 border-b">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/50">
             {DAYS.map((d) => (
-              <div key={d} className="text-center text-xs font-medium text-gray-500 py-2 border-r last:border-r-0">{d}</div>
+              <div key={d} className="text-center text-xs font-semibold text-slate-500 py-3 border-r border-slate-200/60 last:border-r-0">{d}</div>
             ))}
           </div>
 
@@ -428,37 +636,37 @@ export default function CalendarPage() {
               return (
                 <div
                   key={i}
-                  className={`min-h-[80px] p-1.5 border-r border-b last-of-type:border-r-0 ${
-                    !inMonth ? 'bg-slate-50/50' : todayCell ? 'bg-orange-50/40 border border-orange-200' : 'hover:bg-slate-50/50'
+                  className={`min-h-[90px] p-2 border-r border-b border-slate-200/60 last-of-type:border-r-0 ${
+                    !inMonth ? 'bg-slate-50/40 text-slate-300' : todayCell ? 'bg-orange-50/30 border border-orange-200' : 'hover:bg-slate-50/30'
                   }`}
                 >
                   {inMonth && cellDate && (
                     <>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <p className={`text-xs font-semibold ${todayCell ? 'text-orange-600' : 'text-slate-700'}`}>{dayNum + 1}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className={`text-xs font-bold ${todayCell ? 'text-orange-600' : 'text-slate-700'}`}>{dayNum + 1}</p>
                         <NavLink
                           to={`/create?date=${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, '0')}-${String(cellDate.getDate()).padStart(2, '0')}`}
-                          className="text-slate-350 hover:text-orange-500 transition-colors"
+                          className="text-slate-400 hover:text-orange-500 transition-colors"
                         >
                           <Plus className="w-3 h-3" />
                         </NavLink>
                       </div>
                       {getFestivalsForDate(cellDate).map((f) => (
-                        <p key={f.name} className="text-[8px] text-orange-500 font-bold leading-tight truncate mb-0.5" title={f.name}>
+                        <p key={f.name} className="text-[8px] text-orange-500 font-bold leading-tight truncate mb-1 bg-orange-50/50 px-0.5 rounded" title={f.name}>
                           {f.emoji} {f.name}
                         </p>
                       ))}
-                      <div className="flex flex-wrap gap-0.5">
+                      <div className="flex flex-wrap gap-1">
                         {posts.slice(0, 3).map((p) => (
                           <button
                             key={p.id}
                             onClick={() => setSelectedPost(p)}
-                            className={`w-2 h-2 rounded-full ${STATUS_DOT[p.status]} hover:scale-125 transition-transform`}
+                            className={`w-2 h-2 rounded-full ${STATUS_DOT[p.status]} hover:scale-125 transition-transform cursor-pointer`}
                             title={`${p.title} — ${p.status}`}
                           />
                         ))}
                         {posts.length > 3 && (
-                          <span className="text-[9px] text-gray-400">+{posts.length - 3}</span>
+                          <span className="text-[9px] font-bold text-slate-400">+{posts.length - 3}</span>
                         )}
                       </div>
                     </>
@@ -482,3 +690,4 @@ export default function CalendarPage() {
     </div>
   );
 }
+

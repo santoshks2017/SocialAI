@@ -117,6 +117,7 @@ export default function ConnectProfilesPage() {
   const [connections, setConnections] = useState<PlatformConnection[]>([]);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [loadingConnections, setLoadingConnections] = useState(true);
+  const [useSandbox, setUseSandbox] = useState(false);
 
   useEffect(() => {
     api.get<{ success: boolean; platforms: PlatformConnection[] }>('/platforms')
@@ -133,8 +134,9 @@ export default function ConnectProfilesPage() {
   const handleConnect = async (platformId: string) => {
     setConnecting(platformId);
     try {
+      const queryParams = useSandbox && import.meta.env.DEV ? '?mock=true' : '';
       const res = await api.get<{ success: boolean; redirect_url: string }>(
-        `/platforms/connect/${platformId}`
+        `/platforms/connect/${platformId}${queryParams}`
       );
       window.location.href = res.redirect_url;
     } catch {
@@ -168,6 +170,29 @@ export default function ConnectProfilesPage() {
 
         {/* Connector Card Container */}
         <div className="bg-white border border-slate-200/85 rounded-2xl p-6 shadow-sm mb-4">
+          {/* Sandbox Mock Mode Toggle (Dev only) */}
+          {import.meta.env.DEV && (
+            <div className="mb-5 p-3.5 bg-amber-50/60 border border-amber-100 rounded-xl flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-amber-850 flex items-center gap-1.5 uppercase tracking-wide">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> Local Sandbox Mode
+                </p>
+                <p className="text-[10px] text-amber-700/80 mt-0.5 leading-relaxed">
+                  Bypass OAuth dialogs and link simulated/mock developer profiles.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={useSandbox}
+                  onChange={(e) => setUseSandbox(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              </label>
+            </div>
+          )}
+
           {/* Progress */}
           <div className="flex items-center justify-between mb-5">
             <span className="text-slate-600 text-sm font-medium">

@@ -103,6 +103,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [useSandbox, setUseSandbox] = useState(false);
   const { addToast } = useToast();
   const { user } = useAuth();
   const dealerId = user?.dealer_id;
@@ -251,8 +252,9 @@ export default function AccountsPage() {
       if (platform.id === 'facebook' || platform.id === 'instagram') {
         // Try local Fastify endpoint first to use the newly configured Meta credentials from .env
         try {
+          const queryParams = useSandbox && import.meta.env.DEV ? '?mock=true' : '';
           const res = await api.get<{ success: boolean; redirect_url: string }>(
-            `/platforms/connect/${platform.connectPlatform}`
+            `/platforms/connect/${platform.connectPlatform}${queryParams}`
           );
           oauthUrl = res.redirect_url;
         } catch {
@@ -469,6 +471,29 @@ export default function AccountsPage() {
           </div>
         </div>
       </div>
+
+      {/* Sandbox Mock Mode Toggle (Dev only) */}
+      {import.meta.env.DEV && (
+        <div className="mb-6 p-4 bg-amber-50/60 border border-amber-200 rounded-2xl flex items-center justify-between shadow-sm">
+          <div>
+            <h3 className="text-sm font-bold text-amber-900 flex items-center gap-1.5 uppercase tracking-wide">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" /> Sandbox / Mock Mode
+            </h3>
+            <p className="text-xs text-amber-700/80 mt-1 leading-relaxed">
+              Enable sandbox mode to connect simulated Facebook and Instagram accounts instantly without requiring real social login credentials.
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={useSandbox}
+              onChange={(e) => setUseSandbox(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+          </label>
+        </div>
+      )}
 
       {/* Auto-Post Info Banner */}
       {connectedCount > 0 && (

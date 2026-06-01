@@ -15,6 +15,13 @@ export async function publishToFacebook(
   imageUrl: string,
   caption: string,
 ): Promise<MetaPublishResult> {
+  if (accessToken.startsWith('mock_') || pageId.startsWith('mock_')) {
+    const mockId = `mock_fb_post_${Date.now()}`;
+    return {
+      post_id: mockId,
+      url: `https://www.facebook.com/${pageId}/posts/${mockId}`,
+    };
+  }
   const response = await axios.post<{ id: string }>(
     `${META_GRAPH_BASE}/${pageId}/photos`,
     { url: imageUrl, message: caption, access_token: accessToken },
@@ -33,6 +40,13 @@ export async function publishToInstagram(
   imageUrl: string,
   caption: string,
 ): Promise<MetaPublishResult> {
+  if (accessToken.startsWith('mock_') || igUserId.startsWith('mock_')) {
+    const mockId = `mock_ig_post_${Date.now()}`;
+    return {
+      post_id: mockId,
+      url: `https://www.instagram.com/p/${mockId}/`,
+    };
+  }
   // Step 1 — create media container
   const containerRes = await axios.post<{ id: string }>(
     `${META_GRAPH_BASE}/${igUserId}/media`,

@@ -33,8 +33,9 @@ export default async function platformRoutes(fastify: FastifyInstance) {
   //   - ?signin=1 (no auth required): creates a new account via social sign-in
   fastify.get('/connect/:platform', async (request, reply) => {
     const { platform } = request.params as { platform: string };
-    const { signin } = request.query as { signin?: string };
+    const { signin, mock } = request.query as { signin?: string; mock?: string };
     const isSignin = signin === '1';
+    const isMock = mock === 'true';
 
     // For linking mode (not signin), require authentication
     let dealer_id: string | null = null;
@@ -75,6 +76,12 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     }
 
     if (platform === 'facebook' || platform === 'instagram') {
+      const state = Buffer.from(JSON.stringify({ dealer_id, platform, signin: isSignin })).toString('base64url');
+      if (isMock && process.env['NODE_ENV'] !== 'production') {
+        const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/meta?code=mock_facebook_code&state=${state}`;
+        return { success: true, redirect_url: callbackUrl };
+      }
+
       if (!META_APP_ID) {
         return reply.code(500).send({ error: { code: 'CONFIG_ERROR', message: 'META_APP_ID not configured' } });
       }
@@ -89,7 +96,6 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         'instagram_manage_messages',
         'ads_management',
       ].join(',');
-      const state = Buffer.from(JSON.stringify({ dealer_id, platform, signin: isSignin })).toString('base64url');
       const url = new URL('https://www.facebook.com/v19.0/dialog/oauth');
       url.searchParams.set('client_id', META_APP_ID);
       url.searchParams.set('redirect_uri', META_CALLBACK_URI);
