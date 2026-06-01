@@ -26,7 +26,9 @@
     "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.11",
     "@rolldown/binding-linux-arm64-gnu": "1.0.0-rc.11",
     "lightningcss-linux-x64-gnu": "1.32.0",
-    "lightningcss-linux-arm64-gnu": "1.32.0"
+    "lightningcss-linux-arm64-gnu": "1.32.0",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",
+    "@tailwindcss/oxide-linux-arm64-gnu": "4.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
