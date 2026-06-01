@@ -1,0 +1,16 @@
+# Ignore backend/API since we only deploy frontend to Vercel
+apps/api
+
+# Ignore Lovable MVP folder
+Lovable Creative Generation MVP
+
+# Ignore documentation and scratch
+docs
+scratch
+
+# Ignore documents and sheets
+*.docx
+*.xlsx
+
+# Ignore temporary lock files
+.~lock.*
