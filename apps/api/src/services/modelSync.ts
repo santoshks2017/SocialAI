@@ -17,12 +17,26 @@ for (const m of CARDEKHO_OEM_DATABASE) {
 
 // 2. Add/overwrite with scraped models if they exist
 try {
-  const jsonPath = path.resolve(__dirname, '../data/fullScrapedModels.json');
-  if (fs.existsSync(jsonPath)) {
+  const pathsToTry = [
+    path.resolve(__dirname, '../../src/data/fullScrapedModels.json'),
+    path.resolve(process.cwd(), 'apps/api/src/data/fullScrapedModels.json'),
+    path.resolve(process.cwd(), 'src/data/fullScrapedModels.json'),
+  ];
+  let jsonPath = '';
+  for (const p of pathsToTry) {
+    if (fs.existsSync(p)) {
+      jsonPath = p;
+      break;
+    }
+  }
+  if (jsonPath) {
     const scraped = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     for (const m of scraped) {
       modelsMap.set(m.canonical_id, m);
     }
+    console.log(`Successfully loaded ${scraped.length} models from ${jsonPath}`);
+  } else {
+    console.warn('Could not find fullScrapedModels.json in any of the paths:', pathsToTry);
   }
 } catch (e) {
   console.error('Error loading fullScrapedModels.json', e);
