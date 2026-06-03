@@ -224,4 +224,24 @@ export default async function scraperRoutes(fastify: FastifyInstance) {
       errors: errors.length > 0 ? errors : undefined
     };
   });
+
+  // GET /v1/admin/scraper/debug-db
+  fastify.get('/debug-db', async () => {
+    const dealers = await prisma.dealer.findMany({
+      select: {
+        id: true,
+        name: true,
+        brands: true,
+      }
+    });
+
+    const modelCounts = await prisma.syncedModel.groupBy({
+      by: ['dealer_id', 'brand'],
+      _count: {
+        _all: true
+      }
+    });
+
+    return { success: true, dealers, modelCounts };
+  });
 }
