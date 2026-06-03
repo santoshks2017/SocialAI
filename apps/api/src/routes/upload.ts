@@ -13,7 +13,7 @@ export const ORIGINALS_DIR = path.join(UPLOADS_ROOT, 'originals');
 export const CREATIVES_DIR = path.join(UPLOADS_ROOT, 'creatives');
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic']);
-const VIDEO_EXTS = new Set(['.mp4', '.mov', '.avi', '.webm', '.mkv']);
+
 
 export default async function uploadRoutes(fastify: FastifyInstance) {
   // POST /v1/upload/image
@@ -55,36 +55,5 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
     return { id: filename, url };
   });
 
-  // POST /v1/upload/video
-  fastify.post('/video', async (request, reply) => {
-    // Production: always require a valid JWT token
-    if (process.env['NODE_ENV'] === 'production') {
-      try { await fastify.authenticate(request, reply); } catch { /* authenticate sends the reply */ }
-      if (reply.sent) return;
-    } else if (request.headers.authorization) {
-      try { await fastify.authenticate(request, reply); } catch { /* ignore verify errors */ }
-      if (reply.sent) return;
-    }
 
-    const data = await request.file();
-    if (!data) return reply.code(400).send({ error: 'No file provided' });
-
-    let ext = path.extname(data.filename).toLowerCase();
-    if (!ext) {
-      if (data.mimetype === 'video/quicktime') ext = '.mov';
-      else if (data.mimetype === 'video/webm') ext = '.webm';
-      else ext = '.mp4';
-    }
-
-    if (!VIDEO_EXTS.has(ext)) {
-      return reply.code(400).send({ error: `Unsupported video type. Allowed: ${[...VIDEO_EXTS].join(', ')}` });
-    }
-
-    await mkdir(ORIGINALS_DIR, { recursive: true });
-    const filename = `${randomUUID()}${ext}`;
-    const buffer = await data.toBuffer();
-    const url = await uploadFile(buffer, `originals/${filename}`, data.mimetype || 'video/mp4', ORIGINALS_DIR);
-
-    return { id: filename, url };
-  });
 }

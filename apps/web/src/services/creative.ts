@@ -118,13 +118,6 @@ export const creativeService = {
     form.append('file', file, filename);
     return api.upload<{ id: string; url: string }>('/upload/image', form);
   },
-
-  uploadVideo: (file: File) => {
-    const form = new FormData();
-    const filename = file.name || `pasted-video-${Date.now()}.mp4`;
-    form.append('file', file, filename);
-    return api.upload<{ id: string; url: string }>('/upload/video', form);
-  },
 };
 
 export const postService = {

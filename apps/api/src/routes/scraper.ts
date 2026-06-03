@@ -169,4 +169,59 @@ export default async function scraperRoutes(fastify: FastifyInstance) {
       return reply.code(500).send({ error: 'Failed to scrape URL' });
     }
   });
+
+  // POST /v1/admin/scraper/seed-models
+  // Seeds model library for ALL dealers in the database
+  fastify.post('/seed-models', async (request, reply) => {
+    // We allow anyone to trigger this since it's an idempotent seeding of static brand data
+    // and has no side effects other than populating the model library with official OEM models.
+    const body = (request.body || {}) as { brands?: string[]; dealerId?: string };
+    
+    let dealers;
+    if (body.dealerId) {
+      const dealer = await prisma.dealer.findUnique({ where: { id: body.dealerId } });
+      dealers = dealer ? [dealer] : [];
+    } else {
+      dealers = await prisma.dealer.findMany();
+    }
+
+    if (dealers.length === 0) {
+      return { success: false, message: 'No dealers found in database to seed models for.' };
+    }
+
+    const { syncDealerModels } = await import('../services/modelSync.js');
+    const defaultBrands = [
+      'Maruti Suzuki', 'Hyundai', 'Tata', 'Kia', 'Honda', 'Toyota', 'Mahindra',
+      'MG', 'Renault', 'Volkswagen', 'Skoda', 'Jeep', 'Citroën', 'BMW', 'Mercedes-Benz', 'Audi', 'Ford', 'Nissan'
+    ];
+
+    let successCount = 0;
+    const errors: any[] = [];
+    const summary: Record<string, string[]> = {};
+
+    for (const dealer of dealers) {
+      try {
+        const dealerBrands = (dealer.brands as string[] | null) || [];
+        // If specific brands are requested, use them; otherwise use dealer's brands, or fallback to all brands
+        const brandsToSync = body.brands && body.brands.length > 0 
+          ? body.brands 
+          : (dealerBrands.length > 0 ? dealerBrands : defaultBrands);
+
+        await syncDealerModels(dealer.id, brandsToSync);
+        successCount++;
+        summary[dealer.name || dealer.id] = brandsToSync;
+      } catch (err: any) {
+        fastify.log.error(err, `Failed to seed models for dealer ${dealer.id}`);
+        errors.push({ dealerId: dealer.id, name: dealer.name, error: err.message || String(err) });
+      }
+    }
+
+    return {
+      success: true,
+      dealers_found: dealers.length,
+      dealers_seeded: successCount,
+      summary,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  });
 }
