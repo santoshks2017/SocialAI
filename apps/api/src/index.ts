@@ -61,6 +61,7 @@ await fastify.register(cors, {
     }
     cb(new Error(`Origin ${origin} not allowed by CORS`), false);
   },
+  methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
   credentials: true,
 });
 
