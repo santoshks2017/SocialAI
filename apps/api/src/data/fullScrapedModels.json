@@ -1,0 +1,6694 @@
+[
+  {
+    "brand": "Kia",
+    "model_name": "Carnival 2020 2023",
+    "canonical_id": "kia_carnival-2020-2023",
+    "alias_names": [
+      "carnival-2020-2023",
+      "kia carnival-2020-2023"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carnival/7341/1677920139467/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carnival/7341/1677920139467/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Seltos 2019 2023",
+    "canonical_id": "kia_seltos-2019-2023",
+    "alias_names": [
+      "seltos-2019-2023",
+      "kia seltos-2019-2023"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Seltos/7111/1678424780936/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Seltos/7111/1678424780936/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Sonet 2020 2024",
+    "canonical_id": "kia_sonet-2020-2024",
+    "alias_names": [
+      "sonet-2020-2024",
+      "kia sonet-2020-2024"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Sonet/10879/1690461063637/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Sonet/10879/1690461063637/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Ev6 2022 2025",
+    "canonical_id": "kia_ev6-2022-2025",
+    "alias_names": [
+      "ev6-2022-2025",
+      "kia ev6-2022-2025"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/EV6/8947/1738384042077/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/EV6/8947/1738384042077/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Seltos 2023 2025",
+    "canonical_id": "kia_seltos-2023-2025",
+    "alias_names": [
+      "seltos-2023-2025",
+      "kia seltos-2023-2025"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Seltos/10422/1766143788250/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Seltos/10422/1766143788250/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Gallery",
+    "canonical_id": "kia_gallery",
+    "alias_names": [
+      "gallery",
+      "kia gallery"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/car-images/medium/Kia/Seltos-2026/12770/1765365263735/Aurora-Black-Pearl_0a0a0a.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/car-images/medium/Kia/Seltos-2026/12770/1765365263735/Aurora-Black-Pearl_0a0a0a.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Sorento",
+    "canonical_id": "kia_sorento",
+    "alias_names": [
+      "sorento",
+      "kia sorento"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Sorento/8018/1773224022824/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Sorento/8018/1773224022824/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Syros Ev",
+    "canonical_id": "kia_syros-ev",
+    "alias_names": [
+      "syros-ev",
+      "kia syros-ev"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Syros-EV/12378/1753362078961/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Syros-EV/12378/1753362078961/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Ev9",
+    "canonical_id": "kia_ev9",
+    "alias_names": [
+      "ev9",
+      "kia ev9"
+    ],
+    "variants": [
+      "GT Line",
+      "vs Defender",
+      "vs EQS SUV",
+      "vs EQS",
+      "vs Macan EV",
+      "vs i5",
+      "vs iX",
+      "vs GLE",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/EV9/9560/1755866894528/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/EV9/9560/1755866894528/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Carens Clavis Ev",
+    "canonical_id": "kia_carens-clavis-ev",
+    "alias_names": [
+      "carens-clavis-ev",
+      "kia carens-clavis-ev"
+    ],
+    "variants": [
+      "HTK Plus",
+      "HTX E",
+      "HTX E 6Str",
+      "HTX",
+      "HTX 6Str",
+      "HTX E ER",
+      "HTX E ER 6Str",
+      "HTX ER",
+      "HTX ER 6Str",
+      "GTX ER",
+      "GTX ER 6Str",
+      "HTX Plus ER",
+      "HTX Plus ER 6Str",
+      "GTX Plus ER",
+      "GTX Plus ER 6Str",
+      "X-Line ER",
+      "X-Line ER 6Str",
+      "vs XEV 9e",
+      "vs MG Windsor EV",
+      "vs e Vitara",
+      "vs Harrier EV",
+      "vs eMAX 7",
+      "vs Curvv EV",
+      "vs VF MPV 7",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carens-Clavis-EV/11650/1755866334119/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carens-Clavis-EV/11650/1755866334119/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Carens Clavis",
+    "canonical_id": "kia_carens-clavis",
+    "alias_names": [
+      "carens-clavis",
+      "kia carens-clavis"
+    ],
+    "variants": [
+      "HTE",
+      "HTE (O)",
+      "HTE EX",
+      "HTE (O) Turbo",
+      "HTE Diesel",
+      "HTK Plus Diesel",
+      "HTE EX Turbo",
+      "HTE EX Diesel",
+      "HTK Plus Turbo",
+      "HTE (O) Diesel",
+      "HTK Plus (O) Turbo",
+      "HTK Plus Turbo 6Str DCT",
+      "HTK Plus Turbo DCT",
+      "HTK Plus (O) Diesel",
+      "X-Line Turbo 6Str DCT",
+      "HTK Plus Diesel AT",
+      "HTK Plus (O) Turbo DCT",
+      "HTX Turbo",
+      "HTX Turbo iMT",
+      "HTX Plus Turbo",
+      "HTX Diesel",
+      "HTX Plus Turbo 6Str",
+      "HTK Plus 6Str Diesel AT",
+      "HTX Plus Turbo DCT 6Str",
+      "HTX Plus Turbo iMT",
+      "HTX Plus Turbo iMT 6Str",
+      "HTX (O) Turbo 6Str DCT",
+      "HTX (O) Turbo DCT",
+      "GTX Turbo 6Str DCT",
+      "HTX (O) A Turbo 6Str DCT",
+      "HTX (O) A Turbo DCT",
+      "HTX Plus Turbo DCT",
+      "GTX Plus Turbo 6Str DCT",
+      "GTX Plus Turbo DCT",
+      "X-Line Turbo DCT",
+      "vs Carens",
+      "vs Ertiga",
+      "vs Alcazar",
+      "vs XL6",
+      "vs XUV 7XO",
+      "vs Seltos",
+      "vs Scorpio N",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carens-Clavis/12583/1776845877709/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carens-Clavis/12583/1776845877709/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Ev6",
+    "canonical_id": "kia_ev6",
+    "alias_names": [
+      "ev6",
+      "kia ev6"
+    ],
+    "variants": [
+      "GT Line",
+      "vs iX1",
+      "vs Sealion 7",
+      "vs Model Y",
+      "vs IONIQ 5",
+      "vs CLA Electric",
+      "vs MG Cyberster",
+      "vs MG M9",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/EV6/11740/1760005604163/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/EV6/11740/1760005604163/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Carnival",
+    "canonical_id": "kia_carnival",
+    "alias_names": [
+      "carnival",
+      "kia carnival"
+    ],
+    "variants": [
+      "Limousine Plus",
+      "vs Fortuner Legender",
+      "vs Camry",
+      "vs EV6",
+      "vs Wrangler",
+      "vs X3",
+      "vs Grand Cherokee",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carnival/8001/1774601542816/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carnival/8001/1774601542816/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Syros",
+    "canonical_id": "kia_syros",
+    "alias_names": [
+      "syros",
+      "kia syros"
+    ],
+    "variants": [
+      "HTE Turbo",
+      "HTE Opt Turbo",
+      "HTK EX Turbo",
+      "HTE Opt Diesel",
+      "HTK EX Diesel",
+      "HTK Plus Turbo",
+      "HTK Plus Diesel",
+      "HTK Plus Turbo DCT",
+      "HTK Plus Opt Turbo",
+      "HTK Plus Diesel AT",
+      "HTK Plus Opt Diesel",
+      "HTK Plus Opt Turbo DCT",
+      "HTK Plus Opt Diesel AT",
+      "HTX Turbo DCT",
+      "HTX Diesel AT",
+      "HTX Opt Turbo DCT",
+      "HTX Opt Diesel AT",
+      "vs Sonet",
+      "vs Seltos",
+      "vs Sierra",
+      "vs Venue",
+      "vs Nexon",
+      "vs XUV 3XO",
+      "vs Brezza",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Syros/13504/1776683248946/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Syros/13504/1776683248946/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Carens",
+    "canonical_id": "kia_carens",
+    "alias_names": [
+      "carens",
+      "kia carens"
+    ],
+    "variants": [
+      "vs Ertiga",
+      "vs XL6",
+      "vs Seltos",
+      "vs Alcazar",
+      "vs Rumion",
+      "vs Scorpio N",
+      "vs Sierra",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carens/11623/1772787448187/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Carens/11623/1772787448187/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Sonet",
+    "canonical_id": "kia_sonet",
+    "alias_names": [
+      "sonet",
+      "kia sonet"
+    ],
+    "variants": [
+      "HTE",
+      "HTE (O)",
+      "HTK",
+      "HTK (O)",
+      "HTK Turbo iMT",
+      "HTE (O) Diesel",
+      "HTK Plus",
+      "HTK (O) Turbo iMT",
+      "HTK Plus Turbo iMT",
+      "HTK Plus (O)",
+      "HTE (O) Diesel AT",
+      "HTK (O) Turbo DCT",
+      "HTK (O) Diesel",
+      "HTK Plus (O) Turbo iMT",
+      "HTK Plus Diesel",
+      "HTK (O) Diesel AT",
+      "HTX Turbo iMT",
+      "HTK Plus (O) Diesel",
+      "HTK Plus (O) Turbo DCT",
+      "HTK Plus Diesel AT",
+      "HTX Diesel",
+      "HTX Turbo DCT",
+      "HTK Plus (O) Diesel AT",
+      "HTX Diesel AT",
+      "GTX Plus Turbo DCT",
+      "X-line Turbo DCT",
+      "GTX Plus Diesel AT",
+      "vs Venue",
+      "vs Nexon",
+      "vs Brezza",
+      "vs FRONX",
+      "vs XUV 3XO",
+      "vs Kylaq",
+      "vs Punch",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Sonet/9783/1755775200530/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Sonet/9783/1755775200530/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Kia",
+    "model_name": "Seltos",
+    "canonical_id": "kia_seltos",
+    "alias_names": [
+      "seltos",
+      "kia seltos"
+    ],
+    "variants": [
+      "HTE",
+      "HTE Opt",
+      "HTE Diesel",
+      "HTE Opt TGDi iMT",
+      "HTK",
+      "HTE Opt iVT",
+      "HTE Opt Diesel",
+      "HTK TGDi iMT",
+      "HTK Opt",
+      "HTK iVT",
+      "HTK Diesel",
+      "HTE Opt Diesel AT",
+      "HTK Opt TGDi iMT",
+      "HTK Opt iVT",
+      "HTX",
+      "HTK Opt Diesel",
+      "HTK Diesel AT",
+      "HTK Opt TGDi DCT",
+      "HTX A",
+      "HTX iVT",
+      "HTK Opt Diesel AT",
+      "HTX Diesel",
+      "HTX TGDi DCT",
+      "HTX A iVT",
+      "HTX A Diesel",
+      "GTX iVT",
+      "X-Line iVT",
+      "HTX Diesel AT",
+      "HTX A TGDi DCT",
+      "GTX TGDi DCT",
+      "X-Line TGDi DCT",
+      "GTX A iVT",
+      "X-Line A iVT",
+      "HTX A Diesel AT",
+      "GTX Diesel AT",
+      "X-Line Diesel AT",
+      "GTX A Diesel AT",
+      "GTX A TGDi DCT",
+      "X-Line A Diesel AT",
+      "X-Line A TGDi DCT",
+      "vs Creta",
+      "vs Sierra",
+      "vs Sonet",
+      "vs Grand Vitara",
+      "vs e Vitara",
+      "vs Urban Cruiser Hyryder",
+      "vs Duster",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Seltos/13094/1778328978290/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Kia/Seltos/13094/1778328978290/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Glanza 2019 2022",
+    "canonical_id": "toyota_glanza-2019-2022",
+    "alias_names": [
+      "glanza-2019-2022",
+      "toyota glanza-2019-2022"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Glanza-2019-2022/6902/1647328878766/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Glanza-2019-2022/6902/1647328878766/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Urban Cruiser",
+    "canonical_id": "toyota_urban-cruiser",
+    "alias_names": [
+      "urban-cruiser",
+      "toyota urban-cruiser"
+    ],
+    "variants": [
+      "Mid",
+      "High",
+      "Mid AT",
+      "High AT"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Urban-cruiser/7802/1600923433627/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Urban-cruiser/7802/1600923433627/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Vellfire 2019 2023",
+    "canonical_id": "toyota_vellfire-2019-2023",
+    "alias_names": [
+      "vellfire-2019-2023",
+      "toyota vellfire-2019-2023"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Vellfire/7028/1677917186424/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Vellfire/7028/1677917186424/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Innova Crysta 2020 2022",
+    "canonical_id": "toyota_innova-crysta-2020-2022",
+    "alias_names": [
+      "innova-crysta-2020-2022",
+      "toyota innova-crysta-2020-2022"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Innova-Crysta/8199/1606212255498/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Innova-Crysta/8199/1606212255498/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Camry 2022 2024",
+    "canonical_id": "toyota_camry-2022-2024",
+    "alias_names": [
+      "camry-2022-2024",
+      "toyota camry-2022-2024"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Camry/10926/1708690549497/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Camry/10926/1708690549497/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Gallery",
+    "canonical_id": "toyota_gallery",
+    "alias_names": [
+      "gallery",
+      "toyota gallery"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/car-images/medium/Toyota/Fortuner/10904/1755846002143/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/car-images/medium/Toyota/Fortuner/10904/1755846002143/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Mini Fortuner",
+    "canonical_id": "toyota_mini-fortuner",
+    "alias_names": [
+      "mini-fortuner",
+      "toyota mini-fortuner"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Mini-Fortuner/12275/1753424505337/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Mini-Fortuner/12275/1753424505337/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Urban Cruiser Ebella",
+    "canonical_id": "toyota_urban-cruiser-ebella",
+    "alias_names": [
+      "urban-cruiser-ebella",
+      "toyota urban-cruiser-ebella"
+    ],
+    "variants": [
+      "vs Curvv EV",
+      "vs Harrier EV",
+      "vs e Vitara",
+      "vs Carens Clavis EV",
+      "vs Xpres T EV",
+      "vs XUV 3XO EV",
+      "vs XEV 9S"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Urban-Cruiser-EBELLA/12237/1771484626298/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Urban-Cruiser-EBELLA/12237/1771484626298/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Fortuner Legender",
+    "canonical_id": "toyota_fortuner-legender",
+    "alias_names": [
+      "fortuner-legender",
+      "toyota fortuner-legender"
+    ],
+    "variants": [
+      "4x2 AT",
+      "4x4",
+      "Neo Drive",
+      "vs MG Majestor",
+      "vs Fortuner",
+      "vs Kodiaq",
+      "vs MG Gloster",
+      "vs Hilux",
+      "vs Carnival",
+      "vs X1",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Fortuner-Legender/10229/1764935522846/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Fortuner-Legender/10229/1764935522846/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Taisor",
+    "canonical_id": "toyota_taisor",
+    "alias_names": [
+      "taisor",
+      "toyota taisor"
+    ],
+    "variants": [
+      "E",
+      "S",
+      "E CNG",
+      "S Plus",
+      "S AMT",
+      "S Plus AMT",
+      "G Turbo",
+      "V Turbo",
+      "V Turbo Dual Tone",
+      "G Turbo AT",
+      "V Turbo AT",
+      "V Turbo AT Dual Tone",
+      "vs FRONX",
+      "vs Glanza",
+      "vs Urban Cruiser Hyryder",
+      "vs Punch",
+      "vs Nexon",
+      "vs Venue",
+      "vs Sonet",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Taisor/11645/1777096329164/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Taisor/11645/1777096329164/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Vellfire",
+    "canonical_id": "toyota_vellfire",
+    "alias_names": [
+      "vellfire",
+      "toyota vellfire"
+    ],
+    "variants": [
+      "Hi",
+      "VIP Executive Lounge",
+      "vs V-Class Extra LWB",
+      "vs X5",
+      "vs Z4",
+      "vs GLS",
+      "vs Range Rover Sport",
+      "vs M440i",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Vellfire/10337/1755846282322/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Vellfire/10337/1755846282322/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Glanza",
+    "canonical_id": "toyota_glanza",
+    "alias_names": [
+      "glanza",
+      "toyota glanza"
+    ],
+    "variants": [
+      "E",
+      "S",
+      "S AMT",
+      "S CNG",
+      "G",
+      "G AMT",
+      "V",
+      "G CNG",
+      "V AMT",
+      "vs Baleno",
+      "vs Taisor",
+      "vs FRONX",
+      "vs Swift",
+      "vs i20",
+      "vs Punch",
+      "vs Amaze",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Glanza/10231/1767782580969/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Glanza/10231/1767782580969/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Innova Hycross",
+    "canonical_id": "toyota_innova-hycross",
+    "alias_names": [
+      "innova-hycross",
+      "toyota innova-hycross"
+    ],
+    "variants": [
+      "G Fleet 7STR",
+      "G Fleet 8STR",
+      "GX 7STR",
+      "GX 8STR",
+      "GX (O) 8STR",
+      "GX (O) 7STR",
+      "VX 7STR Hybrid",
+      "VX 8STR Hybrid",
+      "VX(O) 7STR Hybrid",
+      "VX(O) 8STR Hybrid",
+      "ZX Hybrid",
+      "ZX(O) Hybrid",
+      "vs Innova Crysta",
+      "vs Invicto",
+      "vs XUV 7XO",
+      "vs Scorpio N",
+      "vs Fortuner",
+      "vs Safari",
+      "vs Meridian",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Innova-Hycross/12719/1776918655192/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Innova-Hycross/12719/1776918655192/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Camry",
+    "canonical_id": "toyota_camry",
+    "alias_names": [
+      "camry",
+      "toyota camry"
+    ],
+    "variants": [
+      "Elegance",
+      "Sprint Edition",
+      "vs Fortuner",
+      "vs Octavia RS",
+      "vs A4",
+      "vs C-Class",
+      "vs MG Majestor",
+      "vs Kodiaq",
+      "vs Q3",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Camry/11344/1773396920075/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Camry/11344/1773396920075/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Hilux",
+    "canonical_id": "toyota_hilux",
+    "alias_names": [
+      "hilux",
+      "toyota hilux"
+    ],
+    "variants": [
+      "STD",
+      "High",
+      "High AT",
+      "vs Fortuner",
+      "vs V-Cross",
+      "vs Fortuner Legender",
+      "vs XEV 9e",
+      "vs Urbania",
+      "vs Harrier EV",
+      "vs Invicto",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Hilux/10923/1776848340160/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Hilux/10923/1776848340160/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Land Cruiser 300",
+    "canonical_id": "toyota_land-cruiser-300",
+    "alias_names": [
+      "land-cruiser-300",
+      "toyota land-cruiser-300"
+    ],
+    "variants": [
+      "ZX",
+      "GR-S",
+      "vs Range Rover",
+      "vs M5",
+      "vs i7",
+      "vs S-Class",
+      "vs M8 Coupe Competition",
+      "vs XM",
+      "vs RS Q8",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Land-Cruiser-300/8448/1761916741176/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Land-Cruiser-300/8448/1761916741176/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Hyryder",
+    "canonical_id": "toyota_hyryder",
+    "alias_names": [
+      "hyryder",
+      "toyota hyryder"
+    ],
+    "variants": [
+      "G Opt",
+      "G Opt AT",
+      "V Dual Tone",
+      "V Dual Tone AT",
+      "V AWD AT",
+      "G Opt HYBRID",
+      "V AWD Dual Tone AT",
+      "G Opt HYBRID Dual Tone",
+      "V HYBRID Dual Tone"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Hyryder/12837/1776674323818/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Hyryder/12837/1776674323818/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Toyota",
+    "model_name": "Innova Crysta",
+    "canonical_id": "toyota_innova-crysta",
+    "alias_names": [
+      "innova-crysta",
+      "toyota innova-crysta"
+    ],
+    "variants": [
+      "2.4 GX 7Str",
+      "2.4 GX 8Str",
+      "2.4 GX Plus 7Str",
+      "2.4 GX Plus 8Str",
+      "2.4 VX 7Str",
+      "2.4 VX 8Str",
+      "2.4 Zx 7Str",
+      "vs Innova Hycross",
+      "vs Scorpio N",
+      "vs Invicto",
+      "vs Safari",
+      "vs XUV 7XO",
+      "vs MG Hector",
+      "vs Meridian",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Innova-Crysta/9608/1755846139274/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Toyota/Innova-Crysta/9608/1755846139274/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Wr V 2020 2023",
+    "canonical_id": "honda_wr-v-2020-2023",
+    "alias_names": [
+      "wr-v-2020-2023",
+      "honda wr-v-2020-2023"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/WR-V/7665/1645419998984/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/WR-V/7665/1645419998984/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Jazz",
+    "canonical_id": "honda_jazz",
+    "alias_names": [
+      "jazz",
+      "honda jazz"
+    ],
+    "variants": [
+      "V",
+      "VX",
+      "V CVT",
+      "ZX",
+      "VX CVT",
+      "ZX CVT"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Jazz/6489/1677825341880/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Jazz/6489/1677825341880/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "City Hybrid",
+    "canonical_id": "honda_city-hybrid",
+    "alias_names": [
+      "city-hybrid",
+      "honda city-hybrid"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/City/13585/1779442198348/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/City/13585/1779442198348/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "City 2023 2026",
+    "canonical_id": "honda_city-2023-2026",
+    "alias_names": [
+      "city-2023-2026",
+      "honda city-2023-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/City/9421/1739862184352/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/City/9421/1739862184352/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Gallery",
+    "canonical_id": "honda_gallery",
+    "alias_names": [
+      "gallery",
+      "honda gallery"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/car-images/medium/Honda/City/13583/1779451336817/Crystal-Black-Pearl_17181d.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/car-images/medium/Honda/City/13583/1779451336817/Crystal-Black-Pearl_17181d.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Zero Suv",
+    "canonical_id": "honda_zero-suv",
+    "alias_names": [
+      "zero-suv",
+      "honda zero-suv"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Zero-SUV/13018/1761721348575/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Zero-SUV/13018/1761721348575/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Zero Alpha",
+    "canonical_id": "honda_zero-alpha",
+    "alias_names": [
+      "zero-alpha",
+      "honda zero-alpha"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Zero-Alpha/13017/1761721289266/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Zero-Alpha/13017/1761721289266/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Elevate Ev",
+    "canonical_id": "honda_elevate-ev",
+    "alias_names": [
+      "elevate-ev",
+      "honda elevate-ev"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Elevate-EV/10256/1753362311118/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Elevate-EV/10256/1753362311118/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Zr V",
+    "canonical_id": "honda_zr-v",
+    "alias_names": [
+      "zr-v",
+      "honda zr-v"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/ZR-V/13535/1779441263475/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/ZR-V/13535/1779441263475/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Amaze 2nd Gen",
+    "canonical_id": "honda_amaze-2nd-gen",
+    "alias_names": [
+      "amaze-2nd-gen",
+      "honda amaze-2nd-gen"
+    ],
+    "variants": [
+      "S",
+      "S CVT",
+      "vs Dzire",
+      "vs Baleno",
+      "vs Aura",
+      "vs FRONX",
+      "vs Swift",
+      "vs Tigor",
+      "vs Kylaq",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Amaze-2nd-Gen/10519/1762413127692/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Amaze-2nd-Gen/10519/1762413127692/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Elevate",
+    "canonical_id": "honda_elevate",
+    "alias_names": [
+      "elevate",
+      "honda elevate"
+    ],
+    "variants": [
+      "SV",
+      "V",
+      "V CVT",
+      "VX",
+      "VX CVT",
+      "ZX",
+      "ZX Black Edition",
+      "ADV Edition",
+      "ADV Edition Dual Tone",
+      "ZX CVT",
+      "ZX Black Edition CVT",
+      "ADV Edition CVT",
+      "ADV Edition CVT Dual Tone",
+      "vs Creta",
+      "vs Seltos",
+      "vs Urban Cruiser Hyryder",
+      "vs Grand Vitara",
+      "vs e Vitara",
+      "vs Kushaq",
+      "vs Brezza",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Elevate/12099/1758802336858/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Elevate/12099/1758802336858/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "Amaze",
+    "canonical_id": "honda_amaze",
+    "alias_names": [
+      "amaze",
+      "honda amaze"
+    ],
+    "variants": [
+      "V",
+      "VX",
+      "V CVT",
+      "VX CVT",
+      "ZX",
+      "ZX CVT",
+      "vs Dzire",
+      "vs Baleno",
+      "vs City",
+      "vs FRONX",
+      "vs Punch",
+      "vs Aura",
+      "vs Brezza",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Amaze/12185/1755764679476/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/Amaze/12185/1755764679476/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Honda",
+    "model_name": "City",
+    "canonical_id": "honda_city",
+    "alias_names": [
+      "city",
+      "honda city"
+    ],
+    "variants": [
+      "SV",
+      "V",
+      "V CVT",
+      "ZX",
+      "ZX Plus",
+      "ZX CVT",
+      "ZX Plus CVT",
+      "ZX Plus Hybrid",
+      "vs Verna",
+      "vs Virtus",
+      "vs Slavia",
+      "vs Ciaz",
+      "vs Elevate",
+      "vs Duster",
+      "vs Sierra",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/City/13585/1779442198348/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Honda/City/13585/1779442198348/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xuv300",
+    "canonical_id": "mahindra_xuv300",
+    "alias_names": [
+      "xuv300",
+      "mahindra xuv300"
+    ],
+    "variants": [
+      "W2",
+      "W4 BSIV",
+      "W4 BSVI",
+      "W4",
+      "W4 Diesel BSIV",
+      "W6 BSVI",
+      "W6 BSIV",
+      "W4 Turbo",
+      "W6 Diesel BSIV",
+      "W6 Diesel BSVI",
+      "W4 Diesel BSVI",
+      "W6 AMT Diesel BSIV",
+      "W6 Sunroof BSVI",
+      "W6",
+      "W6 Sunroof NT BSVI",
+      "W4 Diesel",
+      "W6 AMT Diesel BSVI",
+      "W6 Turbo",
+      "W6 AMT Sunroof BSVI",
+      "W8 BSIV",
+      "W6 Diesel Sunroof BSVI",
+      "W6 AMT",
+      "W6 Turbosport BSVI",
+      "W6 AMT Sunroof NT BSVI",
+      "W8 Diesel BSVI",
+      "W8 Diesel BSIV",
+      "W6 Diesel",
+      "W6 Diesel Sunroof NT BSVI",
+      "W6 AMT Diesel Sunroof BSVI",
+      "W8 AMT Diesel BSVI",
+      "W8 BSVI",
+      "W8 AMT Diesel BSIV",
+      "W8",
+      "W8 DT",
+      "W8 Option BSIV",
+      "W8 Option Dual Tone BSIV",
+      "W8 Turbo",
+      "W8 Turbosport BSVI",
+      "W8 Option Diesel BSIV",
+      "W8 Turbosport Dual Tone BSVI",
+      "W8 Turbo DT",
+      "W8 Option Dual Tone Diesel BSIV",
+      "W6 AMT Diesel",
+      "W6 AMT Diesel Sunroof NT BSVI",
+      "W8 Opt",
+      "W8 Option BSVI",
+      "W8 AMT Optional Diesel BSIV",
+      "W8 Opt DT",
+      "W8 Option Dual Tone BSVI",
+      "W8 Diesel",
+      "W8 Opt Turbo",
+      "W8 Diesel Sunroof BSVI",
+      "W8 Opt Turbo DT",
+      "W8 DT Diesel",
+      "W8 Option Turbosport BSVI",
+      "W8 Option AMT Dual Tone",
+      "W8 Opt AMT",
+      "W8 Option AMT BSVI",
+      "W8 Opt AMT DT",
+      "W8 Option Diesel BSVI",
+      "W8 Opt Diesel",
+      "W8 Option Dual Tone Diesel BSVI",
+      "W8 Opt DT Diesel",
+      "W8 AMT Optional Diesel BSVI",
+      "W8 Opt AMT Diesel",
+      "W8 Opt AMT DT Diesel"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV300/6794/1701855582193/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV300/6794/1701855582193/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Bolero Pik Up Extra Strong",
+    "canonical_id": "mahindra_bolero-pik-up-extra-strong",
+    "alias_names": [
+      "bolero-pik-up-extra-strong",
+      "mahindra bolero-pik-up-extra-strong"
+    ],
+    "variants": [
+      "CBC 1.3T MS",
+      "4WD MS",
+      "CBC 4WD PS",
+      "FB 1.3T MS",
+      "4WD PS",
+      "FB 1.3T PS",
+      "FB CNG PS"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/BOLERO-PIK-UP-Extra-Strong/8793/1644228918862/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/BOLERO-PIK-UP-Extra-Strong/8793/1644228918862/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Bolero Maxi Truck Plus",
+    "canonical_id": "mahindra_bolero-maxi-truck-plus",
+    "alias_names": [
+      "bolero-maxi-truck-plus",
+      "mahindra bolero-maxi-truck-plus"
+    ],
+    "variants": [
+      "CBC PS 1.2",
+      "1.2",
+      "PS 1.2",
+      "CNG PS"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Maxi-Truck-Plus/8801/1644229452359/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Maxi-Truck-Plus/8801/1644229452359/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Thar 2020 2025",
+    "canonical_id": "mahindra_thar-2020-2025",
+    "alias_names": [
+      "thar-2020-2025",
+      "mahindra thar-2020-2025"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar/10741/1755775915560/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar/10741/1755775915560/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xuv700",
+    "canonical_id": "mahindra_xuv700",
+    "alias_names": [
+      "xuv700",
+      "mahindra xuv700"
+    ],
+    "variants": [
+      "MX 7Str",
+      "MX 5Str",
+      "MX BSVI",
+      "MX E 7Str",
+      "MX 7Str Diesel",
+      "MX Diesel BSVI",
+      "MX E 5Str",
+      "MX E BSVI",
+      "MX 5Str Diesel",
+      "MX E 7Str Diesel",
+      "MX E Diesel BSVI",
+      "MX E 5Str Diesel",
+      "AX5 S 7 Str",
+      "AX3 5Str",
+      "AX5 S E 7Str",
+      "AX3 BSVI",
+      "AX5 S 7 Str Diesel",
+      "AX3 E 5Str",
+      "AX3 Diesel BSVI",
+      "AX3 E BSVI",
+      "AX3 5Str Diesel",
+      "AX5 7 Str",
+      "AX3 E Diesel BSVI",
+      "AX3 E 5Str Diesel",
+      "AX5 S 7 Str AT",
+      "AX5 5Str",
+      "AX3 7 Str Diesel BSVI",
+      "AX5 E 7 Str",
+      "AX5 BSVI",
+      "AX5 7 Str Diesel",
+      "AX3 7 Str Diesel",
+      "AX3 5Str AT",
+      "AX5 S 7 Str Diesel AT",
+      "AX5 E 5Str",
+      "AX5 S E 7Str Diesel",
+      "AX3 AT BSVI",
+      "AX5 5Str Diesel",
+      "AX5 E BSVI",
+      "AX7 7Str",
+      "AX5 Diesel BSVI",
+      "AX3 E 7 Str Diesel",
+      "AX5 7 Str BSVI",
+      "AX7 Ebony Edition 7Str",
+      "AX7 6 Str",
+      "AX3 5Str Diesel AT",
+      "AX7 Ebony Edition 6Str",
+      "AX5 7 Str AT",
+      "AX7 7Str Diesel",
+      "AX3 Diesel AT BSVI",
+      "AX7 Ebony Edition 7Str Diesel",
+      "AX5 E 7 Str BSVI",
+      "AX7 6 Str Diesel",
+      "AX5 7 Str Diesel BSVI",
+      "AX7 Ebony Edition 6Str Diesel",
+      "AX5 5Str AT",
+      "AX5 7 Str Diesel AT",
+      "AX5 AT BSVI",
+      "AX7 7Str AT",
+      "AX5 5Str Diesel AT",
+      "AX7 Ebony Edition 7Str AT",
+      "AX7 6Str AT",
+      "AX7 Ebony Edition 6Str AT",
+      "AX5 Diesel AT BSVI",
+      "AX7 7Str Diesel AT",
+      "AX7 BSVI",
+      "AX7 6 Str Diesel AT",
+      "AX5 7 Str Diesel AT BSVI",
+      "AX7L 7Str Diesel",
+      "AX7L Ebony Edition 7Str Diesel",
+      "AX7L 6Str Diesel",
+      "AX7 Diesel BSVI",
+      "AX7L Ebony Edition 6Str Diesel",
+      "AX7 7Str Diesel AT AWD",
+      "AX7L 7Str AT",
+      "AX7L Ebony Edition 7Str AT",
+      "AX7L 6Str AT",
+      "AX7L Ebony Edition 6Str AT",
+      "AX7 AT BSVI",
+      "AX7L 7Str Diesel AT",
+      "AX7L 6Str Diesel AT",
+      "AX7 Diesel AT BSVI",
+      "AX7 Diesel Luxury Pack BSVI",
+      "AX7L 7Str Diesel AT AWD",
+      "AX7L Blaze Edition Diesel",
+      "AX7 AT Luxury Pack BSVI",
+      "AX7 AWD Diesel AT BSVI",
+      "AX7 Diesel AT Luxury Pack BSVI",
+      "AX7L Blaze Edition AT",
+      "AX7L Blaze Edition Diesel AT"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV700/10794/1762509966753/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV700/10794/1762509966753/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Gallery",
+    "canonical_id": "mahindra_gallery",
+    "alias_names": [
+      "gallery",
+      "mahindra gallery"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/car-images/medium/Mahindra/Scorpio-N/10818/1752569630215/STEALTH-BLACK_131313.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/car-images/medium/Mahindra/Scorpio-N/10818/1752569630215/STEALTH-BLACK_131313.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Vision T",
+    "canonical_id": "mahindra_vision-t",
+    "alias_names": [
+      "vision-t",
+      "mahindra vision-t"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Vision-T/12780/1755320587136/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Vision-T/12780/1755320587136/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Vision S",
+    "canonical_id": "mahindra_vision-s",
+    "alias_names": [
+      "vision-s",
+      "mahindra vision-s"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Vision-S/12781/1755320250188/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Vision-S/12781/1755320250188/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Scorpio N Facelift",
+    "canonical_id": "mahindra_scorpio-n-facelift",
+    "alias_names": [
+      "scorpio-n-facelift",
+      "mahindra scorpio-n-facelift"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Scorpio-N-Facelift/13294/1769517048527/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Scorpio-N-Facelift/13294/1769517048527/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Global Pik Up",
+    "canonical_id": "mahindra_global-pik-up",
+    "alias_names": [
+      "global-pik-up",
+      "mahindra global-pik-up"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Global-Pik-Up/11038/1770187239554/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Global-Pik-Up/11038/1770187239554/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Thar E",
+    "canonical_id": "mahindra_thar-e",
+    "alias_names": [
+      "thar-e",
+      "mahindra thar-e"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar-E/11016/1770364036612/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar-E/11016/1770364036612/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Bolero Pik Up",
+    "canonical_id": "mahindra_bolero-pik-up",
+    "alias_names": [
+      "bolero-pik-up",
+      "mahindra bolero-pik-up"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Pik-Up/12238/1769597077567/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Pik-Up/12238/1769597077567/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xuv 3xo Ev",
+    "canonical_id": "mahindra_xuv-3xo-ev",
+    "alias_names": [
+      "xuv-3xo-ev",
+      "mahindra xuv-3xo-ev"
+    ],
+    "variants": [
+      "AX5",
+      "AX7L",
+      "has been launched",
+      "vs Tiago EV",
+      "vs Curvv EV",
+      "vs Punch EV",
+      "vs e Vitara",
+      "vs Xpres T EV",
+      "vs Nexon EV",
+      "vs VF6",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV-3XO-EV/12263/1767759269079/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV-3XO-EV/12263/1767759269079/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xev 9s",
+    "canonical_id": "mahindra_xev-9s",
+    "alias_names": [
+      "xev-9s",
+      "mahindra xev-9s"
+    ],
+    "variants": [
+      "Pack One Above 59kWh",
+      "Pack One Above 79kWh",
+      "Pack Two Above 70kWh",
+      "Pack Two Above 79kWh",
+      "Pack Three 79kWh",
+      "Pack Three Above 79kWh",
+      "vs Curvv EV",
+      "vs VF MPV 7",
+      "vs e Vitara",
+      "vs Harrier EV",
+      "vs Carens Clavis EV",
+      "vs XUV 3XO EV",
+      "vs BE 6",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XEV-9S/9266/1779885401053/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XEV-9S/9266/1779885401053/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Bolero Neo Plus",
+    "canonical_id": "mahindra_bolero-neo-plus",
+    "alias_names": [
+      "bolero-neo-plus",
+      "mahindra bolero-neo-plus"
+    ],
+    "variants": [
+      "P4",
+      "P10",
+      "vs Bolero Neo",
+      "vs Bolero",
+      "vs Ertiga",
+      "vs Scorpio",
+      "vs Carens",
+      "vs Scorpio N",
+      "vs Sierra",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Neo-Plus/9137/1758198862271/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Neo-Plus/9137/1758198862271/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Marazzo",
+    "canonical_id": "mahindra_marazzo",
+    "alias_names": [
+      "marazzo",
+      "mahindra marazzo"
+    ],
+    "variants": [
+      "M2",
+      "M2 8Str",
+      "M4 Plus",
+      "M4 Plus 8Str",
+      "M6 Plus",
+      "M6 Plus 8Str",
+      "vs Innova Crysta",
+      "vs XL6",
+      "vs Carens",
+      "vs Sierra",
+      "vs e Vitara",
+      "vs Scorpio",
+      "vs Creta",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Marazzo/10757/1758198958040/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Marazzo/10757/1758198958040/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xuv400 Ev",
+    "canonical_id": "mahindra_xuv400-ev",
+    "alias_names": [
+      "xuv400-ev",
+      "mahindra xuv400-ev"
+    ],
+    "variants": [
+      "EC Pro 34.5 kWh",
+      "EL Pro 34.5 kWh",
+      "EL Pro DT 34.5 kWh",
+      "EL Pro 39.4 kWh",
+      "EL Pro DT 39.4 kWh",
+      "vs Nexon EV",
+      "vs MG ZS EV",
+      "vs MG Windsor EV",
+      "vs Curvv EV",
+      "vs Carens Clavis EV",
+      "vs Punch EV",
+      "vs e Vitara",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV400-EV/11392/1758199122411/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV400-EV/11392/1758199122411/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Bolero Camper",
+    "canonical_id": "mahindra_bolero-camper",
+    "alias_names": [
+      "bolero-camper",
+      "mahindra bolero-camper"
+    ],
+    "variants": [
+      "2WD Non AC",
+      "4WD Diesel",
+      "ZX",
+      "4WD Non AC",
+      "GOLD ZX",
+      "GOLD RX",
+      "GOLD RX 4WD",
+      "vs Bolero",
+      "vs S-CAB",
+      "vs D-Max",
+      "vs Thar",
+      "vs Sierra",
+      "vs e Vitara",
+      "vs Creta",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Camper/8806/1769596921534/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Camper/8806/1769596921534/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Bolero Neo",
+    "canonical_id": "mahindra_bolero-neo",
+    "alias_names": [
+      "bolero-neo",
+      "mahindra bolero-neo"
+    ],
+    "variants": [
+      "N4",
+      "N8",
+      "N10 R",
+      "N10",
+      "N11",
+      "N10 Opt",
+      "vs Bolero",
+      "vs Ertiga",
+      "vs Bolero Neo Plus",
+      "vs Scorpio N",
+      "vs Brezza",
+      "vs Scorpio",
+      "vs XUV 3XO",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Neo/10766/1762837382360/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero-Neo/10766/1762837382360/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xuv 7xo",
+    "canonical_id": "mahindra_xuv-7xo",
+    "alias_names": [
+      "xuv-7xo",
+      "mahindra xuv-7xo"
+    ],
+    "variants": [
+      "AX",
+      "AX Diesel",
+      "AX3",
+      "AX3 Diesel",
+      "AX3 AT",
+      "AX5",
+      "AX3 Diesel AT",
+      "AX5 Diesel",
+      "AX7",
+      "AX7 Diesel",
+      "AX5 AT",
+      "AX5 Diesel AT",
+      "AX7 AT",
+      "AX7 Diesel AT",
+      "AX7T Diesel",
+      "AX7T 6Str Diesel",
+      "AX7T AT",
+      "AX7T 6Str AT",
+      "AX7T Diesel AT",
+      "AX7L Diesel",
+      "AX7T 6Str Diesel AT",
+      "AX7T Diesel AWD AT",
+      "AX7L AT",
+      "AX7L 6Str AT",
+      "AX7L Diesel AT",
+      "AX7L 6Str Diesel AT",
+      "AX7L Diesel AWD AT",
+      "vs Scorpio N",
+      "vs Alcazar",
+      "vs Safari",
+      "vs Innova Hycross",
+      "vs XEV 9e",
+      "vs Harrier",
+      "vs Thar ROXX",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV-7XO/13188/1778660966146/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV-7XO/13188/1778660966146/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xuv 3xo",
+    "canonical_id": "mahindra_xuv-3xo",
+    "alias_names": [
+      "xuv-3xo",
+      "mahindra xuv-3xo"
+    ],
+    "variants": [
+      "MX1",
+      "REVX M",
+      "REVX M (O)",
+      "MX2 Pro",
+      "MX3",
+      "MX2 diesel",
+      "MX3 Pro",
+      "MX2 Pro Diesel",
+      "MX2 Pro AT",
+      "AX5",
+      "MX3 Diesel",
+      "MX3 Pro Diesel",
+      "MX3 AT",
+      "MX3 Pro AT",
+      "MX3 Diesel AMT",
+      "REVX A Turbo",
+      "AX5 Diesel",
+      "AX5 AT",
+      "AX5 L Turbo",
+      "AX5 Diesel AMT",
+      "AX7 Turbo",
+      "REVX A Turbo AT",
+      "AX7 Diesel",
+      "AX5 L Turbo AT",
+      "AX7 L Turbo",
+      "AX7 Turbo AT",
+      "AX7 Diesel AMT",
+      "AX7 L Diesel",
+      "AX7 L Turbo AT",
+      "vs Nexon",
+      "vs Venue",
+      "vs Brezza",
+      "vs Sonet",
+      "vs Kylaq",
+      "vs Punch",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV-3XO/10184/1758199247932/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XUV-3XO/10184/1758199247932/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Thar Roxx",
+    "canonical_id": "mahindra_thar-roxx",
+    "alias_names": [
+      "thar-roxx",
+      "mahindra thar-roxx"
+    ],
+    "variants": [
+      "MX1 RWD",
+      "MX1 RWD Diesel",
+      "MX3 RWD AT",
+      "MX3 RWD Diesel",
+      "MX5 RWD",
+      "AX3L RWD Diesel",
+      "MX5 RWD Diesel",
+      "Star Edition Diesel",
+      "Star Edition Diesel AT",
+      "MX3 RWD Diesel AT",
+      "MX5 RWD AT",
+      "Star Edition AT",
+      "MX5 RWD Diesel AT",
+      "AX5L RWD Diesel AT",
+      "AX7L RWD Diesel",
+      "MX5 4WD Diesel",
+      "AX7L RWD AT",
+      "AX7L RWD Diesel AT",
+      "AX5L 4WD Diesel AT",
+      "AX7L 4WD Diesel",
+      "AX7L 4WD Diesel AT",
+      "vs Thar",
+      "vs Scorpio N",
+      "vs Sierra",
+      "vs Jimny",
+      "vs Scorpio",
+      "vs Gurkha",
+      "vs XUV 7XO",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar-ROXX/11939/1778649951124/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar-ROXX/11939/1778649951124/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Bolero",
+    "canonical_id": "mahindra_bolero",
+    "alias_names": [
+      "bolero",
+      "mahindra bolero"
+    ],
+    "variants": [
+      "B4",
+      "B6",
+      "B6 Opt",
+      "B8",
+      "vs Bolero Neo",
+      "vs Ertiga",
+      "vs Thar",
+      "vs Brezza",
+      "vs Bolero Camper",
+      "vs Nexon",
+      "vs Thar ROXX",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero/10754/1761635045988/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Bolero/10754/1761635045988/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Scorpio",
+    "canonical_id": "mahindra_scorpio",
+    "alias_names": [
+      "scorpio",
+      "mahindra scorpio"
+    ],
+    "variants": [
+      "S",
+      "S 9 Seater",
+      "S 11",
+      "S 11 7CC",
+      "vs Scorpio N",
+      "vs Thar",
+      "vs Thar ROXX",
+      "vs Sierra",
+      "vs Creta",
+      "vs Harrier",
+      "vs Jimny",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Scorpio/10764/1778474504907/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Scorpio/10764/1778474504907/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Thar",
+    "canonical_id": "mahindra_thar",
+    "alias_names": [
+      "thar",
+      "mahindra thar"
+    ],
+    "variants": [
+      "AXT RWD Diesel",
+      "LXT RWD Diesel",
+      "LXT RWD AT",
+      "LXT 4WD",
+      "LXT 4WD Diesel",
+      "LXT 4WD AT",
+      "LXT 4WD Diesel AT",
+      "vs Thar ROXX",
+      "vs Jimny",
+      "vs Scorpio",
+      "vs Gurkha",
+      "vs Scorpio N",
+      "vs Bolero",
+      "vs Sierra",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar/12264/1776055307473/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Thar/12264/1776055307473/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Scorpio N",
+    "canonical_id": "mahindra_scorpio-n",
+    "alias_names": [
+      "scorpio-n",
+      "mahindra scorpio-n"
+    ],
+    "variants": [
+      "Z2 E",
+      "Z2 Diesel E",
+      "Z4 E",
+      "Z4 Diesel E",
+      "Z6 Diesel",
+      "Z4 AT",
+      "Z8 Select",
+      "Z4 Diesel AT",
+      "Z4 Diesel E 4x4",
+      "Z8 Select Diesel",
+      "Z6 Diesel AT",
+      "Z8 Select AT",
+      "Z8 Select Diesel AT",
+      "Z8 Diesel",
+      "Z8 Carbon Edition",
+      "Z8 Carbon Edition Diesel",
+      "Z8T",
+      "Z8T Diesel",
+      "Z8L Carbon Edition",
+      "Z8 Carbon Edition AT",
+      "Z8L Carbon Edition Diesel",
+      "Z8L",
+      "Z8 Diesel AT",
+      "Z8 Carbon Edition Diesel AT",
+      "Z8L 6 Str",
+      "Z8T AT",
+      "Z8L Diesel",
+      "Z8L Carbon Edition AT",
+      "Z8L 6 Str Diesel",
+      "Z8 Carbon Edition Diesel 4x4",
+      "Z8T Diesel AT",
+      "Z8L Carbon Edition Diesel AT",
+      "Z8L AT",
+      "Z8T Diesel 4x4",
+      "Z8L 6 Str AT",
+      "Z8L Diesel AT",
+      "Z8L 6 Str Diesel AT",
+      "Z8L Diesel 4x4",
+      "Z8T Diesel 4x4 AT",
+      "Z8L Diesel 4x4 AT",
+      "vs Thar ROXX",
+      "vs Scorpio",
+      "vs Safari",
+      "vs XUV 7XO",
+      "vs Harrier",
+      "vs Sierra",
+      "vs Creta",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Scorpio-N/10818/1755775730308/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/Scorpio-N/10818/1755775730308/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Xev 9e",
+    "canonical_id": "mahindra_xev-9e",
+    "alias_names": [
+      "xev-9e",
+      "mahindra xev-9e"
+    ],
+    "variants": [
+      "Pack One",
+      "Pack One 7.2kw Charger",
+      "Pack One 11.2kw Charger",
+      "Pack Two",
+      "Pack Two 7.2kw Charger",
+      "Pack Two 11.2kw Charger",
+      "Pack Two 79kWh",
+      "Pack Two 79kwh 7.2kw Charger",
+      "Pack Two 79kwh 11.2kw Charger",
+      "Pack Three Select",
+      "Pack Three Select 7.2kw Charger",
+      "Cineluxe Edition",
+      "Pack Three",
+      "Pack Three 7.2kw Charger",
+      "Pack Three 11.2kw Charger",
+      "vs BE 6",
+      "vs Harrier EV",
+      "vs e Vitara",
+      "vs Carens Clavis EV",
+      "vs eMAX 7",
+      "vs VF7",
+      "vs Creta Electric",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XEV-9e/9262/1755776058045/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/XEV-9e/9262/1755776058045/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Mahindra",
+    "model_name": "Be 6",
+    "canonical_id": "mahindra_be-6",
+    "alias_names": [
+      "be-6",
+      "mahindra be-6"
+    ],
+    "variants": [
+      "Pack One",
+      "Pack One 7.2kw Charger",
+      "Pack One 11.2kw Charger",
+      "Pack One Above",
+      "Pack One Above 7.2kw Charger",
+      "Pack One Above 11.2kw Charger",
+      "Pack Two",
+      "Pack Two 7.2kw Charger",
+      "Pack Two 11.2kw Charger",
+      "Pack Two 79kwh",
+      "FE2",
+      "Pack Two 79kwh 7.2kw Charger",
+      "Pack Two 79kwh 11.2kw Charger",
+      "FE3",
+      "Pack Three Select",
+      "Pack Three Select 7.2kw Charger",
+      "Pack Three Select 11.2kw Charger",
+      "Pack Three",
+      "Pack Three 79kwh 7.2kw Charger",
+      "Pack Three 79kwh 11.2kw Charger",
+      "Batman Edition",
+      "vs XEV 9e",
+      "vs Harrier EV",
+      "vs e Vitara",
+      "vs Curvv EV",
+      "vs MG Windsor EV",
+      "vs Nexon EV",
+      "vs Atto 3",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/BE-6/9263/1762423834412/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Mahindra/BE-6/9263/1762423834412/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Altroz Racer",
+    "canonical_id": "tata_altroz-racer",
+    "alias_names": [
+      "altroz-racer",
+      "tata altroz-racer"
+    ],
+    "variants": [
+      "R1",
+      "R2",
+      "R3"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Altroz-Racer/9563/1738306789969/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Altroz-Racer/9563/1738306789969/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Punch 2021 2026",
+    "canonical_id": "tata_punch-2021-2026",
+    "alias_names": [
+      "punch-2021-2026",
+      "tata punch-2021-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch/9623/1762425519212/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch/9623/1762425519212/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Punch Ev 2024 2026",
+    "canonical_id": "tata_punch-ev-2024-2026",
+    "alias_names": [
+      "punch-ev-2024-2026",
+      "tata punch-ev-2024-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch-EV/11449/1758280489205/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch-EV/11449/1758280489205/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Tiago Ev 2022 2026",
+    "canonical_id": "tata_tiago-ev-2022-2026",
+    "alias_names": [
+      "tiago-ev-2022-2026",
+      "tata tiago-ev-2022-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago-EV/6279/1770888490912/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago-EV/6279/1770888490912/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Gallery",
+    "canonical_id": "tata_gallery",
+    "alias_names": [
+      "gallery",
+      "tata gallery"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/car-images/medium/Tata/Sierra/13043/1764067131077/222_Pure-Grey_616c61.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/car-images/medium/Tata/Sierra/13043/1764067131077/222_Pure-Grey_616c61.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Avinya X",
+    "canonical_id": "tata_avinya-x",
+    "alias_names": [
+      "avinya-x",
+      "tata avinya-x"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Avinya-X/9002/1770367003012/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Avinya-X/9002/1770367003012/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Safari Ev",
+    "canonical_id": "tata_safari-ev",
+    "alias_names": [
+      "safari-ev",
+      "tata safari-ev"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Safari-EV/11672/1753362146336/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Safari-EV/11672/1753362146336/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Avinya",
+    "canonical_id": "tata_avinya",
+    "alias_names": [
+      "avinya",
+      "tata avinya"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Avinya/12376/1770366847819/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Avinya/12376/1770366847819/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Tiago Ev",
+    "canonical_id": "tata_tiago-ev",
+    "alias_names": [
+      "tiago-ev",
+      "tata tiago-ev"
+    ],
+    "variants": [
+      "Smart 19 Medium Range",
+      "Pure Plus 19 Medium Range",
+      "Pure Plus 24 Long Range",
+      "Creative Plus 24 Long Range",
+      "vs Punch EV",
+      "vs MG Comet EV",
+      "vs Tigor EV",
+      "vs Tiago",
+      "vs City",
+      "vs Nexon",
+      "vs Syros",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago-EV/13563/1779961723416/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago-EV/13563/1779961723416/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Tiago Nrg",
+    "canonical_id": "tata_tiago-nrg",
+    "alias_names": [
+      "tiago-nrg",
+      "tata tiago-nrg"
+    ],
+    "variants": [
+      "XZ",
+      "XZA AMT",
+      "XZ CNG",
+      "XZA AMT CNG",
+      "vs Tigor",
+      "vs Amaze 2nd Gen",
+      "vs Ignis",
+      "vs Baleno",
+      "vs Punch",
+      "vs FRONX",
+      "vs Nexon",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago-NRG/10651/1755865961283/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago-NRG/10651/1755865961283/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Xpres T Ev",
+    "canonical_id": "tata_xpres-t-ev",
+    "alias_names": [
+      "xpres-t-ev",
+      "tata xpres-t-ev"
+    ],
+    "variants": [
+      "XM",
+      "vs Punch EV",
+      "vs e Vitara",
+      "vs XUV 3XO EV",
+      "vs eC3",
+      "vs XUV400 EV",
+      "vs Tigor EV",
+      "vs City",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Xpres-EV/13284/1769161813552/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Xpres-EV/13284/1769161813552/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Yodha Pickup",
+    "canonical_id": "tata_yodha-pickup",
+    "alias_names": [
+      "yodha-pickup",
+      "tata yodha-pickup"
+    ],
+    "variants": [
+      "Eco",
+      "Crew Cabin",
+      "1500",
+      "4x4",
+      "vs Bolero",
+      "vs Punch",
+      "vs FRONX",
+      "vs Nexon",
+      "vs Swift",
+      "vs Brezza",
+      "vs Baleno",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Yodha-Pickup/7621/1769504815932/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Yodha-Pickup/7621/1769504815932/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Xpres",
+    "canonical_id": "tata_xpres",
+    "alias_names": [
+      "xpres",
+      "tata xpres"
+    ],
+    "variants": [
+      "Petrol",
+      "CNG",
+      "vs Dzire",
+      "vs Punch",
+      "vs FRONX",
+      "vs Swift",
+      "vs Baleno",
+      "vs i20",
+      "vs Aura",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Xpres/13283/1769164209681/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Xpres/13283/1769164209681/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Tigor Ev",
+    "canonical_id": "tata_tigor-ev",
+    "alias_names": [
+      "tigor-ev",
+      "tata tigor-ev"
+    ],
+    "variants": [
+      "XE",
+      "XT",
+      "XZ Plus",
+      "XZ Plus LUX",
+      "vs Punch EV",
+      "vs Nexon EV",
+      "vs Tiago EV",
+      "vs Curvv EV",
+      "vs e Vitara",
+      "vs Xpres T EV",
+      "vs XUV 3XO EV",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tigor-EV/9458/1755866201716/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tigor-EV/9458/1755866201716/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Tigor",
+    "canonical_id": "tata_tigor",
+    "alias_names": [
+      "tigor",
+      "tata tigor"
+    ],
+    "variants": [
+      "XM",
+      "XT",
+      "XTA AMT",
+      "XZ",
+      "XT CNG",
+      "XZA AMT",
+      "XZ Plus",
+      "XZ CNG",
+      "XZ Plus Lux",
+      "XZA Plus AMT",
+      "XZA AMT CNG",
+      "XZ Plus CNG",
+      "XZ Plus Lux CNG",
+      "XZA Plus AMT CNG",
+      "vs Punch",
+      "vs Amaze 2nd Gen",
+      "vs Dzire",
+      "vs Altroz",
+      "vs Amaze",
+      "vs Magnite",
+      "vs Aura",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tigor/10670/1767964333729/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tigor/10670/1767964333729/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Curvv Ev",
+    "canonical_id": "tata_curvv-ev",
+    "alias_names": [
+      "curvv-ev",
+      "tata curvv-ev"
+    ],
+    "variants": [
+      "Accomplished X 55",
+      "Empowered X 55",
+      "Empowered X 55 Dark",
+      "vs Nexon EV",
+      "vs BE 6",
+      "vs e Vitara",
+      "vs MG Windsor EV",
+      "vs Harrier EV",
+      "vs Punch EV",
+      "vs Atto 3",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Curvv-EV/13538/1777897776645/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Curvv-EV/13538/1777897776645/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Tiago",
+    "canonical_id": "tata_tiago",
+    "alias_names": [
+      "tiago",
+      "tata tiago"
+    ],
+    "variants": [
+      "Smart",
+      "Pure",
+      "Smart CNG",
+      "Pure Plus",
+      "Pure AMT",
+      "Pure CNG",
+      "Pure Plus A",
+      "Pure Plus AMT",
+      "Creative",
+      "Pure Plus CNG",
+      "Pure Plus A AMT",
+      "Pure CNG AMT",
+      "Creative Plus",
+      "Pure Plus A CNG",
+      "Creative AMT",
+      "Pure Plus CNG AMT",
+      "Creative Plus AMT",
+      "Creative CNG",
+      "Pure Plus A CNG AMT",
+      "Creative CNG AMT",
+      "vs Alto Tour H1",
+      "vs Alto K10",
+      "vs Blinq RYDE",
+      "vs C3",
+      "vs Eva",
+      "vs Aura",
+      "vs EaS E",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago/13602/1779960195817/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Tiago/13602/1779960195817/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Curvv",
+    "canonical_id": "tata_curvv",
+    "alias_names": [
+      "curvv",
+      "tata curvv"
+    ],
+    "variants": [
+      "Smart",
+      "Pure Plus",
+      "Smart Diesel",
+      "Pure Plus S",
+      "Creative",
+      "Pure Plus DCA",
+      "Pure Plus Diesel",
+      "Creative S",
+      "Pure Plus S DCA",
+      "Pure Plus S Diesel",
+      "Creative DCA",
+      "Creative Diesel",
+      "Creative Plus S",
+      "Creative S Hyperion",
+      "Pure Plus Diesel DCA",
+      "Creative S DCA",
+      "Creative S Diesel",
+      "Pure Plus S Diesel DCA",
+      "Accomplished S",
+      "Creative Plus S Hyperion",
+      "Creative Plus S Diesel",
+      "Creative Plus S Hyperion DCA",
+      "Creative S Diesel DCA",
+      "Accomplished S Hyperion",
+      "Accomplished S Hyperion Dark",
+      "Accomplished S DCA",
+      "Accomplished S Diesel",
+      "Accomplished S Dark Diesel",
+      "Creative Plus S DCA",
+      "Creative Plus S Diesel DCA",
+      "Accomplished Plus A Hyperion",
+      "Accomplished S Hyperion DCA",
+      "Accomplished Plus A Diesel",
+      "Accomplished S Hyperion Dark DCA",
+      "Accomplished S Diesel DCA",
+      "Accomplished Plus A Dark Diesel",
+      "Accomplished S Dark Diesel DCA",
+      "Accomplished Plus A Hyperion DCA",
+      "Accomplished Plus A Diesel DCA",
+      "vs Nexon",
+      "vs Sierra",
+      "vs Baleno",
+      "vs Creta",
+      "vs Magnite",
+      "vs Seltos",
+      "vs MG Windsor EV",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Curvv/9578/1755865151865/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Curvv/9578/1755865151865/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Harrier Ev",
+    "canonical_id": "tata_harrier-ev",
+    "alias_names": [
+      "harrier-ev",
+      "tata harrier-ev"
+    ],
+    "variants": [
+      "Adventure 65",
+      "Adventure 65 ACFC",
+      "Adventure S 65",
+      "Adventure S 65 ACFC",
+      "Fearless Plus 65",
+      "Fearless Plus 65 ACFC",
+      "Fearless Plus 75",
+      "Fearless Plus 75 ACFC",
+      "Fearless Plus QWD 75",
+      "Fearless Plus QWD 75 ACFC",
+      "Empowered 75",
+      "Empowered 75 ACFC",
+      "Empowered 75 Stealth",
+      "Empowered 75 Stealth ACFC",
+      "Empowered QWD 75",
+      "Empowered QWD 75 ACFC",
+      "Empowered QWD 75 Stealth",
+      "vs XEV 9e",
+      "vs BE 6",
+      "vs Creta Electric",
+      "vs VF7",
+      "vs Curvv EV",
+      "vs MG Windsor EV",
+      "vs Atto 3",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Harrier-EV/9564/1759821423250/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Harrier-EV/9564/1759821423250/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Altroz",
+    "canonical_id": "tata_altroz",
+    "alias_names": [
+      "altroz",
+      "tata altroz"
+    ],
+    "variants": [
+      "Smart",
+      "Pure",
+      "Smart CNG",
+      "Pure S",
+      "Pure AMT",
+      "Pure S AMT",
+      "Creative",
+      "Pure CNG",
+      "Pure Diesel",
+      "Creative S",
+      "Pure S CNG",
+      "Creative AMT",
+      "Pure AMT CNG",
+      "Creative S AMT",
+      "Pure S AMT CNG",
+      "Creative CNG",
+      "Accomplished S",
+      "Creative S CNG",
+      "Creative S Diesel",
+      "Creative S DCA",
+      "Creative AMT CNG",
+      "Creative S AMT CNG",
+      "Accomplished S CNG",
+      "Accomplished S Diesel",
+      "Accomplished S DCA",
+      "Accomplished Plus S DCA",
+      "Accomplished S AMT CNG",
+      "vs Punch",
+      "vs Baleno",
+      "vs Nexon",
+      "vs i20",
+      "vs FRONX",
+      "vs Swift",
+      "vs Exter",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Altroz/12614/1770888054138/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Altroz/12614/1770888054138/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Harrier",
+    "canonical_id": "tata_harrier",
+    "alias_names": [
+      "harrier",
+      "tata harrier"
+    ],
+    "variants": [
+      "Petrol Smart",
+      "Smart",
+      "Petrol Pure X",
+      "Petrol Pure X DARK",
+      "Petrol Adventure X",
+      "Petrol Adventure X Plus",
+      "Pure X",
+      "Petrol Adventure X Plus DARK",
+      "Pure X Dark",
+      "Petrol Pure X DARK AT",
+      "Adventure X",
+      "Adventure X Plus",
+      "Petrol Adventure X AT",
+      "Pure X AT",
+      "Adventure X Dark",
+      "Petrol Adventure X DARK AT",
+      "Adventure X Plus Dark",
+      "Pure X Dark AT",
+      "Adventure X AT",
+      "Petrol Fearless X",
+      "Adventure X Plus AT",
+      "Adventure X Dark AT",
+      "Adventure X Plus Dark AT",
+      "Petrol Fearless X DARK",
+      "Fearless X",
+      "Petrol Fearless X AT",
+      "Fearless X Dark",
+      "Petrol Fearless X Plus",
+      "Petrol Fearless X DARK AT",
+      "Petrol Fearless X Plus DARK",
+      "Petrol Fearless Ultra",
+      "Fearless X AT",
+      "Fearless X Plus",
+      "Petrol Fearless Ultra Red DARK",
+      "Fearless X Dark AT",
+      "Petrol Fearless X Plus AT",
+      "Fearless X Plus Dark",
+      "Fearless Ultra",
+      "Fearless X Plus Stealth",
+      "Petrol Fearless X Plus DARK AT",
+      "Petrol Fearless Ultra AT",
+      "Fearless Ultra Red DARK",
+      "Fearless X Plus AT",
+      "Fearless X Plus Dark AT",
+      "Fearless Ultra AT",
+      "Fearless X Plus Stealth AT",
+      "Fearless Ultra Red Dark AT",
+      "vs Safari",
+      "vs Sierra",
+      "vs Scorpio N",
+      "vs Creta",
+      "vs MG Hector",
+      "vs Seltos",
+      "vs VF7",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Harrier/9368/1766125794560/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Harrier/9368/1766125794560/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Nexon",
+    "canonical_id": "tata_nexon",
+    "alias_names": [
+      "nexon",
+      "tata nexon"
+    ],
+    "variants": [
+      "Smart",
+      "Smart Plus",
+      "Smart CNG",
+      "Smart Plus S",
+      "Smart Plus AMT",
+      "Pure Plus",
+      "Smart Plus Diesel",
+      "Smart Plus CNG",
+      "Pure Plus S",
+      "Smart Plus S Diesel",
+      "Smart Plus S CNG",
+      "Pure Plus PS",
+      "Pure Plus AMT",
+      "Pure Plus CNG",
+      "Pure Plus S AMT",
+      "Pure Plus S CNG",
+      "Pure Plus Diesel",
+      "Creative",
+      "Pure Plus PS AMT",
+      "Pure Plus S Diesel",
+      "Creative Plus S",
+      "Pure Plus PS CNG",
+      "Pure Plus PS Diesel",
+      "Pure Plus Diesel AMT",
+      "Creative AMT",
+      "Creative Plus S Dark",
+      "Creative Plus S AMT",
+      "Creative CNG",
+      "Pure Plus PS Diesel AMT",
+      "Creative Diesel",
+      "Creative DCA",
+      "Creative Plus PS DT",
+      "Creative Plus S CNG",
+      "Creative Plus S Dark AMT",
+      "Creative Plus S Diesel",
+      "Creative Plus S Dark CNG",
+      "Creative Plus PS Dark",
+      "Creative Diesel AMT",
+      "Creative Plus S Dark Diesel",
+      "Creative Plus S Diesel AMT",
+      "Fearless Plus PS DT",
+      "Creative Plus PS DT CNG",
+      "Creative Plus PS DT Diesel",
+      "Fearless Plus PS Red Dark",
+      "Fearless Plus PS Dark",
+      "Creative Plus PS DT DCA",
+      "Creative Plus S Dark Diesel AMT",
+      "Creative Plus PS Dark CNG",
+      "Creative Plus PS Dark Diesel",
+      "Creative Plus PS Dark DCA",
+      "Creative Plus PS DT Diesel AMT",
+      "Fearless Plus PS DT CNG",
+      "Fearless Plus PS Dark CNG",
+      "Fearless Plus PS DT DCA",
+      "Fearless Plus PS DT Diesel",
+      "Fearless Plus PS Red Dark CNG",
+      "Fearless Plus PS Dark DCA",
+      "Creative Plus PS Dark Diesel AMT",
+      "Fearless Plus PS Red Dark Diesel",
+      "Fearless Plus PS Dark Diesel",
+      "Fearless Plus A PS DT DCA",
+      "Fearless Plus A PS Red Dark DCA",
+      "Fearless Plus PS DT Diesel AMT",
+      "Fearless Plus A PS Dark DCA",
+      "Fearless Plus PS Dark Diesel AMT",
+      "vs Punch",
+      "vs Brezza",
+      "vs Venue",
+      "vs Sonet",
+      "vs FRONX",
+      "vs Kylaq",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Nexon/11115/1779101151711/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Nexon/11115/1779101151711/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Punch",
+    "canonical_id": "tata_punch",
+    "alias_names": [
+      "punch",
+      "tata punch"
+    ],
+    "variants": [
+      "Smart",
+      "Pure",
+      "Smart CNG",
+      "Pure Plus",
+      "Pure Plus S",
+      "Pure CNG",
+      "Pure Plus AMT",
+      "Adventure",
+      "Pure Plus S AMT",
+      "Adventure S",
+      "Pure Plus CNG",
+      "Adventure AMT",
+      "Accomplished",
+      "Adventure Turbo",
+      "Pure Plus S CNG",
+      "Pure Plus CNG AMT",
+      "Adventure CNG",
+      "Accomplished AMT",
+      "Adventure S CNG",
+      "Accomplished Plus S",
+      "Adventure CNG AMT",
+      "Accomplished CNG",
+      "Adventure S CNG AMT",
+      "Accomplished Plus S AMT",
+      "Accomplished Plus S Turbo",
+      "Accomplished Plus S CNG AMT",
+      "vs Nexon",
+      "vs Exter",
+      "vs FRONX",
+      "vs Swift",
+      "vs Altroz",
+      "vs Baleno",
+      "vs Magnite",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch/13243/1768986024623/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch/13243/1768986024623/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Nexon Ev",
+    "canonical_id": "tata_nexon-ev",
+    "alias_names": [
+      "nexon-ev",
+      "tata nexon-ev"
+    ],
+    "variants": [
+      "Creative Plus MR",
+      "Fearless MR",
+      "Fearless Plus MR",
+      "Creative 45",
+      "Fearless Plus S MR",
+      "Empowered MR",
+      "Fearless 45",
+      "Empowered LR",
+      "Empowered Plus 45",
+      "Empowered Plus 45 Red Dark",
+      "Empowered Plus A 45",
+      "Empowered Plus A 45 Dark",
+      "Empowered Plus A 45 Red Dark",
+      "scored a full five-star rating",
+      "vs Punch EV",
+      "vs e Vitara",
+      "vs Curvv EV",
+      "vs Creta Electric",
+      "vs Harrier EV",
+      "vs MG ZS EV",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Nexon-EV/11024/1755845297648/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Nexon-EV/11024/1755845297648/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Tata",
+    "model_name": "Punch Ev",
+    "canonical_id": "tata_punch-ev",
+    "alias_names": [
+      "punch-ev",
+      "tata punch-ev"
+    ],
+    "variants": [
+      "Smart 30kWh",
+      "Smart Plus 30kWh",
+      "Smart Plus 40kWh",
+      "Adventure 40kWh",
+      "Empowered 40kWh",
+      "Empowered Plus S 40kWh",
+      "vs Tiago EV comparison",
+      "vs Windsor EV",
+      "vs Nexon EV",
+      "vs MG Windsor EV",
+      "vs e Vitara",
+      "vs MG Comet EV",
+      "vs Tigor EV",
+      "vs eC3",
+      "vs XUV 3XO",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch-EV/13330/1772693950592/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Tata/Punch-EV/13330/1772693950592/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Venue 2022 2025",
+    "canonical_id": "hyundai_venue-2022-2025",
+    "alias_names": [
+      "venue-2022-2025",
+      "hyundai venue-2022-2025"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Venue/10141/1755774341209/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Venue/10141/1755774341209/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Tucson",
+    "canonical_id": "hyundai_tucson",
+    "alias_names": [
+      "tucson",
+      "hyundai tucson"
+    ],
+    "variants": [
+      "Platinum AT",
+      "Platinum AT BSVI",
+      "Platinum Diesel AT",
+      "Signature AT DT",
+      "Signature AT BSVI",
+      "Platinum Diesel AT BSVI",
+      "Signature AT DT BSVI",
+      "Signature AT",
+      "Signature Diesel AT",
+      "Signature Diesel AT DT",
+      "Signature Diesel 4WD AT",
+      "Signature Diesel 4WD AT DT",
+      "Signature Diesel AT BSVI",
+      "Signature Diesel AT DT BSVI",
+      "Signature Diesel 4WD AT BSVI",
+      "Signature Diesel 4WD AT DT BSVI"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Tucson/10133/1762431617294/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Tucson/10133/1762431617294/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Verna 2023 2026",
+    "canonical_id": "hyundai_verna-2023-2026",
+    "alias_names": [
+      "verna-2023-2026",
+      "hyundai verna-2023-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Verna/8703/1755774556647/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Verna/8703/1755774556647/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Exter 2023 2026",
+    "canonical_id": "hyundai_exter-2023-2026",
+    "alias_names": [
+      "exter-2023-2026",
+      "hyundai exter-2023-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Exter/10444/1771075661902/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Exter/10444/1771075661902/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Ioniq 5 2023 2026",
+    "canonical_id": "hyundai_ioniq-5-2023-2026",
+    "alias_names": [
+      "ioniq-5-2023-2026",
+      "hyundai ioniq-5-2023-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/IONIQ-5/8983/1762430808343/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/IONIQ-5/8983/1762430808343/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Gallery",
+    "canonical_id": "hyundai_gallery",
+    "alias_names": [
+      "gallery",
+      "hyundai gallery"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Creta 2026",
+    "canonical_id": "hyundai_creta-2026",
+    "alias_names": [
+      "creta-2026",
+      "hyundai creta-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta-2026/13589/1779702864165/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta-2026/13589/1779702864165/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Ioniq 6",
+    "canonical_id": "hyundai_ioniq-6",
+    "alias_names": [
+      "ioniq-6",
+      "hyundai ioniq-6"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/IONIQ-6/9525/1770185855982/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/IONIQ-6/9525/1770185855982/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Bayon",
+    "canonical_id": "hyundai_bayon",
+    "alias_names": [
+      "bayon",
+      "hyundai bayon"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Bayon/13306/1770723108064/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Bayon/13306/1770723108064/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Tucson 2025",
+    "canonical_id": "hyundai_tucson-2025",
+    "alias_names": [
+      "tucson-2025",
+      "hyundai tucson-2025"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Tucson-2025/11345/1770363830540/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Tucson-2025/11345/1770363830540/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Inster",
+    "canonical_id": "hyundai_inster",
+    "alias_names": [
+      "inster",
+      "hyundai inster"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Inster/11822/1770185607969/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Inster/11822/1770185607969/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Ioniq 5",
+    "canonical_id": "hyundai_ioniq-5",
+    "alias_names": [
+      "ioniq-5",
+      "hyundai ioniq-5"
+    ],
+    "variants": [
+      "Long Range RWD",
+      "vs CLA Electric",
+      "vs Model Y",
+      "vs Sealion 7",
+      "vs EX30",
+      "vs MG M9",
+      "vs EV6",
+      "vs iX1",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/IONIQ-5-Facelift/13531/1777375118845/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/IONIQ-5-Facelift/13531/1777375118845/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "I20 N Line",
+    "canonical_id": "hyundai_i20-n-line",
+    "alias_names": [
+      "i20-n-line",
+      "hyundai i20-n-line"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/i20-N-Line/10285/1770883106140/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/i20-N-Line/10285/1770883106140/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Grand I10 Nios",
+    "canonical_id": "hyundai_grand-i10-nios",
+    "alias_names": [
+      "grand-i10-nios",
+      "hyundai grand-i10-nios"
+    ],
+    "variants": [
+      "Era",
+      "Magna",
+      "Corporate",
+      "Sportz",
+      "Magna AMT",
+      "Sportz DT",
+      "Sportz Opt",
+      "Sportz VIBE Edition",
+      "Corporate AMT",
+      "Magna CNG",
+      "Sportz AMT",
+      "Asta",
+      "Asta VIBE Edition",
+      "Sportz CNG",
+      "Sportz VIBE Edition AMT",
+      "Sportz Opt AMT",
+      "Sportz Duo CNG",
+      "Asta AMT",
+      "Asta VIBE Edition AMT",
+      "vs Alto Tour H1",
+      "vs Alto K10",
+      "vs Blinq RYDE",
+      "vs Aura",
+      "vs Eva",
+      "vs i20",
+      "vs Prime HB",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Grand-i10-Nios/10088/1762430432997/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Grand-i10-Nios/10088/1762430432997/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Prime Hb",
+    "canonical_id": "hyundai_prime-hb",
+    "alias_names": [
+      "prime-hb",
+      "hyundai prime-hb"
+    ],
+    "variants": [
+      "CNG",
+      "vs KWID",
+      "vs Alto K10",
+      "vs Blinq RYDE",
+      "vs Aura",
+      "vs C3",
+      "vs i20",
+      "vs Prime SD",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Prime-HB/13173/1778577627366/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Prime-HB/13173/1778577627366/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Prime Sd",
+    "canonical_id": "hyundai_prime-sd",
+    "alias_names": [
+      "prime-sd",
+      "hyundai prime-sd"
+    ],
+    "variants": [
+      "CNG",
+      "vs Aura",
+      "vs Punch",
+      "vs FRONX",
+      "vs Nexon",
+      "vs Swift",
+      "vs Brezza",
+      "vs Baleno",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Prime-SD/13174/1778578135897/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Prime-SD/13174/1778578135897/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Creta N Line",
+    "canonical_id": "hyundai_creta-n-line",
+    "alias_names": [
+      "creta-n-line",
+      "hyundai creta-n-line"
+    ],
+    "variants": [
+      "N8 DCT",
+      "N8 DCT Dual Tone",
+      "N10",
+      "N10 Dual Tone",
+      "N10 DCT",
+      "N10 DCT Dual Tone",
+      "vs Virtus",
+      "vs Slavia",
+      "vs Syros",
+      "vs Sierra",
+      "vs Nexon EV",
+      "vs Seltos",
+      "vs Safari",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta-N-Line/11593/1768815786514/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta-N-Line/11593/1768815786514/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Venue N Line",
+    "canonical_id": "hyundai_venue-n-line",
+    "alias_names": [
+      "venue-n-line",
+      "hyundai venue-n-line"
+    ],
+    "variants": [
+      "N6",
+      "N6 Dual Tone",
+      "N6 DCT",
+      "N6 DCT Dual Tone",
+      "N10 DCT",
+      "N10 DCT Dual Tone",
+      "vs Brezza",
+      "vs Venue",
+      "vs Sierra",
+      "vs Kylaq",
+      "vs Creta",
+      "vs Elevate",
+      "vs XUV 3XO",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Venue-N-Line/13026/1763027823549/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Venue-N-Line/13026/1763027823549/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Creta Electric",
+    "canonical_id": "hyundai_creta-electric",
+    "alias_names": [
+      "creta-electric",
+      "hyundai creta-electric"
+    ],
+    "variants": [
+      "Executive",
+      "Executive Tech",
+      "Smart",
+      "Smart (O)",
+      "Smart (O) DT",
+      "Executive (O) LR",
+      "Smart (O) HC",
+      "Smart (O) HC DT",
+      "Excellence",
+      "Excellence Knight",
+      "Excellence DT",
+      "Smart (O) LR",
+      "Excellence Knight DT",
+      "Smart (O) LR DT",
+      "Excellence HC",
+      "Excellence HC Knight",
+      "Excellence HC DT",
+      "Excellence LR HC DT",
+      "Smart (O) LR HC",
+      "Excellence HC Knight DT",
+      "Smart (O) LR HC DT",
+      "Excellence LR",
+      "Excellence LR Knight",
+      "Excellence LR DT",
+      "Excellence LR Knight DT",
+      "Excellence LR HC",
+      "Excellence LR HC Knight",
+      "vs Harrier EV",
+      "vs MG Windsor EV",
+      "vs e Vitara",
+      "vs Nexon EV",
+      "vs XEV 9e",
+      "vs Curvv EV",
+      "vs Atto 3",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta-Electric/11523/1763989947110/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta-Electric/11523/1763989947110/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Alcazar",
+    "canonical_id": "hyundai_alcazar",
+    "alias_names": [
+      "alcazar",
+      "hyundai alcazar"
+    ],
+    "variants": [
+      "Executive",
+      "Executive Diesel",
+      "Prestige Diesel",
+      "Prestige",
+      "Corporate Diesel",
+      "Prestige DCT",
+      "Corporate Diesel AT",
+      "Platinum",
+      "Platinum Diesel",
+      "Platinum DT",
+      "Platinum DT Diesel",
+      "Platinum DCT",
+      "Platinum Diesel AT",
+      "Platinum 6Str DCT",
+      "Platinum 6Str Diesel AT",
+      "Platinum DT DCT",
+      "Platinum Diesel AT DT",
+      "Platinum 6Str DT DCT",
+      "Platinum 6Str Diesel AT DT",
+      "Signature DCT",
+      "Signature Diesel AT",
+      "Signature DCT Knight",
+      "Signature DT DCT",
+      "Signature Diesel AT DT",
+      "Signature Diesel AT Knight",
+      "Signature 6Str DCT",
+      "Signature 6Str Diesel AT",
+      "Signature 6Str DT DCT",
+      "Signature 6Str Diesel AT DT",
+      "vs XUV 7XO",
+      "vs Creta",
+      "vs Carens",
+      "vs Carens Clavis",
+      "vs Safari",
+      "vs Scorpio N",
+      "vs Grand Vitara",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Alcazar/9246/1758802404168/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Alcazar/9246/1758802404168/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Aura",
+    "canonical_id": "hyundai_aura",
+    "alias_names": [
+      "aura",
+      "hyundai aura"
+    ],
+    "variants": [
+      "E",
+      "S Corporate",
+      "S",
+      "E CNG",
+      "S AMT",
+      "SX",
+      "S CNG",
+      "S Corporate CNG",
+      "SX Option",
+      "SX Plus AMT",
+      "SX CNG",
+      "vs Dzire",
+      "vs Amaze 2nd Gen",
+      "vs FRONX",
+      "vs Amaze",
+      "vs Baleno",
+      "vs Exter",
+      "vs Swift",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Aura/10125/1762429751468/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Aura/10125/1762429751468/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Exter",
+    "canonical_id": "hyundai_exter",
+    "alias_names": [
+      "exter",
+      "hyundai exter"
+    ],
+    "variants": [
+      "HX2",
+      "HX3",
+      "HX3 AMT",
+      "HX2 CNG",
+      "HX4",
+      "HX3 CNG",
+      "HX6",
+      "HX4 Plus AMT",
+      "HX6 DT",
+      "HX6 CNG DT",
+      "HX4 CNG",
+      "HX8",
+      "HX6 AMT",
+      "HX6 AMT DT",
+      "HX6 CNG",
+      "HX8 AMT",
+      "HX8 CNG",
+      "HX10 AMT",
+      "HX10 AMT DT",
+      "vs Punch",
+      "vs FRONX",
+      "vs Baleno",
+      "vs Swift",
+      "vs Wagon R",
+      "vs i20",
+      "vs Brezza",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Exter/13342/1774007040413/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Exter/13342/1774007040413/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Verna",
+    "canonical_id": "hyundai_verna",
+    "alias_names": [
+      "verna",
+      "hyundai verna"
+    ],
+    "variants": [
+      "HX2",
+      "HX4",
+      "HX6",
+      "HX6 DT",
+      "HX6 Plus",
+      "HX6 Plus DT",
+      "HX6 iVT",
+      "HX6 iVT DT",
+      "HX8",
+      "HX6 Plus iVT",
+      "HX8 DT",
+      "HX6 Plus iVT DT",
+      "HX8 iVT",
+      "HX8 iVT DT",
+      "HX8 Turbo",
+      "HX8 Turbo DT",
+      "HX10 iVT",
+      "HX10 iVT DT",
+      "HX8 Turbo DCT",
+      "HX8 Turbo DCT DT",
+      "HX10 Turbo DCT",
+      "HX10 Turbo DCT DT",
+      "vs Virtus",
+      "vs City",
+      "vs Slavia",
+      "vs Creta",
+      "vs Ciaz",
+      "vs Venue",
+      "vs Sierra",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Verna-Facelift/13312/1773040519044/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Verna-Facelift/13312/1773040519044/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "I20",
+    "canonical_id": "hyundai_i20",
+    "alias_names": [
+      "i20",
+      "hyundai i20"
+    ],
+    "variants": [
+      "Era",
+      "Magna Executive",
+      "Magna",
+      "Sportz",
+      "Sportz DT",
+      "Magna IVT",
+      "Sportz Opt",
+      "Sportz Opt Knight",
+      "Asta",
+      "Sportz IVT",
+      "Asta Opt",
+      "Sportz Opt IVT",
+      "Asta Opt DT",
+      "Asta Opt IVT",
+      "Asta Opt IVT DT",
+      "Asta Opt iVT Knight",
+      "vs Baleno",
+      "vs Altroz",
+      "vs FRONX",
+      "vs Swift",
+      "vs Exter",
+      "vs Punch",
+      "vs Basalt",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/i20/11092/1755774177956/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/i20/11092/1755774177956/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Venue",
+    "canonical_id": "hyundai_venue",
+    "alias_names": [
+      "venue",
+      "hyundai venue"
+    ],
+    "variants": [
+      "HX 2",
+      "HX 2 Turbo",
+      "HX 4",
+      "HX 5",
+      "HX 5 Knight",
+      "HX 2 Diesel",
+      "HX 5 Turbo",
+      "HX 5 Plus",
+      "HX 5 Plus Dual Tone",
+      "HX 6",
+      "HX 6 Dual Tone",
+      "HX 5 Diesel",
+      "HX 6T",
+      "HX 5 Turbo DCT",
+      "HX 6T Knight",
+      "HX 6T Dual Tone",
+      "HX 5 Knight Diesel",
+      "HX 5 Diesel AT",
+      "HX 8 Turbo",
+      "HX 8 Turbo Dual Tone",
+      "HX 6 Turbo DCT",
+      "HX 6 Turbo DCT DT",
+      "HX 7 Diesel",
+      "HX 7 Diesel Dual Tone",
+      "HX 8 Turbo DCT",
+      "HX 8 Turbo DCT Dual Tone",
+      "HX 8 Diesel AT",
+      "HX 8 Knight Diesel AT",
+      "HX 8 Diesel AT Dual Tone",
+      "HX 10 Turbo DCT",
+      "HX 10 Knight Turbo DCT",
+      "HX 10 Turbo DCT Dual Tone",
+      "HX 10 Diesel AT",
+      "HX 10 Diesel AT Dual Tone",
+      "vs Sonet",
+      "vs Brezza",
+      "vs Creta",
+      "vs Nexon",
+      "vs Exter",
+      "vs FRONX",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Venue/12999/1771931633886/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Venue/12999/1771931633886/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Hyundai",
+    "model_name": "Creta",
+    "canonical_id": "hyundai_creta",
+    "alias_names": [
+      "creta",
+      "hyundai creta"
+    ],
+    "variants": [
+      "E",
+      "EX Summer Edition",
+      "EX",
+      "E Diesel",
+      "EX (O) Summer Edition",
+      "EX (O)",
+      "EX Diesel Summer Edition",
+      "EX Diesel",
+      "S (O) Summer Edition",
+      "S (O)",
+      "S(O) Knight Summer Edition",
+      "S (O) Knight",
+      "EX(O) iVT",
+      "EX (O) iVT Summer Edition",
+      "EX (O) Diesel Summer Edition",
+      "EX (O) Diesel",
+      "SX Summer Edition",
+      "SX",
+      "SX DT",
+      "S (O) iVT Summer Edition",
+      "S (O) iVT",
+      "S (O) Diesel Summer Edition",
+      "S (O) Diesel",
+      "S (O) Knight Diesel",
+      "EX (O) Diesel AT",
+      "EX (O) Diesel AT Summer Edition",
+      "S (O) Diesel AT Summer Edition",
+      "S (O) Diesel AT",
+      "King",
+      "King DT",
+      "King iVT",
+      "King Diesel",
+      "King iVT DT",
+      "King Knight iVT",
+      "King Diesel DT",
+      "King Knight iVT DT",
+      "King Diesel AT",
+      "King Diesel AT DT",
+      "King Turbo DCT",
+      "King Turbo DCT DT",
+      "vs Seltos",
+      "vs Venue",
+      "vs Sierra",
+      "vs Grand Vitara",
+      "vs e Vitara",
+      "vs Urban Cruiser Hyryder",
+      "vs Brezza",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta/8667/1755765115423/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Hyundai/Creta/8667/1755765115423/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Swift 2021 2024",
+    "canonical_id": "maruti_suzuki_swift-2021-2024",
+    "alias_names": [
+      "swift-2021-2024",
+      "maruti suzuki swift-2021-2024"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift/10406/1697698080681/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift/10406/1697698080681/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Swift Dzire 2020 2024",
+    "canonical_id": "maruti_suzuki_swift-dzire-2020-2024",
+    "alias_names": [
+      "swift-dzire-2020-2024",
+      "maruti suzuki swift-dzire-2020-2024"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift-Dzire/7664/1675859508504/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift-Dzire/7664/1675859508504/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Super Carry",
+    "canonical_id": "maruti_suzuki_super-carry",
+    "alias_names": [
+      "super-carry",
+      "maruti suzuki super-carry"
+    ],
+    "variants": [
+      "Cab Chassis",
+      "STD",
+      "STD CNG"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Super-Carry/8870/1675862375565/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Super-Carry/8870/1675862375565/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Swift Dzire Tour",
+    "canonical_id": "maruti_suzuki_swift-dzire-tour",
+    "alias_names": [
+      "swift-dzire-tour",
+      "maruti suzuki swift-dzire-tour"
+    ],
+    "variants": [
+      "S",
+      "S (O)",
+      "S CNG",
+      "S CNG (O)"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift-Dzire-Tour/8863/1717397917382/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift-Dzire-Tour/8863/1717397917382/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Alto 800 Tour",
+    "canonical_id": "maruti_suzuki_alto-800-tour",
+    "alias_names": [
+      "alto-800-tour",
+      "maruti suzuki alto-800-tour"
+    ],
+    "variants": [
+      "H1",
+      "H1 (O)"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Alto-800-tour/8866/1738123920813/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Alto-800-tour/8866/1738123920813/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Gallery",
+    "canonical_id": "maruti_suzuki_gallery",
+    "alias_names": [
+      "gallery",
+      "maruti suzuki gallery"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/car-images/medium/Maruti/e-Vitara/13326/1771498471537/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/car-images/medium/Maruti/e-Vitara/13326/1771498471537/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Jimny Ev",
+    "canonical_id": "maruti_suzuki_jimny-ev",
+    "alias_names": [
+      "jimny-ev",
+      "maruti suzuki jimny-ev"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Jimny-EV/9620/1751974562948/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Jimny-EV/9620/1751974562948/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Fronx Ev",
+    "canonical_id": "maruti_suzuki_fronx-ev",
+    "alias_names": [
+      "fronx-ev",
+      "maruti suzuki fronx-ev"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Fronx-EV/9619/1753362376046/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Fronx-EV/9619/1753362376046/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Brezza 2026",
+    "canonical_id": "maruti_suzuki_brezza-2026",
+    "alias_names": [
+      "brezza-2026",
+      "maruti suzuki brezza-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Brezza-2025/12258/1753361156120/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Brezza-2025/12258/1753361156120/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Wagon R Tour",
+    "canonical_id": "maruti_suzuki_wagon-r-tour",
+    "alias_names": [
+      "wagon-r-tour",
+      "maruti suzuki wagon-r-tour"
+    ],
+    "variants": [
+      "H3 PETROL",
+      "H3 CNG",
+      "vs Alto Tour H1",
+      "vs Alto K10",
+      "vs Blinq RYDE",
+      "vs C3",
+      "vs Eva",
+      "vs Aura",
+      "vs EaS E",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Wagon-R-tour/9442/1779433847700/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Wagon-R-tour/9442/1779433847700/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Eeco Tour V",
+    "canonical_id": "maruti_suzuki_eeco-tour-v",
+    "alias_names": [
+      "eeco-tour-v",
+      "maruti suzuki eeco-tour-v"
+    ],
+    "variants": [
+      "5 Seater STD",
+      "6 Seater STD",
+      "5 Seater AC",
+      "5 Seater AC CNG",
+      "vs Alto Tour H1",
+      "vs Alto K10",
+      "vs Blinq RYDE",
+      "vs Aura",
+      "vs Eva",
+      "vs i20",
+      "vs Prime HB",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Eeco-Tour-V/13461/1774939134650/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Eeco-Tour-V/13461/1774939134650/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Eeco Cargo",
+    "canonical_id": "maruti_suzuki_eeco-cargo",
+    "alias_names": [
+      "eeco-cargo",
+      "maruti suzuki eeco-cargo"
+    ],
+    "variants": [
+      "STD",
+      "STD CNG",
+      "STD AC CNG",
+      "vs Alto Tour H1",
+      "vs Alto K10",
+      "vs Blinq RYDE",
+      "vs Aura",
+      "vs Eva",
+      "vs i20",
+      "vs Prime HB",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Eeco-Cargo/9449/1762858188201/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Eeco-Cargo/9449/1762858188201/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Alto Tour H1",
+    "canonical_id": "maruti_suzuki_alto-tour-h1",
+    "alias_names": [
+      "alto-tour-h1",
+      "maruti suzuki alto-tour-h1"
+    ],
+    "variants": [
+      "Petrol",
+      "CNG",
+      "vs Alto K10",
+      "vs Wagon R",
+      "vs S-Presso",
+      "vs C3",
+      "vs Eva",
+      "vs EaS E",
+      "vs R3",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Alto-Tour-H1/12517/1762857166816/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Alto-Tour-H1/12517/1762857166816/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Ertiga Tour",
+    "canonical_id": "maruti_suzuki_ertiga-tour",
+    "alias_names": [
+      "ertiga-tour",
+      "maruti suzuki ertiga-tour"
+    ],
+    "variants": [
+      "STD",
+      "STD CNG",
+      "vs Ertiga",
+      "vs Sierra",
+      "vs Thar",
+      "vs e Vitara",
+      "vs Nexon",
+      "vs Creta",
+      "vs Brezza",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Ertiga-Tour/9617/1762858404297/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Ertiga-Tour/9617/1762858404297/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Dzire Tour S",
+    "canonical_id": "maruti_suzuki_dzire-tour-s",
+    "alias_names": [
+      "dzire-tour-s",
+      "maruti suzuki dzire-tour-s"
+    ],
+    "variants": [
+      "STD",
+      "CNG",
+      "vs Aura",
+      "vs Wagon R",
+      "vs Dzire",
+      "vs Punch",
+      "vs FRONX",
+      "vs Nexon",
+      "vs Swift",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Dzire-Tour-S/12461/1762857975456/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Dzire-Tour-S/12461/1762857975456/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Jimny",
+    "canonical_id": "maruti_suzuki_jimny",
+    "alias_names": [
+      "jimny",
+      "maruti suzuki jimny"
+    ],
+    "variants": [
+      "Zeta",
+      "Alpha",
+      "Zeta AT",
+      "Alpha Dual Tone",
+      "Alpha AT",
+      "Alpha Dual Tone AT",
+      "vs Thar",
+      "vs Thar ROXX",
+      "vs Gurkha",
+      "vs Scorpio",
+      "vs Ertiga",
+      "vs Nexon",
+      "vs Grand Vitara",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Jimny/6182/1762859095762/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Jimny/6182/1762859095762/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Baleno 2026",
+    "canonical_id": "maruti_suzuki_baleno-2026",
+    "alias_names": [
+      "baleno-2026",
+      "maruti suzuki baleno-2026"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Baleno-2026/12257/1753424696602/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Baleno-2026/12257/1753424696602/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Brezza 2025",
+    "canonical_id": "maruti_suzuki_brezza-2025",
+    "alias_names": [
+      "brezza-2025",
+      "maruti suzuki brezza-2025"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Brezza-2025/12258/1753361156120/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Brezza-2025/12258/1753361156120/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Grand Vitara 3 Row",
+    "canonical_id": "maruti_suzuki_grand-vitara-3-row",
+    "alias_names": [
+      "grand-vitara-3-row",
+      "maruti suzuki grand-vitara-3-row"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Grand-Vitara-3-row/12259/1753361733185/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Grand-Vitara-3-row/12259/1753361733185/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Victoris",
+    "canonical_id": "maruti_suzuki_victoris",
+    "alias_names": [
+      "victoris",
+      "maruti suzuki victoris"
+    ],
+    "variants": [
+      "LXI",
+      "LXI CNG",
+      "VXI",
+      "VXI CNG",
+      "VXI AT",
+      "ZXI",
+      "ZXI DT",
+      "ZXI (O)",
+      "ZXI (O) DT",
+      "ZXI CNG",
+      "ZXI CNG DT",
+      "ZXI AT",
+      "ZXI Plus",
+      "ZXI AT DT",
+      "ZXI Plus DT",
+      "ZXI (O) AT",
+      "ZXI (O) AT DT",
+      "ZXI Plus (O)",
+      "ZXI Plus (O) DT",
+      "VXI Strong Hybrid",
+      "ZXI Plus AT",
+      "ZXI Plus AT DT",
+      "ZXI Plus (O) AT",
+      "ZXI Strong Hybrid",
+      "ZXI Plus (O) AT DT",
+      "ZXI Strong Hybrid DT",
+      "ZXI (O) Strong Hybrid",
+      "ZXI (O) Strong Hybrid DT",
+      "ZXI Plus AT AWD",
+      "ZXI Plus AWD AT DT",
+      "ZXI Plus (O) AT AWD",
+      "ZXI Plus (O) AWD AT DT",
+      "ZXI Plus Strong Hybrid",
+      "ZXI Plus Strong Hybrid DT",
+      "ZXI Plus (O) Strong Hybrid",
+      "ZXI Plus (O) Strong Hybrid DT",
+      "vs Grand Vitara",
+      "vs e Vitara",
+      "vs Brezza",
+      "vs Creta",
+      "vs Seltos",
+      "vs Sierra",
+      "vs Urban Cruiser Hyryder",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Victoris/12902/1771932006780/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Victoris/12902/1771932006780/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Brezza",
+    "canonical_id": "maruti_suzuki_brezza",
+    "alias_names": [
+      "brezza",
+      "maruti suzuki brezza"
+    ],
+    "variants": [
+      "Lxi",
+      "Lxi CNG",
+      "Vxi",
+      "Vxi CNG",
+      "Zxi",
+      "Zxi DT",
+      "Vxi AT",
+      "Zxi CNG",
+      "Zxi CNG DT",
+      "Zxi Plus",
+      "Zxi Plus DT",
+      "Zxi AT",
+      "Zxi AT DT",
+      "Zxi Plus AT",
+      "Zxi Plus AT DT",
+      "vs Grand Vitara",
+      "vs FRONX",
+      "vs Nexon",
+      "vs Venue",
+      "vs e Vitara",
+      "vs Victoris",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Brezza/10400/1770885013083/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Brezza/10400/1770885013083/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Xl6",
+    "canonical_id": "maruti_suzuki_xl6",
+    "alias_names": [
+      "xl6",
+      "maruti suzuki xl6"
+    ],
+    "variants": [
+      "Zeta",
+      "Zeta CNG",
+      "Alpha",
+      "Zeta AT",
+      "Alpha Plus",
+      "Alpha Plus Dual Tone",
+      "Alpha AT",
+      "Alpha Plus AT",
+      "Alpha Plus AT Dual Tone",
+      "vs Ertiga",
+      "vs Carens",
+      "vs e Vitara",
+      "vs Rumion",
+      "vs Brezza",
+      "vs Victoris",
+      "vs Scorpio N",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/XL6/10378/1762863855359/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/XL6/10378/1762863855359/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Dzire",
+    "canonical_id": "maruti_suzuki_dzire",
+    "alias_names": [
+      "dzire",
+      "maruti suzuki dzire"
+    ],
+    "variants": [
+      "LXI",
+      "VXI",
+      "VXI AMT",
+      "VXI CNG",
+      "ZXI",
+      "ZXI AMT",
+      "ZXI Plus",
+      "ZXI CNG",
+      "ZXI Plus AMT",
+      "vs Amaze 2nd Gen",
+      "vs Swift",
+      "vs Baleno",
+      "vs Amaze",
+      "vs Aura",
+      "vs FRONX",
+      "vs Punch",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Dzire/12186/1771935643542/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Dzire/12186/1771935643542/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Swift",
+    "canonical_id": "maruti_suzuki_swift",
+    "alias_names": [
+      "swift",
+      "maruti suzuki swift"
+    ],
+    "variants": [
+      "LXi",
+      "VXi",
+      "VXi Opt",
+      "VXi AMT",
+      "VXi Opt AMT",
+      "VXi CNG",
+      "ZXi",
+      "VXi Opt CNG",
+      "ZXi AMT",
+      "ZXi Plus",
+      "ZXi Plus DT",
+      "ZXi CNG",
+      "ZXi Plus AMT",
+      "ZXi Plus AMT DT",
+      "vs Baleno",
+      "vs Punch",
+      "vs FRONX",
+      "vs Dzire",
+      "vs Wagon R",
+      "vs Celerio",
+      "vs i20",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift/9226/1755777061785/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Swift/9226/1755777061785/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Wagon R",
+    "canonical_id": "maruti_suzuki_wagon-r",
+    "alias_names": [
+      "wagon-r",
+      "maruti suzuki wagon-r"
+    ],
+    "variants": [
+      "LXI",
+      "VXI",
+      "LXI CNG",
+      "ZXI",
+      "VXI AT",
+      "ZXI Plus",
+      "ZXI AT",
+      "VXI CNG",
+      "ZXI Plus Dual Tone",
+      "ZXI Plus AT",
+      "ZXI Plus AT Dual tone",
+      "vs Celerio",
+      "vs Swift",
+      "vs Punch",
+      "vs Alto K10",
+      "vs Ignis",
+      "vs Baleno",
+      "vs S-Presso",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Wagon-R/10363/1755843602295/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Wagon-R/10363/1755843602295/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Alto K10",
+    "canonical_id": "maruti_suzuki_alto-k10",
+    "alias_names": [
+      "alto-k10",
+      "maruti suzuki alto-k10"
+    ],
+    "variants": [
+      "STD",
+      "LXI",
+      "VXI",
+      "LXI S-CNG",
+      "VXI AT",
+      "VXI Plus",
+      "VXI S-CNG",
+      "VXI Plus AT",
+      "vs Celerio",
+      "vs S-Presso",
+      "vs Wagon R",
+      "vs KWID",
+      "vs Swift",
+      "vs Punch",
+      "vs Ignis",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Alto-K10/10331/1775800207841/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Alto-K10/10331/1775800207841/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Invicto",
+    "canonical_id": "maruti_suzuki_invicto",
+    "alias_names": [
+      "invicto",
+      "maruti suzuki invicto"
+    ],
+    "variants": [
+      "Zeta Plus 7Str",
+      "Zeta Plus 8Str",
+      "Alpha Plus 7Str",
+      "vs Innova Hycross",
+      "vs Innova Crysta",
+      "vs Fortuner",
+      "vs Safari",
+      "vs Grand Vitara",
+      "vs MG Hector Plus",
+      "vs Harrier",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Invicto/9483/1762858847096/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/Invicto/9483/1762858847096/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "S Presso",
+    "canonical_id": "maruti_suzuki_s-presso",
+    "alias_names": [
+      "s-presso",
+      "maruti suzuki s-presso"
+    ],
+    "variants": [
+      "Standard"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/S-Presso/10347/1762859376235/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/S-Presso/10347/1762859376235/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Fronx",
+    "canonical_id": "maruti_suzuki_fronx",
+    "alias_names": [
+      "fronx",
+      "maruti suzuki fronx"
+    ],
+    "variants": [
+      "Sigma",
+      "Delta",
+      "Sigma CNG",
+      "Delta Plus",
+      "Delta Plus Opt",
+      "Delta AMT",
+      "Delta Plus AMT",
+      "Delta Plus Opt AMT",
+      "Delta CNG",
+      "Delta Plus Turbo",
+      "Zeta Turbo",
+      "Alpha Turbo",
+      "Alpha Turbo DT",
+      "Zeta Turbo AT",
+      "Alpha Turbo AT",
+      "Alpha Turbo DT AT",
+      "vs Baleno",
+      "vs Taisor",
+      "vs Brezza",
+      "vs Punch",
+      "vs Swift",
+      "vs Nexon",
+      "vs Dzire",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/FRONX/9916/1771931850505/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/FRONX/9916/1771931850505/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "E Vitara",
+    "canonical_id": "maruti_suzuki_e-vitara",
+    "alias_names": [
+      "e-vitara",
+      "maruti suzuki e-vitara"
+    ],
+    "variants": [
+      "Delta",
+      "Zeta",
+      "Alpha",
+      "Alpha Dual Tone",
+      "vs Nexon EV",
+      "vs Punch EV",
+      "vs Curvv EV",
+      "vs VF6",
+      "vs Urban Cruiser Hyryder",
+      "vs Victoris",
+      "Colours"
+    ],
+    "colours": [
+      {
+        "hex": "#888888",
+        "name": "Default",
+        "images": [
+          {
+            "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/e-Vitara/13326/1771560398854/front-left-side-47.jpg",
+            "angle": "front_exterior"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://stimg.cardekho.com/images/carexteriorimages/630x420/Maruti/e-Vitara/13326/1771560398854/front-left-side-47.jpg",
+        "angle": "front_exterior"
+      }
+    ]
+  },
+  {
+    "brand": "Maruti Suzuki",
+    "model_name": "Swift",
+    "canonical_id": "maruti_swift",
+    "alias_names": [
+      "swift",
+      "maruti swift",
+      "swift 2024",
+      "suzuki swift"
+    ],
+    "variants": [
+      "LXI",
+      "VXI",
+      "ZXI",
+      "ZXI+"
+    ],
+    "colours": [
+      {
+        "hex": "#1A5276",
+        "name": "Luster Blue",
+        "images": [
+          {
+            "url": "https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&w=800&q=80",
+            "angle": "front_exterior"
+          },
+          {
+            "url": "https://images.unsplash.com/photo-1562591176-c290d70b6d27?auto=format&fit=crop&w=800&q=80",
+            "angle": "rear_exterior"
+          },
+          {
+            "url": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
+            "angle": "side_exterior"
+          },
+          {
+            "url": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80",
+            "angle": "interior_dashboard"
+          }
+        ]
+      },
+      {
+        "hex": "#C0392B",
+        "name": "Solid Fire Red",
+        "images": [
+          {
+            "url": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80",
+            "angle": "front_exterior"
+          },
+          {
+            "url": "https://images.unsplash.com/photo-1562591176-c290d70b6d27?auto=format&fit=crop&w=800&q=80",
+            "angle": "rear_exterior"
+          },
+          {
+            "url": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
+            "angle": "side_exterior"
+          },
+          {
+            "url": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80",
+            "angle": "interior_dashboard"
+          }
+        ]
+      }
+    ],
+    "images": [
+      {
+        "url": "https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&w=800&q=80",
+        "angle": "front_exterior"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1562591176-c290d70b6d27?auto=format&fit=crop&w=800&q=80",
+        "angle": "rear_exterior"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
+        "angle": "side_exterior"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80",
+        "angle": "interior_dashboard"
+      }
+    ]
+  }
+]
