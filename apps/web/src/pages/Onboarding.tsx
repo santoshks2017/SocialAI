@@ -320,41 +320,55 @@ export default function Onboarding() {
           
           {/* Step Progress Tracker */}
           <div className="border-b border-slate-800/80 px-6 py-4 bg-slate-900/30">
-            <div className="flex justify-between items-center max-w-2xl mx-auto">
-              {[
-                { label: 'Profile', stepNum: 1 },
-                { label: 'Socials', stepNum: 2 },
-                { label: 'Identity', stepNum: 3 },
-                { label: 'First Post', stepNum: 4 },
-                { label: 'Launch', stepNum: 5 },
-              ].map((s) => (
-                <div key={s.stepNum} className="flex items-center flex-1 last:flex-initial">
-                  <div className="flex flex-col items-center gap-1.5 relative">
-                    <div 
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                        step === s.stepNum 
-                          ? 'bg-orange-500 text-white ring-4 ring-orange-500/20 scale-110 shadow-lg' 
-                          : step > s.stepNum 
-                            ? 'bg-teal-500 text-white' 
-                            : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {step > s.stepNum ? <Check className="w-4 h-4" /> : s.stepNum}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 max-w-4xl mx-auto">
+              <div className="flex-1 w-full max-w-2xl">
+                <div className="flex justify-between items-center">
+                  {[
+                    { label: 'Profile', stepNum: 1 },
+                    { label: 'Socials', stepNum: 2 },
+                    { label: 'Identity', stepNum: 3 },
+                    { label: 'First Post', stepNum: 4 },
+                    { label: 'Launch', stepNum: 5 },
+                  ].map((s) => (
+                    <div key={s.stepNum} className="flex items-center flex-1 last:flex-initial">
+                      <div className="flex flex-col items-center gap-1.5 relative">
+                        <div 
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                            step === s.stepNum 
+                              ? 'bg-orange-500 text-white ring-4 ring-orange-500/20 scale-110 shadow-lg' 
+                              : step > s.stepNum 
+                                ? 'bg-teal-500 text-white' 
+                                : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {step > s.stepNum ? <Check className="w-4 h-4" /> : s.stepNum}
+                        </div>
+                        <span className={`text-[10px] font-medium hidden sm:block ${
+                          step === s.stepNum ? 'text-white' : 'text-slate-500'
+                        }`}>{s.label}</span>
+                      </div>
+                      {s.stepNum < 5 && (
+                        <div className="flex-1 mx-3 h-0.5 bg-slate-800 rounded">
+                          <div 
+                            className="h-full bg-gradient-to-r from-orange-500 to-teal-500 transition-all duration-500" 
+                            style={{ width: step > s.stepNum ? '100%' : '0%' }}
+                          />
+                        </div>
+                      )}
                     </div>
-                    <span className={`text-[10px] font-medium hidden sm:block ${
-                      step === s.stepNum ? 'text-white' : 'text-slate-500'
-                    }`}>{s.label}</span>
-                  </div>
-                  {s.stepNum < 5 && (
-                    <div className="flex-1 mx-3 h-0.5 bg-slate-800 rounded">
-                      <div 
-                        className="h-full bg-gradient-to-r from-orange-500 to-teal-500 transition-all duration-500" 
-                        style={{ width: step > s.stepNum ? '100%' : '0%' }}
-                      />
-                    </div>
-                  )}
+                  ))}
                 </div>
-              ))}
+              </div>
+              {step < 5 && (
+                <Button
+                  variant="secondary"
+                  className="text-xs bg-slate-800/40 hover:bg-slate-800 text-slate-400 hover:text-white border-slate-800/80 self-end md:self-auto py-1 px-3"
+                  onClick={handleCompleteOnboarding}
+                  disabled={loading}
+                >
+                  Skip Onboarding
+                </Button>
+              )}
             </div>
           </div>
 
@@ -444,21 +458,24 @@ export default function Onboarding() {
                 </div>
 
                 <div className="flex justify-between pt-4 border-t border-slate-800/80">
-                  <Button 
-                    variant="secondary"
-                    className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
-                    onClick={() => setStep(2)}
-                  >
-                    Skip
-                  </Button>
-                  <Button 
-                    className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2 shadow-lg shadow-orange-500/10"
-                    onClick={handleProfileSubmit}
-                    disabled={loading}
-                  >
-                    {loading ? 'Saving...' : 'Save & Continue'}
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
+                  <div />
+                  <div className="flex gap-3">
+                    <Button 
+                      variant="secondary"
+                      className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
+                      onClick={() => setStep(2)}
+                    >
+                      Skip Step
+                    </Button>
+                    <Button 
+                      className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2 shadow-lg shadow-orange-500/10"
+                      onClick={handleProfileSubmit}
+                      disabled={loading}
+                    >
+                      {loading ? 'Saving...' : 'Save & Continue'}
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -521,13 +538,22 @@ export default function Onboarding() {
                   <Button variant="secondary" onClick={() => setStep(1)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back
                   </Button>
-                  <Button 
-                    className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
-                    onClick={() => setStep(3)}
-                  >
-                    Skip or Continue
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button 
+                      variant="secondary"
+                      className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
+                      onClick={() => setStep(3)}
+                    >
+                      Skip Step
+                    </Button>
+                    <Button 
+                      className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                      onClick={() => setStep(3)}
+                    >
+                      Continue
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -633,10 +659,10 @@ export default function Onboarding() {
                 </div>
 
                 <div className="flex justify-between pt-4 border-t border-slate-800/80">
-                  <div className="flex gap-2">
-                    <Button variant="secondary" onClick={() => setStep(2)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
-                      <ArrowLeft className="w-4 h-4 mr-2" /> Back
-                    </Button>
+                  <Button variant="secondary" onClick={() => setStep(2)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                  </Button>
+                  <div className="flex gap-3">
                     <Button 
                       variant="secondary"
                       className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
@@ -645,17 +671,17 @@ export default function Onboarding() {
                         triggerAiGeneration();
                       }}
                     >
-                      Skip
+                      Skip Step
+                    </Button>
+                    <Button 
+                      className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                      onClick={handleBrandIdentitySubmit}
+                      disabled={loading}
+                    >
+                      {loading ? 'Saving...' : 'Confirm Brand Styles'}
+                      <ArrowRight className="w-4 h-4" />
                     </Button>
                   </div>
-                  <Button 
-                    className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
-                    onClick={handleBrandIdentitySubmit}
-                    disabled={loading}
-                  >
-                    {loading ? 'Saving...' : 'Confirm Brand Styles'}
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
                 </div>
               </div>
             )}
@@ -737,27 +763,27 @@ export default function Onboarding() {
                 )}
 
                 <div className="flex justify-between pt-4 border-t border-slate-800/80">
-                  <div className="flex gap-2">
-                    <Button variant="secondary" onClick={() => setStep(3)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
-                      <ArrowLeft className="w-4 h-4 mr-2" /> Back
-                    </Button>
+                  <Button variant="secondary" onClick={() => setStep(3)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                  </Button>
+                  <div className="flex gap-3">
                     <Button 
                       variant="secondary"
                       className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
                       onClick={() => setStep(5)}
                       disabled={aiLoading}
                     >
-                      Skip
+                      Skip Step
+                    </Button>
+                    <Button 
+                      className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                      onClick={handlePostSelection}
+                      disabled={loading || aiLoading}
+                    >
+                      {loading ? 'Creating...' : 'Schedule Selected Post'}
+                      <ArrowRight className="w-4 h-4" />
                     </Button>
                   </div>
-                  <Button 
-                    className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
-                    onClick={handlePostSelection}
-                    disabled={loading || aiLoading}
-                  >
-                    {loading ? 'Creating...' : 'Schedule Selected Post'}
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
                 </div>
               </div>
             )}
