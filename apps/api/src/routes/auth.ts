@@ -457,6 +457,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
         })()
       }
 
+      // Seed model library if empty
+      const modelsCount = await prisma.syncedModel.count({ where: { dealer_id: demoDealer.id } });
+      if (modelsCount === 0) {
+        const { syncDealerModels } = await import('../services/modelSync.js');
+        void syncDealerModels(demoDealer.id, ["Maruti Suzuki", "Hyundai"]).catch(err => {
+          fastify.log.error(err, "[Demo seed] Failed to sync models");
+        });
+      }
+
       const demoUser = await prisma.dealerUser.upsert({
         where: { phone: demoPhone },
         create: {

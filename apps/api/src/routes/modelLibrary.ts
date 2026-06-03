@@ -36,10 +36,33 @@ export default async function modelLibraryRoutes(fastify: FastifyInstance) {
         ];
       }
 
-      const models = await prisma.syncedModel.findMany({
+      let models = await prisma.syncedModel.findMany({
         where,
         orderBy: [{ brand: 'asc' }, { model_name: 'asc' }],
       });
+
+      if (models.length === 0) {
+        // Self-heal: If no models synced, auto-sync based on dealer brands or fallbacks
+        const dealer = await prisma.dealer.findUnique({
+          where: { id: dealer_id },
+          select: { brands: true }
+        });
+        const dealerBrands = (dealer?.brands as string[] | null) || [];
+        const syncBrands = dealerBrands.length > 0 ? dealerBrands : ["Maruti Suzuki", "Hyundai", "Tata"];
+        
+        try {
+          const { syncDealerModels } = await import('../services/modelSync.js');
+          await syncDealerModels(dealer_id, syncBrands);
+          
+          // Refetch models after sync
+          models = await prisma.syncedModel.findMany({
+            where,
+            orderBy: [{ brand: 'asc' }, { model_name: 'asc' }],
+          });
+        } catch (err) {
+          fastify.log.error(err, 'Failed to self-heal sync models');
+        }
+      }
 
       return { success: true, models };
     }

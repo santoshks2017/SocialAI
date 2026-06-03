@@ -6,7 +6,7 @@ import type { AIGenerationResponse } from '../services/creative';
 import { useToast } from '../components/ui/Toast';
 import {
   ArrowLeft, RefreshCw, Check, ImagePlus, X,
-  Calendar, Film, Wand2, ChevronDown, Layout, Sparkles, ZoomIn
+  Calendar, Wand2, ChevronDown, Layout, Sparkles, ZoomIn
 } from 'lucide-react';
 import api from '../services/api';
 import { CanvasStudio } from '../components/CreatePost/CanvasStudio';
@@ -90,18 +90,7 @@ export default function CreatePost() {
   // Canvas Studio integration
   const [canvasStudioOpen, setCanvasStudioOpen] = useState(false);
 
-  // Legacy tools states
-  const [legacyExpanded, setLegacyExpanded] = useState(false);
-  const [videoPrompt, setVideoPrompt] = useState('');
-  const [videoDuration, setVideoDuration] = useState(15);
-  const [videoAspect, setVideoAspect] = useState<'9:16' | '16:9' | '1:1'>('9:16');
-  const [generatingVideo, setGeneratingVideo] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const videoImageRef = useRef<HTMLInputElement>(null);
-  const [videoImageUrl, setVideoImageUrl] = useState<string | null>(null);
-  const [videoImageId, setVideoImageId] = useState<string | null>(null);
-  const [videoJobId, setVideoJobId] = useState<string | null>(null);
-  const [uploadingVideoImage, setUploadingVideoImage] = useState(false);
+
 
   // Brand logos & details
   const [selectedBrand, setSelectedBrand] = useState('Hyundai');
@@ -445,47 +434,7 @@ export default function CreatePost() {
     }
   };
 
-  // Video generation functions (Legacy)
-  const handleVideoImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingVideoImage(true);
-    try {
-      const res = await creativeService.uploadImage(file);
-      setVideoImageId(res.id);
-      setVideoImageUrl(res.url);
-    } catch {
-      addToast({ type: 'error', title: 'Upload failed', message: 'Could not upload image.' });
-    } finally {
-      setUploadingVideoImage(false);
-    }
-  };
 
-  const handleGenerateVideo = async () => {
-    if (!videoPrompt.trim()) return;
-    setGeneratingVideo(true);
-    setVideoJobId(null);
-    setVideoUrl(null);
-    try {
-      const res = await api.post<{ success: boolean; video_url?: string; job_id?: string; status?: string; message?: string }>('/creatives/generate-video', {
-        prompt: videoPrompt,
-        image_id: videoImageId ?? undefined,
-        duration_seconds: videoDuration,
-        aspect_ratio: videoAspect,
-      });
-      if (res.video_url) {
-        setVideoUrl(res.video_url);
-        addToast({ type: 'success', title: 'Video ready!', message: `Your ${videoDuration}s video is generated.` });
-      } else if (res.job_id) {
-        setVideoJobId(res.job_id);
-        addToast({ type: 'success', title: 'Video queued', message: 'Video is being processed.' });
-      }
-    } catch {
-      addToast({ type: 'error', title: 'Video generation failed', message: 'Could not generate video.' });
-    } finally {
-      setGeneratingVideo(false);
-    }
-  };
 
   const selectModelManually = (model: any) => {
     setDetectedModel(model);
@@ -900,103 +849,6 @@ export default function CreatePost() {
                     </>
                   )}
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Legacy Tools & Video Generator */}
-          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-slate-50/50 mt-8">
-            <button
-              onClick={() => setLegacyExpanded(!legacyExpanded)}
-              className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors focus:outline-none cursor-pointer"
-            >
-              <div>
-                <h4 className="text-xs font-black text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Film className="w-4 h-4 text-orange-500" /> Legacy Tools & Video Generator
-                </h4>
-                <p className="text-[10px] text-slate-450 mt-0.5">Generate video concepts, Reels duration, and other legacy features</p>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${legacyExpanded ? 'rotate-180' : ''}`} />
-            </button>
-
-            {legacyExpanded && (
-              <div className="px-5 pb-5 pt-3 border-t border-slate-150 space-y-4 bg-white">
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Video Concept</label>
-                  <textarea
-                    value={videoPrompt}
-                    onChange={(e) => setVideoPrompt(e.target.value)}
-                    rows={2}
-                    placeholder="Describe video story board concept..."
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-white text-xs text-slate-800 placeholder:text-slate-400"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Upload base car photo</label>
-                  <input ref={videoImageRef} type="file" accept="image/*" className="hidden" onChange={handleVideoImageUpload} />
-                  {videoImageUrl ? (
-                    <div className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50">
-                      <img src={videoImageUrl} alt="Base" className="w-10 h-10 rounded-lg object-cover" />
-                      <span className="text-xs text-slate-700">Image attached</span>
-                      <button onClick={() => { setVideoImageId(null); setVideoImageUrl(null); }} className="ml-auto p-1 hover:text-red-500">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => videoImageRef.current?.click()}
-                      className="px-3 py-2 text-xs font-bold border border-slate-200 hover:border-orange-500 rounded-xl text-slate-600 bg-white cursor-pointer w-full"
-                    >
-                      {uploadingVideoImage ? 'Uploading...' : 'Choose File'}
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Duration</label>
-                    <div className="flex gap-1.5">
-                      {[15, 30].map((s) => (
-                        <button key={s} onClick={() => setVideoDuration(s)}
-                          className={`flex-1 py-1.5 rounded-lg border text-xs font-medium cursor-pointer ${videoDuration === s ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-700'}`}
-                        >{s}s</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Aspect Ratio</label>
-                    <div className="flex gap-1.5">
-                      {['9:16', '1:1'].map((r) => (
-                        <button key={r} onClick={() => setVideoAspect(r as any)}
-                          className={`flex-1 py-1.5 rounded-lg border text-xs font-medium cursor-pointer ${videoAspect === r ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-700'}`}
-                        >{r}</button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleGenerateVideo}
-                  disabled={!videoPrompt.trim() || generatingVideo}
-                  className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
-                >
-                  {generatingVideo ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                  Generate AI Video
-                </button>
-
-                {videoUrl && (
-                  <div className="bg-slate-955 p-3 rounded-xl flex flex-col items-center">
-                    <video src={videoUrl} controls className="max-h-[280px] rounded-lg" />
-                    <a href={videoUrl} download className="text-xs text-orange-500 mt-2 font-bold hover:underline">Download MP4</a>
-                  </div>
-                )}
-
-                {videoJobId && !videoUrl && (
-                  <p className="text-[10px] text-orange-550 font-semibold animate-pulse text-center mt-2">
-                    Video generation job queued: {videoJobId}
-                  </p>
-                )}
               </div>
             )}
           </div>

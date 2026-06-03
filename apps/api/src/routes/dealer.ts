@@ -65,6 +65,13 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
         },
       });
 
+      if (body.brands !== undefined && body.brands.length > 0) {
+        const { syncDealerModels } = await import('../services/modelSync.js');
+        void syncDealerModels(dealer_id, body.brands).catch(err => {
+          fastify.log.error(err, 'Failed to background sync models on profile update');
+        });
+      }
+
       return { success: true, profile: updated };
     } catch (err: any) {
       fastify.log.error(err, 'Failed to update dealer profile');
