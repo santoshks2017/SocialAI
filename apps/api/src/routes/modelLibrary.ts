@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
-import { CARDEKHO_OEM_DATABASE } from '../data/cardekhoOemDb.js';
+import { ALL_MODELS } from '../services/modelSync.js';
 import { randomUUID } from 'crypto';
 
 interface SyncJob {
@@ -120,8 +120,8 @@ export default async function modelLibraryRoutes(fastify: FastifyInstance) {
             // Simulate network latency (2 seconds per brand) to demonstrate step progress bar in UI
             await new Promise((resolve) => setTimeout(resolve, 2000));
 
-            // Fetch models for this brand from our mock database
-            const mockModels = CARDEKHO_OEM_DATABASE.filter(
+            // Fetch models for this brand from our combined database
+            const mockModels = ALL_MODELS.filter(
               (m) => m.brand.toLowerCase() === brand.toLowerCase()
             );
 

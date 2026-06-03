@@ -28,7 +28,7 @@ try {
   console.error('Error loading fullScrapedModels.json', e);
 }
 
-const ALL_MODELS = Array.from(modelsMap.values());
+export const ALL_MODELS = Array.from(modelsMap.values());
 
 export async function syncDealerModels(dealer_id: string, brands: string[]) {
   // Update the dealer's profile with selected brands
