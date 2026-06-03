@@ -187,18 +187,25 @@ function buildBrandingOverlay(
   </defs>
   `;
 
+  // Render logos with shadow filter if it's one of our styled templates
+  const useShadow = !!templateStyle;
+  const filterAttr = useShadow ? ' filter="url(#shadow)"' : '';
+
+  // If the dealer has uploaded their own logo, put it on the left (where the brand logo is)
+  // and remove the brand logo to prevent displaying the wrong OEM brand logo.
+  let brandLogo = "";
+  let dealerLogo = "";
+
+  if (dealer.logoBuffer) {
+    dealerLogo = `<image x="${hs(0.05)}" y="${hs(0.04)}" width="${hs(0.3)}" height="${hs(0.11)}" preserveAspectRatio="xMinYMid meet" href="data:image/png;base64,${dealer.logoBuffer.toString("base64")}"${filterAttr}/>`;
+  } else if (dealer.brandLogoSvg) {
+    brandLogo = `<g transform="translate(${hs(0.05)}, ${hs(0.04)}) scale(${(size / 1080) * 1.7})"${filterAttr}>${dealer.brandLogoSvg}</g>`;
+  }
+
   if (templateStyle === 'festive') {
     // 1. FESTIVE & HIGH ENERGY LAYOUT
     const footerHeight = hs(0.16);
     const footerY = size - footerHeight;
-
-    const brandLogo = dealer.brandLogoSvg
-      ? `<g transform="translate(${hs(0.05)}, ${hs(0.04)}) scale(${(size / 1080) * 1.7})" filter="url(#shadow)">${dealer.brandLogoSvg}</g>`
-      : "";
-
-    const dealerLogo = dealer.logoBuffer
-      ? `<image x="${size - hs(0.35)}" y="${hs(0.04)}" width="${hs(0.3)}" height="${hs(0.11)}" preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${dealer.logoBuffer.toString("base64")}" filter="url(#shadow)"/>`
-      : "";
 
     svgContent = `
       ${defs}
@@ -261,15 +268,6 @@ function buildBrandingOverlay(
     // 2. PREMIUM & LUXURY LAYOUT
     const footerHeight = hs(0.16);
     const footerY = size - footerHeight;
-
-    const brandLogo = dealer.brandLogoSvg
-      ? `<g transform="translate(${hs(0.05)}, ${hs(0.04)}) scale(${(size / 1080) * 1.7})" filter="url(#shadow)">${dealer.brandLogoSvg}</g>`
-      : "";
-
-    const dealerLogo = dealer.logoBuffer
-      ? `<image x="${size - hs(0.35)}" y="${hs(0.04)}" width="${hs(0.3)}" height="${hs(0.11)}" preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${dealer.logoBuffer.toString("base64")}" filter="url(#shadow)"/>`
-      : "";
-
     const serifFont = `Georgia, 'Playfair Display', ${fontFamily}`;
 
     svgContent = `
@@ -329,14 +327,6 @@ function buildBrandingOverlay(
     // 3. VALUE & CTA LAYOUT
     const footerHeight = hs(0.16);
     const footerY = size - footerHeight;
-
-    const brandLogo = dealer.brandLogoSvg
-      ? `<g transform="translate(${hs(0.05)}, ${hs(0.04)}) scale(${(size / 1080) * 1.7})" filter="url(#shadow)">${dealer.brandLogoSvg}</g>`
-      : "";
-
-    const dealerLogo = dealer.logoBuffer
-      ? `<image x="${size - hs(0.35)}" y="${hs(0.04)}" width="${hs(0.3)}" height="${hs(0.11)}" preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${dealer.logoBuffer.toString("base64")}" filter="url(#shadow)"/>`
-      : "";
 
     svgContent = `
       ${defs}
@@ -412,14 +402,6 @@ function buildBrandingOverlay(
     // DEFAULT ORIGINAL LAYOUT (backward compatibility)
     const footerHeight = hs(0.16);
     const footerY = size - footerHeight;
-
-    const brandLogo = dealer.brandLogoSvg
-      ? `<g transform="translate(${hs(0.05)}, ${hs(0.04)}) scale(${(size / 1080) * 1.7})">${dealer.brandLogoSvg}</g>`
-      : "";
-
-    const dealerLogo = dealer.logoBuffer
-      ? `<image x="${size - hs(0.35)}" y="${hs(0.04)}" width="${hs(0.3)}" height="${hs(0.11)}" preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${dealer.logoBuffer.toString("base64")}"/>`
-      : "";
 
     svgContent = `
       ${defs}
