@@ -5,7 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "npm run dev --workspaces"
+    "dev": "npm run dev --workspaces",
+    "build:shared": "npm run build -w @cardeko/shared",
+    "build:packages": "npm run build -w @cardeko/shared -w @cardeko/pattern-engine -w @cardeko/scraper -w @cardeko/render-engine -w @cardeko/template-engine",
+    "build:api": "npm run build:packages && npm run build -w @cardeko/api",
+    "build:web": "npm run build:shared && npm run build -w web",
+    "build": "npm run build:packages && npm run build -w @cardeko/api -w web",
+    "vercel-build": "npm run build:web"
   },
   "keywords": [],
   "author": "",

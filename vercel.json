@@ -2,22 +2,15 @@
   "version": 2,
   "builds": [
     {
-      "src": "apps/api/src/index.ts",
-      "use": "@vercel/node",
+      "src": "package.json",
+      "use": "@vercel/static-build",
       "config": {
-        "memory": 1024,
-        "maxDuration": 30,
-        "includeFiles": ["apps/api/src/generated/client/**"]
+        "distDir": "apps/web/dist"
       }
     }
   ],
   "routes": [
-    { "src": "/(.*)", "dest": "/apps/api/src/index.ts" }
-  ],
-  "crons": [
-    {
-      "path": "/v1/cron/publish",
-      "schedule": "0 0 * * *"
-    }
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
