@@ -79,16 +79,26 @@ export async function compositeLayered(
     const leftOffset = Math.round((size - subW) / 2)
     const topOffset = size - footerHeight - subH // sit exactly on top of bottom band
 
-    // ── Generate ground shadow layer (soft drop shadow, opacity ~48%, blur 2% of size) ──
-    const shadowBlurRadius = Math.round(size * 0.02)
+    // ── Generate premium contact shadow layer (3 ellipses: body shadow + 2 wheel contact shadows) ──
+    const bodyShadowBlur = Math.round(size * 0.02)
+    const contactShadowBlur = Math.round(size * 0.006)
+
     const shadowSvg = `
     <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <filter id="shadowBlur" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="${shadowBlurRadius}" />
+        <filter id="bodyShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="${bodyShadowBlur}" />
+        </filter>
+        <filter id="contactShadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="${contactShadowBlur}" />
         </filter>
       </defs>
-      <ellipse cx="${size / 2}" cy="${size - footerHeight}" rx="${Math.round(subW * 0.46)}" ry="${Math.round(subH * 0.08)}" fill="#000000" opacity="0.48" filter="url(#shadowBlur)" />
+      <!-- Soft main body shadow -->
+      <ellipse cx="${size / 2}" cy="${size - footerHeight + Math.round(subH * 0.02)}" rx="${Math.round(subW * 0.46)}" ry="${Math.round(subH * 0.06)}" fill="#000000" opacity="0.38" filter="url(#bodyShadow)" />
+      <!-- Front wheel contact shadow -->
+      <ellipse cx="${size / 2 - Math.round(subW * 0.23)}" cy="${size - footerHeight}" rx="${Math.round(subW * 0.13)}" ry="${Math.round(subH * 0.03)}" fill="#000000" opacity="0.7" filter="url(#contactShadow)" />
+      <!-- Rear wheel contact shadow -->
+      <ellipse cx="${size / 2 + Math.round(subW * 0.23)}" cy="${size - footerHeight}" rx="${Math.round(subW * 0.13)}" ry="${Math.round(subH * 0.03)}" fill="#000000" opacity="0.7" filter="url(#contactShadow)" />
     </svg>
     `;
     const shadowBuffer = Buffer.from(shadowSvg)

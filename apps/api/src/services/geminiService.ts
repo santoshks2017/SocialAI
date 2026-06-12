@@ -680,14 +680,37 @@ export interface ElaboratedPromptBrief {
   hashtags_option3: string[];
 }
 
+function getHardcodedElaboratedBrief(
+  userPrompt: string,
+  matchedModel?: { brand: string; model_name: string } | null
+): ElaboratedPromptBrief {
+  const brand = matchedModel?.brand || "Hyundai";
+  const modelName = matchedModel?.model_name || "Creta";
+  
+  return {
+    brand: brand,
+    model_name: modelName,
+    car_angle: "front-three-quarter",
+    background_theme: "festive Indian city street",
+    background_details: "A modern upscale Indian city street at dusk with warm festive ambient lighting, wet asphalt reflecting string lights, soft bokeh of warm lights, empty foreground space reserved for vehicle placement, no cars, no people, cinematic lighting, 8k",
+    background_details_option2: "A premium luxury showroom with clean modern architecture, high-end studio lighting, reflective gray floor, empty foreground space reserved for vehicle placement, no cars, no people, 8k",
+    background_details_option3: "A scenic winding mountain highway at golden hour, dramatic sky, warm sunset glow, empty foreground space reserved for vehicle placement, no cars, no people, 8k",
+    lighting_mood: "warm sunset glow",
+    headline: `Drive the All-New ${brand} ${modelName}`,
+    caption: `Celebrate this season in style! Experience unmatched power and safety with the new ${brand} ${modelName}. Visit us for an exclusive test drive and special exchange benefits today! #CarDekho #SocialAI`,
+    caption_option2: `Elevate your driving experience. The ${brand} ${modelName} offers state-of-the-art technology, premium comfort, and superior design. Book yours today!`,
+    caption_option3: `Unbeatable exchange offers on ${brand} ${modelName}! Upgrade your ride this summer with exciting deals and flexible finance options. Contact us now!`,
+    hashtags: ["#HyundaiCreta", "#NewCreta", "#CarExchange", "#SummerDeals"],
+    hashtags_option2: ["#PremiumSUV", "#LuxuryDrive", "#HyundaiIndia", "#SUVLife"],
+    hashtags_option3: ["#SpecialOffers", "#UpgradeYourDrive", "#ExchangeBonus", "#BookNow"]
+  };
+}
+
 export async function elaboratePromptBrief(
   userPrompt: string,
   matchedModel?: { brand: string; model_name: string } | null
 ): Promise<ElaboratedPromptBrief> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-
-  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
 
   const systemInstructions = `You are a premium automotive advertising director. 
 Analyze the user's campaign concept and output a detailed structure that outlines 3 distinct creative options and 3 distinct caption/hashtag copy options for a social media banner.
@@ -719,60 +742,108 @@ ${modelText}
 
 Generate the detailed layers and copy now.`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const payload = {
-    contents: [
-      {
-        parts: [{ text: `${systemInstructions}\n\n${userMessage}` }]
-      }
-    ],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'OBJECT',
-        properties: {
-          brand: { type: 'STRING' },
-          model_name: { type: 'STRING' },
-          car_angle: { type: 'STRING' },
-          background_theme: { type: 'STRING' },
-          background_details: { type: 'STRING' },
-          background_details_option2: { type: 'STRING' },
-          background_details_option3: { type: 'STRING' },
-          lighting_mood: { type: 'STRING' },
-          headline: { type: 'STRING' },
-          caption: { type: 'STRING' },
-          caption_option2: { type: 'STRING' },
-          caption_option3: { type: 'STRING' },
-          hashtags: {
-            type: 'ARRAY',
-            items: { type: 'STRING' }
-          },
-          hashtags_option2: {
-            type: 'ARRAY',
-            items: { type: 'STRING' }
-          },
-          hashtags_option3: {
-            type: 'ARRAY',
-            items: { type: 'STRING' }
+  // 1. Try Google Gemini API
+  if (apiKey) {
+    try {
+      const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [
+          {
+            parts: [{ text: `${systemInstructions}\n\n${userMessage}` }]
           }
-        },
-        required: [
-          'brand', 'model_name', 'car_angle', 'background_theme', 
-          'background_details', 'background_details_option2', 'background_details_option3', 
-          'lighting_mood', 'headline', 'caption', 'caption_option2', 'caption_option3', 
-          'hashtags', 'hashtags_option2', 'hashtags_option3'
-        ]
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              brand: { type: 'STRING' },
+              model_name: { type: 'STRING' },
+              car_angle: { type: 'STRING' },
+              background_theme: { type: 'STRING' },
+              background_details: { type: 'STRING' },
+              background_details_option2: { type: 'STRING' },
+              background_details_option3: { type: 'STRING' },
+              lighting_mood: { type: 'STRING' },
+              headline: { type: 'STRING' },
+              caption: { type: 'STRING' },
+              caption_option2: { type: 'STRING' },
+              caption_option3: { type: 'STRING' },
+              hashtags: {
+                type: 'ARRAY',
+                items: { type: 'STRING' }
+              },
+              hashtags_option2: {
+                type: 'ARRAY',
+                items: { type: 'STRING' }
+              },
+              hashtags_option3: {
+                type: 'ARRAY',
+                items: { type: 'STRING' }
+              }
+            },
+            required: [
+              'brand', 'model_name', 'car_angle', 'background_theme', 
+              'background_details', 'background_details_option2', 'background_details_option3', 
+              'lighting_mood', 'headline', 'caption', 'caption_option2', 'caption_option3', 
+              'hashtags', 'hashtags_option2', 'hashtags_option3'
+            ]
+          }
+        }
+      };
+
+      const response = await axios.post(url, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000,
+      });
+
+      const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        return JSON.parse(text.trim()) as ElaboratedPromptBrief;
       }
+    } catch (err: any) {
+      console.warn(`Gemini elaboratePromptBrief failed: ${err.message || err}`);
     }
-  };
+  }
 
-  const response = await axios.post(url, payload, {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 30000,
-  });
+  // 2. Try OpenRouter Fallback
+  if (process.env.OPENROUTER_TEXT_API_KEY) {
+    try {
+      console.log("Attempting elaborate fallback via OpenRouter...");
+      const orModel = process.env.OPENROUTER_TEXT_MODEL || "google/gemini-2.5-flash-lite";
+      const response = await axios.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model: orModel,
+          messages: [
+            { role: "system", content: systemInstructions },
+            { role: "user", content: userMessage }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.7,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_TEXT_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": process.env.FRONTEND_URL || "http://localhost:5173",
+            "X-Title": "CarDekho Social AI",
+          },
+          timeout: 30000,
+        }
+      );
 
-  const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Empty response from Gemini elaborate API');
+      const text = response.data?.choices?.[0]?.message?.content;
+      if (text) {
+        return JSON.parse(text.trim()) as ElaboratedPromptBrief;
+      }
+    } catch (err: any) {
+      console.warn(`OpenRouter elaborate fallback failed: ${err.message || err}`);
+    }
+  }
 
-  return JSON.parse(text.trim()) as ElaboratedPromptBrief;
+  // 3. Hardcoded Fallback
+  console.warn("All elaborate APIs failed, falling back to local defaults.");
+  return getHardcodedElaboratedBrief(userPrompt, matchedModel);
 }

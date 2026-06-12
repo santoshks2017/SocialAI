@@ -645,9 +645,12 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           }
         } else if (body.subject_image_url) {
           try {
-            const res = await fetch(body.subject_image_url, { signal: AbortSignal.timeout(20_000) })
-            if (res.ok) {
-              const rawBuf = Buffer.from(await res.arrayBuffer())
+            const response = await axios.get(body.subject_image_url, {
+              responseType: 'arraybuffer',
+              timeout: 20000
+            })
+            if (response.status === 200) {
+              const rawBuf = Buffer.from(response.data)
               subjectBuffer = await removeBackground(rawBuf)
             }
           } catch {
@@ -740,11 +743,14 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
         for (const url of imageUrls) {
           try {
-            const res = await fetch(url, { signal: AbortSignal.timeout(20_000) })
-            if (res.ok) {
-              const contentType = res.headers.get("content-type")
-              const mimeType = contentType || "image/jpeg"
-              const buf = Buffer.from(await res.arrayBuffer())
+            const response = await axios.get(url, {
+              responseType: 'arraybuffer',
+              timeout: 20000
+            })
+            if (response.status === 200) {
+              const contentType = response.headers["content-type"]
+              const mimeType = (Array.isArray(contentType) ? contentType[0] : contentType) || "image/jpeg"
+              const buf = Buffer.from(response.data)
               rawImages.push({ buffer: buf, mimeType })
             }
           } catch (err) {
@@ -782,9 +788,12 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
               dealerLogoBuffer = await readFile(localLogoPath)
             } catch {
               // Try HTTP fetch if local file read fails
-              const logoRes = await fetch(dealer.logo_url, { signal: AbortSignal.timeout(10_000) })
-              if (logoRes.ok) {
-                dealerLogoBuffer = Buffer.from(await logoRes.arrayBuffer())
+              const logoRes = await axios.get(dealer.logo_url, {
+                responseType: 'arraybuffer',
+                timeout: 10000
+              })
+              if (logoRes.status === 200) {
+                dealerLogoBuffer = Buffer.from(logoRes.data)
               }
             }
           } catch (err) {
@@ -1293,9 +1302,12 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           try {
             branding.logoBuffer = await readFile(localLogoPath);
           } catch {
-            const logoRes = await fetch(dealer.logo_url, { signal: AbortSignal.timeout(10_000) });
-            if (logoRes.ok) {
-              branding.logoBuffer = Buffer.from(await logoRes.arrayBuffer());
+            const logoRes = await axios.get(dealer.logo_url, {
+              responseType: 'arraybuffer',
+              timeout: 10000
+            });
+            if (logoRes.status === 200) {
+              branding.logoBuffer = Buffer.from(logoRes.data);
             }
           }
         } catch (err) {
@@ -1343,9 +1355,12 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         const fetchBuffer = async (url?: string) => {
           if (!url) return undefined;
           try {
-            const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-            if (res.ok) {
-              return Buffer.from(await res.arrayBuffer());
+            const res = await axios.get(url, {
+              responseType: 'arraybuffer',
+              timeout: 15000
+            });
+            if (res.status === 200) {
+              return Buffer.from(res.data);
             }
           } catch (err) {
             fastify.log.warn(err, `Failed to fetch image from ${url}`);
@@ -1379,9 +1394,19 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
               fastify.log.error(err, "Gemini background generation failed");
             }
           }
+          // Strip car description suffix for text-to-image fallbacks to avoid double-car rendering
+          const cleanPrompt = bgPrompt.replace(/\.?\s*(FRONT-THREE-QUARTER|SIDE-PROFILE|REAR-THREE-QUARTER|REAR-THREE-QUARTER|LOW-ANGLE)?\s*view of the car in the center\.?/gi, "").trim();
+
+          if (!backgroundBuffer && isOpenRouterImageAvailable()) {
+            try {
+              backgroundBuffer = await generateOpenRouterImage(cleanPrompt.slice(0, 500));
+            } catch (err) {
+              fastify.log.error(err, "OpenRouter background generation failed");
+            }
+          }
           if (!backgroundBuffer && isCloudflareAvailable()) {
             try {
-              backgroundBuffer = await cfGenerateImage(bgPrompt.slice(0, 500));
+              backgroundBuffer = await cfGenerateImage(cleanPrompt.slice(0, 500));
             } catch (err) {
               fastify.log.error(err, "Cloudflare background generation failed");
             }
@@ -1427,11 +1452,14 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           }
 
           let inspirationBuf: Buffer;
-          const imgRes = await fetch(body.uploaded_image_url, { signal: AbortSignal.timeout(20_000) });
-          if (!imgRes.ok) {
+          const imgRes = await axios.get(body.uploaded_image_url, {
+            responseType: 'arraybuffer',
+            timeout: 20000
+          });
+          if (imgRes.status !== 200) {
             throw new Error(`Failed to fetch inspiration image from ${body.uploaded_image_url}`);
           }
-          inspirationBuf = Buffer.from(await imgRes.arrayBuffer());
+          inspirationBuf = Buffer.from(imgRes.data);
 
           const describeInstructions = "Analyze this automotive advertisement image. Describe the style, scene setting, lighting, colors, and background theme in detail. Do not mention any overlay text or logos. Provide only a single highly-detailed prompt (100-150 words) that can be used by an AI image generator to create a similar background scene, leaving empty space in the bottom-middle for a vehicle placement.";
           
@@ -1443,7 +1471,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
                   { text: describeInstructions },
                   {
                     inlineData: {
-                      mimeType: imgRes.headers.get("content-type") || "image/jpeg",
+                      mimeType: (imgRes.headers as any)["content-type"] || "image/jpeg",
                       data: inspirationBuf.toString("base64")
                     }
                   }

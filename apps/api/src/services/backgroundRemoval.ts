@@ -47,11 +47,20 @@ async function removeBackgroundFallback(imageBuffer: Buffer): Promise<Buffer> {
     const visited = new Uint8Array(width * height)
 
     // Criteria for studio background white / light-grey
-    const isTargetBg = (r: number, g: number, b: number) => {
-      if (r > 245 && g > 245 && b > 245) return true
-      if (r > 215 && g > 215 && b > 215) {
-        const maxDiff = 15
-        if (Math.abs(r - g) <= maxDiff && Math.abs(r - b) <= maxDiff && Math.abs(g - b) <= maxDiff) {
+    const isTargetBg = (r: number, g: number, b: number, x: number, y: number) => {
+      if (y < height * 0.65) {
+        if (r > 245 && g > 245 && b > 245) return true
+        if (r > 215 && g > 215 && b > 215) {
+          const maxDiff = 15
+          if (Math.abs(r - g) <= maxDiff && Math.abs(r - b) <= maxDiff && Math.abs(g - b) <= maxDiff) {
+            return true
+          }
+        }
+      } else {
+        // Bottom region: relaxed neutral grey floor/shadow removal (down to avg brightness 85)
+        const maxDiff = 20
+        const avg = (r + g + b) / 3
+        if (avg > 85 && Math.abs(r - g) <= maxDiff && Math.abs(r - b) <= maxDiff && Math.abs(g - b) <= maxDiff) {
           return true
         }
       }
@@ -62,7 +71,9 @@ async function removeBackgroundFallback(imageBuffer: Buffer): Promise<Buffer> {
       const r = rawBuffer[idx * 4] ?? 0
       const g = rawBuffer[idx * 4 + 1] ?? 0
       const b = rawBuffer[idx * 4 + 2] ?? 0
-      return isTargetBg(r, g, b)
+      const cx = idx % width
+      const cy = Math.floor(idx / width)
+      return isTargetBg(r, g, b, cx, cy)
     }
 
     // Add all border pixels to queue
