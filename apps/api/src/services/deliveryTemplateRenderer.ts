@@ -65,7 +65,8 @@ export function hexRgb(hex: string): [number, number, number] {
 function buildTemplateAOverlay(dealer: DealerBranding, headline: string): string {
   const size = 1080;
   const hs = (pct: number) => Math.round(size * pct);
-  const fontFamily = dealer.font ? `${dealer.font}, Arial, sans-serif` : "Arial, Helvetica, sans-serif";
+  const fallbackFontStack = "'Noto Sans', 'Noto Sans Devanagari', 'DejaVu Sans', 'Liberation Sans', Arial, Helvetica, sans-serif";
+  const fontFamily = dealer.font ? `${dealer.font}, ${fallbackFontStack}` : fallbackFontStack;
   const addressText = dealer.address || dealer.city || "";
   const showWa = dealer.whatsapp && dealer.whatsapp !== dealer.phone;
 
@@ -130,7 +131,8 @@ function buildTemplateAOverlay(dealer: DealerBranding, headline: string): string
 function buildTemplateBOverlay(dealer: DealerBranding, headline: string): string {
   const size = 1080;
   const hs = (pct: number) => Math.round(size * pct);
-  const fontFamily = dealer.font ? `${dealer.font}, Arial, sans-serif` : "Arial, Helvetica, sans-serif";
+  const fallbackFontStack = "'Noto Sans', 'Noto Sans Devanagari', 'DejaVu Sans', 'Liberation Sans', Arial, Helvetica, sans-serif";
+  const fontFamily = dealer.font ? `${dealer.font}, ${fallbackFontStack}` : fallbackFontStack;
   const addressText = dealer.address || dealer.city || "";
   const showWa = dealer.whatsapp && dealer.whatsapp !== dealer.phone;
 

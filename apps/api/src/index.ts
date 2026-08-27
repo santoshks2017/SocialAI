@@ -148,18 +148,18 @@ export default async function handler(
   fastify.server.emit('request', req, res);
 }
 
+export { fastify };
+
 // ── Traditional server (local dev / Render) ───────────────────────────────────
-// Skipped on Vercel — serverless functions don't call listen().
-if (!IS_VERCEL) {
+// Skipped on Vercel and in test mode — serverless functions don't call listen(),
+// and tests use fastify.inject() in memory.
+if (!IS_VERCEL && process.env['NODE_ENV'] !== 'test') {
   try {
     const port = parseInt(process.env['PORT'] ?? '3001');
     await fastify.listen({ port, host: '0.0.0.0' });
 
-    // Start background workers (only if Redis is reachable)
-    if (process.env['NODE_ENV'] !== 'test') {
-      startPublishWorker();
-      startMetricsWorker();
-    }
+    startPublishWorker();
+    startMetricsWorker();
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

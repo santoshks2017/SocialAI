@@ -1,22 +1,57 @@
-### Building and running your application
+# CarDekho Social AI — Docker Desktop Setup
 
-When you're ready, start your application by running:
-`docker compose up --build`.
+This project is containerized to run the full stack (Frontend Web UI and Backend Fastify API) seamlessly in **Docker Desktop**.
 
-Your application will be available at http://localhost:3001.
+---
 
-### Deploying your application to the cloud
+## Quick Access URLs
 
-First, build your image, e.g.: `docker build -t myapp .`.
-If your cloud uses a different CPU architecture than your development
-machine (e.g., you are on a Mac M1 and your cloud provider is amd64),
-you'll want to build the image for that platform, e.g.:
-`docker build --platform=linux/amd64 -t myapp .`.
+Once running, the application services are mapped directly to your local ports:
 
-Then, push it to your registry, e.g. `docker push myregistry.com/myapp`.
+- **Frontend Web UI:** [http://localhost:5173](http://localhost:5173)
+- **Backend API:** [http://localhost:3001](http://localhost:3001)
+- **API Health Check:** [http://localhost:3001/v1/health](http://localhost:3001/v1/health)
 
-Consult Docker's [getting started](https://docs.docker.com/go/get-started-sharing/)
-docs for more detail on building and pushing.
+---
 
-### References
-* [Docker's Node.js guide](https://docs.docker.com/language/nodejs/)
+## Managing in Docker Desktop
+
+1. **Open Docker Desktop:** Launch Docker Desktop from `/Applications/Docker.app`.
+2. **Containers View:** Look for the **`cardekhosocialaiapp`** container group:
+   - **`cardekho-web`**: Fast, lightweight Nginx container serving the React single-page application on port `5173`.
+   - **`cardekho-api`**: Node.js container running the Fastify API server with Prisma and native image compositors on port `3001`.
+3. **One-Click Actions:**
+   - **Start / Stop:** Click the play/pause or stop button next to the container group anytime.
+   - **Logs:** Click on any container name to inspect real-time server output and access logs.
+   - **Open in Browser:** Click the port link (`5173:80` or `3001:3001`) to open the app directly in your browser.
+
+---
+
+## Terminal Commands (Alternative)
+
+To start both services in the background:
+```bash
+docker compose up -d
+```
+
+To view live combined logs:
+```bash
+docker compose logs -f
+```
+
+To stop the containers:
+```bash
+docker compose down
+```
+
+To rebuild after source code modifications:
+```bash
+docker compose up --build -d
+```
+
+---
+
+## Architecture in Docker
+
+- **Database Connectivity:** Configured with `host.docker.internal` so the API container communicates directly with PostgreSQL and Redis on the host machine.
+- **Client-Side Routing:** Nginx handles HTML5 history pushState navigation (`try_files $uri $uri/ /index.html;`) so page reloads on routes like `/dashboard`, `/posts`, and `/calendar` work seamlessly.

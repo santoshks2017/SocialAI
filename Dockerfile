@@ -4,6 +4,7 @@ ARG NODE_VERSION=24.12.0
 
 # --- Base Stage ---
 FROM node:${NODE_VERSION}-alpine AS base
+RUN apk add --no-cache openssl fontconfig ttf-dejavu ttf-liberation font-noto font-noto-devanagari && fc-cache -fv
 WORKDIR /usr/src/app
 
 # --- Build Stage ---
@@ -54,7 +55,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # --- Final Production Stage ---
 FROM base AS final
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 # Run the application as a non-root user
 USER node

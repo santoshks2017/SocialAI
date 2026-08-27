@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run test:packages && npm run test:api && npm run test:web",
+    "test:packages": "npm run test -w @cardeko/pattern-engine -w @cardeko/template-engine -w @cardeko/render-engine",
+    "test:api": "npm run test -w @cardeko/api",
+    "test:web": "npm run test -w web",
     "dev": "npm run dev --workspaces",
     "build:shared": "npm run build -w @cardeko/shared",
     "build:packages": "npm run build -w @cardeko/shared -w @cardeko/pattern-engine -w @cardeko/scraper -w @cardeko/render-engine -w @cardeko/template-engine",

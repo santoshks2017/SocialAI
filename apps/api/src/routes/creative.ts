@@ -1295,6 +1295,10 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
       const whatsappNum = dealer.whatsapp_number ?? dealer.contact_phone ?? dealer.phone;
       if (whatsappNum) branding.whatsapp = whatsappNum;
 
+      if (dealer.font) {
+        branding.font = dealer.font;
+      }
+
       if (dealer.logo_url) {
         try {
           const logoFilename = path.basename(dealer.logo_url);

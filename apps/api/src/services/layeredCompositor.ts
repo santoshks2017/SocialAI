@@ -175,7 +175,8 @@ function buildBrandingOverlay(
 ): string {
   const hs = (pct: number) => Math.round(size * pct) // helper: fraction → px
   const showWa = dealer.whatsapp && dealer.whatsapp !== dealer.phone
-  const fontFamily = dealer.font ? `${dealer.font}, Arial, sans-serif` : "Arial, Helvetica, sans-serif"
+  const fallbackFontStack = "'Noto Sans', 'Noto Sans Devanagari', 'DejaVu Sans', 'Liberation Sans', Arial, Helvetica, sans-serif"
+  const fontFamily = dealer.font ? `${dealer.font}, ${fallbackFontStack}` : fallbackFontStack
   const addressText = dealer.address || dealer.city || ""
 
   // Base SVG definitions
@@ -278,7 +279,7 @@ function buildBrandingOverlay(
     // 2. PREMIUM & LUXURY LAYOUT
     const footerHeight = hs(0.16);
     const footerY = size - footerHeight;
-    const serifFont = `Georgia, 'Playfair Display', ${fontFamily}`;
+    const serifFont = `Georgia, 'Playfair Display', 'DejaVu Serif', 'Liberation Serif', serif, ${fontFamily}`;
 
     svgContent = `
       ${defs}

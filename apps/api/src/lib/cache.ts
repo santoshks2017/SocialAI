@@ -1,8 +1,8 @@
 import { Redis } from 'ioredis';
 
-const REDIS_URL = process.env['REDIS_URL'];
+const REDIS_URL = process.env['REDIS_URL']?.replace(/^["']|["']$/g, '');
 const IS_VERCEL = process.env['VERCEL'] === '1';
-const hasRedis = !IS_VERCEL && !!REDIS_URL;
+const hasRedis = !IS_VERCEL && process.env['NODE_ENV'] !== 'test' && !!REDIS_URL;
 
 let _redis: Redis | null = null;
 

@@ -234,8 +234,8 @@ export function getUpcomingFestivals(
   const now = new Date();
   
   // Resolve target state
-  let resolvedState = state ? state.trim() : null;
-  if (!resolvedState && city) {
+  let resolvedState = typeof state === 'string' ? state.trim() : null;
+  if (!resolvedState && typeof city === 'string') {
     const cleanCity = city.trim().toLowerCase().replace(/\s+/g, '_');
     resolvedState = CITY_TO_STATE[cleanCity] || null;
   }
