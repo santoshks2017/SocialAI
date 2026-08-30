@@ -27,7 +27,7 @@ const Instagram = ({ className }: { className?: string }) => (
 );
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)
-  ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '');
+  ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '/v1');
 
 interface FacebookPageInfo {
   id: string;

@@ -578,7 +578,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/facebook', async (request, reply) => {
     const META_APP_ID = process.env['META_APP_ID'];
     const META_REDIRECT_URI = process.env['META_REDIRECT_URI'];
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app';
 
     if (!META_APP_ID || !META_REDIRECT_URI) {
       fastify.log.error('[FB OAuth] Missing META_APP_ID or META_REDIRECT_URI');
@@ -605,7 +605,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/facebook/callback', async (request, reply) => {
     const { code, error: fbError, state } = request.query as { code?: string; error?: string; state?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app';
+    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app';
 
     if (fbError || !code) {
       fastify.log.warn(`[FB OAuth] Callback error: ${fbError ?? 'no_code'}`);

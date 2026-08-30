@@ -2,7 +2,7 @@
 // Example: https://cardekho-social-ai-api.onrender.com/v1
 // In local Vite dev, fall back to the API workspace's default Fastify port.
 export const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)
-  ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '');
+  ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '/v1');
 
 export class ApiError extends Error {
   status: number;

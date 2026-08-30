@@ -66,7 +66,8 @@ export async function uploadFile(
   const filename = path.basename(key);
   await mkdir(localDir, { recursive: true });
   await writeFile(path.join(localDir, filename), buffer);
-  const baseUrl = process.env['API_BASE_URL'] ?? 'http://localhost:3001';
+  const baseUrl = process.env['API_BASE_URL'] ?? '';
   const subPath = localDir.split('/uploads/')[1] ?? '';
-  return `${baseUrl}/uploads/${subPath}/${filename}`;
+  const pathPrefix = subPath ? `/uploads/${subPath}/${filename}` : `/uploads/${filename}`;
+  return baseUrl ? `${baseUrl.replace(/\/$/, '')}${pathPrefix}` : pathPrefix;
 }

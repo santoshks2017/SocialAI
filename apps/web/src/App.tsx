@@ -4,7 +4,7 @@ import {
   Calendar, BarChart2, Package, Zap, Settings, Link2,
   ChevronRight, Send, RefreshCw, Check, Sparkles,
   LayoutDashboard, LogOut, Menu, X, LayoutList,
-  Shield, ArrowLeftRight
+  Shield, ArrowLeftRight, Video
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import api from './services/api';
@@ -31,21 +31,51 @@ import SignupPage from './pages/SignupPage';
 import ConnectProfilesPage from './pages/ConnectProfilesPage';
 import type { UserInfo } from './lib/permissions';
 
-// ─── Nav config ───────────────────────────────────────────────────────────────
-const NAV_ITEMS = [
-  { to: '/',          icon: LayoutDashboard, label: 'Dashboard',  exact: true },
-  { to: '/posts',     icon: LayoutList,      label: 'Posts'                  },
-  { to: '/calendar',  icon: Calendar,        label: 'Calendar'               },
-  { to: '/inventory', icon: Package,         label: 'Inventory'              },
-  { to: '/analytics', icon: BarChart2,       label: 'Analytics'              },
-  { to: '/inbox',     icon: MessageSquare,   label: 'Inbox'                  },
-  { to: '/boost',     icon: Zap,             label: 'Boost'                  },
-  { to: '/accounts',  icon: Link2,           label: 'Accounts'               },
-];
+// ─── Grouped Sidebar Config ──────────────────────────────────────────────────
+interface NavItem {
+  to: string;
+  icon: React.ComponentType<any>;
+  label: string;
+  exact?: boolean;
+  comingSoon?: boolean;
+}
 
-// const COMING_SOON_ITEMS = [
-//   { icon: Video,   label: 'AI Video'  },
-// ];
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: 'WORK',
+    items: [
+      { to: '/',          icon: LayoutDashboard, label: 'Dashboard',  exact: true },
+      { to: '/posts',     icon: LayoutList,      label: 'Posts'                  },
+      { to: '/calendar',  icon: Calendar,        label: 'Calendar'               },
+    ]
+  },
+  {
+    title: 'ENGAGE',
+    items: [
+      { to: '/inbox',     icon: MessageSquare,   label: 'Inbox'                  },
+      { to: '/analytics', icon: BarChart2,       label: 'Analytics'              },
+    ]
+  },
+  {
+    title: 'GROW',
+    items: [
+      { to: '/boost',     icon: Zap,             label: 'Boost'                  },
+      { to: '/accounts',  icon: Link2,           label: 'Accounts'               },
+    ]
+  },
+  {
+    title: 'COMING SOON',
+    items: [
+      { to: '/inventory', icon: Package,         label: 'Inventory',  comingSoon: true },
+      { to: '/ai-video',  icon: Video,           label: 'AI Video',   comingSoon: true },
+    ]
+  }
+];
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
@@ -66,13 +96,15 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
   const handleLogout = () => { logout(); navigate('/onboarding'); };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200">
+    <div className="flex flex-col h-full bg-white border-r border-gray-250">
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-5 shrink-0">
         <NavLink to="/" className="flex items-center gap-2.5" onClick={onClose}>
-          <img src="/logo.png" className="w-8 h-8 rounded-lg shadow-lg shadow-orange-500/20 object-cover" />
-          <span className="font-bold text-gray-900 text-[15px] tracking-tight">
-            CarDekho <span className="text-orange-500">Social AI</span>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-md shadow-orange-500/20">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-extrabold text-gray-900 text-base tracking-tight">
+            Social <span className="text-orange-500">AI</span>
           </span>
         </NavLink>
         {/* Mobile close */}
@@ -85,50 +117,71 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
       </div>
 
       {/* Create Post CTA */}
-      <div className="px-3 mb-2">
+      <div className="px-3 mb-4">
         <NavLink
           to="/create"
           onClick={onClose}
-          className="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors shadow-lg shadow-orange-500/25"
+          className="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-600 text-white text-[13.5px] font-bold py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg shadow-orange-500/20 active:scale-98"
         >
           <Plus className="w-4 h-4" /> Create Post
         </NavLink>
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto py-1">
-        {NAV_ITEMS.map(({ to, icon: Icon, label, exact }) => {
-          const isActive = exact
-            ? location.pathname === to
-            : to.includes('?')
-              ? location.pathname === to.split('?')[0] && location.search.includes(to.split('?')[1])
-              : location.pathname === to;
+      <nav className="flex-1 px-3 space-y-4 overflow-y-auto py-1">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title} className="space-y-1">
+            <span className="block text-[10px] font-black text-slate-400 tracking-widest px-3 uppercase">
+              {section.title}
+            </span>
+            <div className="space-y-0.5">
+              {section.items.map(({ to, icon: Icon, label, exact, comingSoon }) => {
+                const isActive = !comingSoon && (exact
+                  ? location.pathname === to
+                  : to.includes('?')
+                    ? location.pathname === to.split('?')[0] && location.search.includes(to.split('?')[1])
+                    : location.pathname === to);
 
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={onClose}
-              className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
-                isActive
-                  ? 'bg-orange-50 text-orange-600 font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Icon className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${isActive ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-              {label}
-              {label === 'Inbox' && inboxPending > 0 && (
-                <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                  {inboxPending}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
+                if (comingSoon) {
+                  return (
+                    <div
+                      key={label}
+                      className="flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium text-slate-400 select-none bg-transparent cursor-not-allowed opacity-75"
+                    >
+                      <Icon className="w-[17px] h-[17px] flex-shrink-0 text-slate-300" />
+                      {label}
+                    </div>
+                  );
+                }
+
+                return (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    onClick={onClose}
+                    className={`group flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
+                      isActive
+                        ? 'bg-orange-50 text-orange-600 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Icon className={`w-[17px] h-[17px] flex-shrink-0 transition-colors ${isActive ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                    {label}
+                    {label === 'Inbox' && inboxPending > 0 && (
+                      <span className="ml-auto bg-orange-500 text-white text-[9px] font-bold rounded-full min-w-[17px] h-[17px] flex items-center justify-center px-1">
+                        {inboxPending}
+                      </span>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Divider */}
-      <div className="h-px bg-slate-200/60 mx-3" />
+      <div className="h-px bg-slate-100 mx-3 my-2" />
 
       {/* Bottom section */}
       <div className="px-3 py-3 space-y-0.5">
@@ -137,12 +190,12 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
             to="/admin"
             onClick={onClose}
             className={({ isActive }) =>
-              `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
+              `group flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
                 isActive ? 'bg-orange-50 text-orange-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`
             }
           >
-            <Shield className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${location.pathname === '/admin' ? 'text-red-650' : 'text-red-500 group-hover:text-red-650'}`} />
+            <Shield className={`w-[17px] h-[17px] flex-shrink-0 transition-colors ${location.pathname === '/admin' ? 'text-red-650' : 'text-red-500 group-hover:text-red-650'}`} />
             Admin Panel
           </NavLink>
         )}
@@ -151,12 +204,12 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
           to="/billing"
           onClick={onClose}
           className={({ isActive }) =>
-            `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
+            `group flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
               isActive ? 'bg-orange-50 text-orange-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`
           }
         >
-          <Zap className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${location.pathname === '/billing' ? 'text-orange-600' : 'text-orange-500 group-hover:text-orange-600'}`} />
+          <Zap className={`w-[17px] h-[17px] flex-shrink-0 transition-colors ${location.pathname === '/billing' ? 'text-orange-600' : 'text-orange-500 group-hover:text-orange-600'}`} />
           Billing & Plans
         </NavLink>
 
@@ -164,28 +217,32 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
           to="/settings"
           onClick={onClose}
           className={({ isActive }) =>
-            `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium transition-all ${
+            `group flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
               isActive ? 'bg-orange-50 text-orange-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`
           }
         >
-          <Settings className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${location.pathname === '/settings' ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+          <Settings className={`w-[17px] h-[17px] flex-shrink-0 transition-colors ${location.pathname === '/settings' ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
           Settings
         </NavLink>
 
         {/* User profile */}
         {user && (
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl mt-1">
-            <div className="w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl mt-2 bg-slate-50/50 border border-slate-100">
+            <div className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium text-gray-900 truncate">{user.name}</p>
-              <p className="text-[11px] text-slate-500 capitalize">{user.role}</p>
+              <p className="text-[12.5px] font-bold text-gray-900 truncate leading-snug">{user.name}</p>
+              <div className="flex items-center mt-0.5">
+                <span className="text-[9px] font-black text-orange-600 uppercase bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100/60 leading-none">
+                  {user.role}
+                </span>
+              </div>
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-slate-50"
+              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-slate-100"
               title="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />

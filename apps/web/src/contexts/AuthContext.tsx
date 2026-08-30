@@ -89,18 +89,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginDemo = useCallback(async (): Promise<UserInfo> => {
     setIsLoading(true);
     try {
-      const res = await authService.loginDemo();
-      const userInfo: UserInfo = {
-        id: res.user.id,
-        name: res.user.name,
-        role: res.user.role as UserInfo['role'],
-        dealer_id: res.user.dealer_id,
-        permissions: res.user.permissions as UserInfo['permissions'],
-        onboarding_completed: res.user.onboarding_completed,
-        onboarding_step: res.user.onboarding_step,
-      };
-      loginWithToken(res.token, res.refreshToken, userInfo);
-      return userInfo;
+      try {
+        const res = await authService.loginDemo();
+        const userInfo: UserInfo = {
+          id: res.user.id,
+          name: res.user.name,
+          role: res.user.role as UserInfo['role'],
+          dealer_id: res.user.dealer_id,
+          permissions: res.user.permissions as UserInfo['permissions'],
+          onboarding_completed: res.user.onboarding_completed,
+          onboarding_step: res.user.onboarding_step,
+        };
+        loginWithToken(res.token, res.refreshToken, userInfo);
+        return userInfo;
+      } catch (networkErr) {
+        console.warn('API demo login failed, falling back to local demo sandbox session:', networkErr);
+        // Fallback for static hosting (Firebase/Vercel) without live backend
+        const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+        const payload = btoa(JSON.stringify({
+          id: 'demo-dealer-001',
+          name: 'Apex Motors (Demo)',
+          role: 'owner',
+          dealer_id: 'demo-dealer-001',
+          exp: Math.floor(Date.now() / 1000) + 86400 * 365, // 1 year
+        }));
+        const mockToken = `${header}.${payload}.mock-demo-signature`;
+        const mockUserInfo: UserInfo = {
+          id: 'demo-dealer-001',
+          name: 'Apex Motors (Demo)',
+          role: 'owner',
+          dealer_id: 'demo-dealer-001',
+          permissions: {
+            create_post: true,
+            approve_post: true,
+            publish_post: true,
+            run_boost: true,
+            manage_inventory: true,
+            view_reports: true,
+            view_inbox: true,
+            reply_inbox: true,
+            manage_users: true,
+            view_billing: true,
+          } as unknown as UserInfo['permissions'],
+          onboarding_completed: true,
+          onboarding_step: 4,
+        };
+        loginWithToken(mockToken, 'mock-refresh-token', mockUserInfo);
+        return mockUserInfo;
+      }
     } finally {
       setIsLoading(false);
     }

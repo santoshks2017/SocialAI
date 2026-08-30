@@ -1,7 +1,7 @@
 /// <reference path="../types/puter.d.ts" />
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)
-  ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '');
+  ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '/v1');
 
 /**
  * Builds a short headline from caption text (mirrors extractHeadline on the backend).

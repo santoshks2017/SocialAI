@@ -4,7 +4,7 @@ ARG NODE_VERSION=24.12.0
 
 # --- Base Stage ---
 FROM node:${NODE_VERSION}-alpine AS base
-RUN apk add --no-cache openssl fontconfig ttf-dejavu ttf-liberation font-noto font-noto-devanagari && fc-cache -fv
+RUN apk add --no-cache openssl fontconfig ttf-dejavu ttf-liberation font-noto font-noto-devanagari ffmpeg && fc-cache -fv
 WORKDIR /usr/src/app
 
 # --- Build Stage ---
@@ -26,8 +26,7 @@ COPY packages/template-engine/package.json ./packages/template-engine/
 COPY apps/api/prisma/schema.prisma ./apps/api/prisma/
 
 # Install ALL dependencies (including devDependencies required for typescript compilation)
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN npm ci
 
 # Copy the rest of the workspace source code
 COPY . .
@@ -49,8 +48,7 @@ RUN cp -r apps/api/src/generated apps/api/dist/src/
 RUN npm prune --omit=dev
 
 # Install platform-specific optional dependencies for sharp and @napi-rs/canvas on Alpine AFTER pruning so they are not deleted
-RUN --mount=type=cache,target=/root/.npm \
-    npm install --os=linux --libc=musl sharp -w @cardeko/api && \
+RUN npm install --os=linux --libc=musl sharp -w @cardeko/api && \
     npm install --os=linux --libc=musl @napi-rs/canvas -w @cardeko/render-engine
 
 # --- Final Production Stage ---

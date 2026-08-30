@@ -1,4 +1,5 @@
-import { ImagePlus, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ImagePlus, Sparkles, Video } from 'lucide-react';
 
 export interface PlatformPreviewProps {
   platform: 'facebook' | 'instagram' | 'google' | 'twitter' | 'youtube';
@@ -9,6 +10,21 @@ export interface PlatformPreviewProps {
   isGenerating: boolean;
   promptText: string;
   selectedDesign: number;
+  videoUrl?: string | null;
+  audioSuggestion?: string | null;
+  isReel?: boolean;
+  aspectRatio?: '9:16' | '16:9' | string | null;
+  overlays?: Array<{
+    id: string;
+    startTime: number;
+    endTime: number;
+    badge?: string;
+    title: string;
+    subtitle?: string;
+    cta?: string;
+    position?: 'top' | 'center' | 'bottom';
+    theme?: 'glass-dark' | 'amber-glow' | 'minimal-white';
+  }> | null;
 }
 
 const TEMPLATE_GRADIENTS = [
@@ -57,7 +73,7 @@ function FacebookPreview({ dealerName, dealerInitials, caption, imageUrl, isGene
   const truncated = caption.length > 120 ? caption.slice(0, 120) + '…' : caption;
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: '#f0f2f5' }}>
+    <div className="w-full flex flex-col" style={{ background: '#f0f2f5' }}>
       {/* FB top bar hint */}
       <div className="flex items-center justify-between px-3 py-1.5" style={{ background: '#1877F2' }}>
         <span className="text-white text-[10px] font-black tracking-tight">facebook</span>
@@ -161,7 +177,7 @@ function InstagramPreview({ dealerName, dealerInitials, caption, imageUrl, isGen
   const truncated = caption.length > 90 ? caption.slice(0, 90) + '…' : caption;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white">
+    <div className="w-full flex flex-col bg-white">
       {/* IG nav bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#dbdbdb]">
         <span className="text-[11px] font-black text-black" style={{ fontFamily: 'serif', fontStyle: 'italic' }}>Instagram</span>
@@ -279,7 +295,7 @@ function GooglePreview({ dealerName, dealerInitials, caption, imageUrl, isGenera
   const truncated = caption.length > 100 ? caption.slice(0, 100) + '…' : caption;
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: '#f1f3f4' }}>
+    <div className="w-full flex flex-col" style={{ background: '#f1f3f4' }}>
       {/* Google search bar mockup */}
       <div className="px-2 pt-2 pb-1.5">
         <div className="bg-white rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-[#dfe1e5]">
@@ -393,7 +409,7 @@ function XPreview({ dealerName, dealerInitials, caption, imageUrl, isGenerating,
   const truncated = caption.length > 280 ? caption.slice(0, 280) + '…' : caption;
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: '#000000' }}>
+    <div className="w-full flex flex-col" style={{ background: '#000000' }}>
       {/* X top bar */}
       <div className="flex items-center justify-between px-4 py-2.5" style={{ background: '#000000', borderBottom: '1px solid #2f3336' }}>
         {/* X logo */}
@@ -626,8 +642,299 @@ function YouTubePreview({ dealerName, dealerInitials, caption, imageUrl, isGener
   );
 }
 
+// ─── Instagram / Facebook Reel Simulator ──────────────────────────────────────
+function InstagramReelPreview({
+  dealerName,
+  dealerInitials,
+  caption,
+  videoUrl,
+  imageUrl,
+  isGenerating,
+  promptText,
+  audioSuggestion,
+  aspectRatio,
+  overlays,
+}: Omit<PlatformPreviewProps, 'platform'>) {
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain');
+  const [frameAspect, setFrameAspect] = useState<'9:16' | '16:9'>(aspectRatio === '16:9' ? '16:9' : '9:16');
+  const [currentTime, setCurrentTime] = useState(0);
+  const [showOverlays, setShowOverlays] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const handle = dealerName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 18);
+  const truncated = caption.length > 95 ? caption.slice(0, 95) + '…' : caption;
+
+  // Sync with prop when user changes 9:16 / 16:9 buttons in left form
+  useEffect(() => {
+    if (aspectRatio === '16:9') {
+      setFrameAspect('16:9');
+    } else if (aspectRatio === '9:16') {
+      setFrameAspect('9:16');
+    }
+  }, [aspectRatio]);
+
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const { videoWidth, videoHeight } = e.currentTarget;
+    if (videoWidth && videoHeight && !aspectRatio) {
+      if (videoWidth > videoHeight) {
+        setFrameAspect('16:9');
+      } else {
+        setFrameAspect('9:16');
+      }
+    }
+  };
+
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  // Find active timed overlay beat
+  const activeBeat = (overlays && overlays.length > 0 && showOverlays)
+    ? overlays.find(b => currentTime >= b.startTime && currentTime <= b.endTime)
+    : null;
+
+  return (
+    <div
+      className={`w-full ${frameAspect === '16:9' ? 'aspect-[16/9]' : 'aspect-[9/16]'} relative overflow-hidden bg-black select-none group cursor-pointer flex items-center justify-center transition-all duration-300`}
+      onClick={togglePlay}
+    >
+      {/* Video stream or fallback animated gradient */}
+      {videoUrl ? (
+        <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-black">
+          {/* Ambient blurred backdrop video to prevent blank black borders */}
+          <video
+            src={videoUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-45 scale-125 pointer-events-none"
+          />
+
+          {/* Crisp foreground video stream — fits fully inside the mobile frame without cutting off */}
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+            onLoadedMetadata={handleLoadedMetadata}
+            onTimeUpdate={() => {
+              if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+            }}
+            className={`relative z-10 w-full h-full ${fitMode === 'contain' ? 'object-contain' : 'object-cover'}`}
+          />
+
+          {/* Real-time Dynamic Typography Overlay Layer (Crisp, natural frame-by-frame text) */}
+          {showOverlays && activeBeat && (
+            <div className="absolute inset-x-0 bottom-24 z-20 flex flex-col items-center pointer-events-none px-4 transition-all duration-300">
+              <div className="bg-black/85 backdrop-blur-md border border-white/20 px-4 py-2.5 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-[88%] pointer-events-auto">
+                {activeBeat.badge && (
+                  <span
+                    className={`text-[8.5px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full mb-1 ${
+                      activeBeat.theme === 'amber-glow'
+                        ? 'bg-amber-500 text-white'
+                        : activeBeat.theme === 'minimal-white'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-orange-500 text-white'
+                    }`}
+                  >
+                    {activeBeat.badge}
+                  </span>
+                )}
+                <h4 className="text-white text-xs sm:text-sm font-black tracking-wide leading-tight drop-shadow-md">
+                  {activeBeat.title}
+                </h4>
+                {activeBeat.subtitle && (
+                  <p className="text-white/90 text-[10px] sm:text-[11px] font-medium mt-0.5 drop-shadow leading-tight">
+                    {activeBeat.subtitle}
+                  </p>
+                )}
+                {activeBeat.cta && (
+                  <span className="mt-1 text-[8.5px] font-bold text-orange-400 bg-white/10 px-2 py-0.5 rounded-md border border-orange-400/30">
+                    {activeBeat.cta} →
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : isGenerating ? (
+        <div className="w-full h-full bg-gradient-to-b from-slate-900 via-stone-900 to-black flex flex-col items-center justify-center p-6 text-center">
+          <div className="relative w-14 h-14 mb-4">
+            <div className="absolute inset-0 rounded-full border-3 border-orange-500/30" />
+            <div className="absolute inset-0 rounded-full border-3 border-orange-500 border-t-transparent animate-spin" />
+            <Sparkles className="w-6 h-6 text-orange-400 absolute inset-0 m-auto animate-pulse" />
+          </div>
+          <span className="text-white text-xs font-black tracking-wide uppercase">Veo 3.1 Generating Reel</span>
+          <p className="text-slate-400 text-[10px] mt-1 font-semibold">Synthesizing high-definition motion & physics...</p>
+        </div>
+      ) : imageUrl ? (
+        <img src={imageUrl} alt="Reel poster" className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full bg-gradient-to-br from-stone-900 via-black to-stone-850 flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-3">
+            <Video className="w-6 h-6 text-white/60" />
+          </div>
+          <p className="text-white text-xs font-extrabold">{promptText || 'AI Video Reel Preview'}</p>
+          <span className="text-white/40 text-[10px] mt-1">9:16 Vertical Reel format</span>
+        </div>
+      )}
+
+      {/* Top Header Bar */}
+      <div className="absolute top-0 left-0 right-0 p-3.5 flex items-center justify-between z-20 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
+        <div className="flex items-center gap-1.5">
+          <span className="text-white font-black text-xs tracking-wide drop-shadow-md">
+            {frameAspect === '16:9' ? 'Video' : 'Reels'}
+          </span>
+          <span className="text-[9.5px] text-white/90 bg-white/20 backdrop-blur-md px-1.5 py-0.5 rounded font-bold">
+            Veo 3.1
+          </span>
+          {videoUrl && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFrameAspect(frameAspect === '16:9' ? '9:16' : '16:9');
+              }}
+              className="px-2 py-0.5 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-[9px] font-bold transition-colors border border-white/20 cursor-pointer"
+              title="Toggle frame aspect ratio"
+            >
+              {frameAspect === '16:9' ? '16:9 Wide' : '9:16 Reel'}
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {videoUrl && overlays && overlays.length > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowOverlays(!showOverlays);
+              }}
+              className={`px-2 py-0.5 rounded-full text-[9px] font-bold transition-colors flex items-center gap-1 border shadow-xs cursor-pointer ${
+                showOverlays
+                  ? 'bg-orange-500/90 hover:bg-orange-600 text-white border-orange-400/50'
+                  : 'bg-black/50 hover:bg-black/70 text-white/70 border-white/20'
+              }`}
+              title={showOverlays ? 'Text Overlays: ON. Click to hide' : 'Text Overlays: OFF. Click to show'}
+            >
+              {showOverlays ? '📝 Text ON' : '🚫 Text OFF'}
+            </button>
+          )}
+          {videoUrl && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFitMode(fitMode === 'contain' ? 'cover' : 'contain');
+              }}
+              className="px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white text-[9px] font-bold hover:bg-black/60 transition-colors flex items-center gap-1 border border-white/15 shadow-xs cursor-pointer"
+              title={fitMode === 'contain' ? 'Current: Fit (Uncropped). Click to Fill' : 'Current: Fill (Cropped). Click to Fit'}
+            >
+              {fitMode === 'contain' ? '⛶ Fit' : '⊡ Fill'}
+            </button>
+          )}
+          {videoUrl && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMuted(!isMuted);
+              }}
+              className="w-6 h-6 rounded-full bg-black/40 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/60 transition-colors text-xs border border-white/15 cursor-pointer"
+            >
+              {isMuted ? '🔇' : '🔊'}
+            </button>
+          )}
+          <span className="text-white text-sm drop-shadow">📷</span>
+        </div>
+      </div>
+
+      {/* Play/Pause Overlay indicator when paused */}
+      {!isPlaying && videoUrl && (
+        <div className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white text-xl z-20 pointer-events-none">
+          ▶
+        </div>
+      )}
+
+      {/* Right Engagement Buttons Column */}
+      <div className="absolute right-3 bottom-20 flex flex-col items-center gap-4 z-20" onClick={(e) => e.stopPropagation()}>
+        {/* Like */}
+        <div className="flex flex-col items-center gap-0.5">
+          <div className="w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white text-base hover:scale-110 transition-transform">
+            ❤️
+          </div>
+          <span className="text-white text-[10px] font-bold drop-shadow">18.4K</span>
+        </div>
+
+        {/* Comment */}
+        <div className="flex flex-col items-center gap-0.5">
+          <div className="w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white text-sm hover:scale-110 transition-transform">
+            💬
+          </div>
+          <span className="text-white text-[10px] font-bold drop-shadow">342</span>
+        </div>
+
+        {/* Share */}
+        <div className="flex flex-col items-center gap-0.5">
+          <div className="w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white text-sm hover:scale-110 transition-transform">
+            ↗️
+          </div>
+          <span className="text-white text-[10px] font-bold drop-shadow">Share</span>
+        </div>
+
+        {/* Save */}
+        <div className="w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white text-sm hover:scale-110 transition-transform">
+          🔖
+        </div>
+
+        {/* Audio Disc Spinning Animation */}
+        <div className="w-8 h-8 rounded-full border-2 border-white/60 bg-stone-900 flex items-center justify-center shadow-lg animate-spin-slow mt-1 overflow-hidden">
+          <div className="w-3 h-3 rounded-full bg-orange-500" />
+        </div>
+      </div>
+
+      {/* Bottom Info Overlay */}
+      <div className="absolute bottom-0 left-0 right-14 p-4 z-20 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-left">
+        {/* Dealership user tag */}
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-7 h-7 rounded-full bg-orange-600 border border-white flex items-center justify-center text-[10px] font-black text-white shrink-0">
+            {dealerInitials[0] || 'A'}
+          </div>
+          <span className="text-white font-extrabold text-[11px] drop-shadow truncate">@{handle}</span>
+          <span className="bg-white/20 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs">Follow</span>
+        </div>
+
+        {/* Caption */}
+        <p className="text-white text-[10.5px] leading-snug drop-shadow font-medium">
+          {truncated}
+        </p>
+
+        {/* Audio Tag */}
+        <div className="flex items-center gap-1.5 mt-2 text-[9.5px] text-white/90 font-semibold drop-shadow truncate">
+          <span>🎵</span>
+          <span className="truncate">{audioSuggestion || 'Trending Reel Audio'} · {dealerName}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function PlatformPreview(props: PlatformPreviewProps) {
+  if (props.isReel || props.videoUrl) {
+    return <InstagramReelPreview {...props} />;
+  }
   if (props.platform === 'instagram') return <InstagramPreview {...props} />;
   if (props.platform === 'google')    return <GooglePreview {...props} />;
   if (props.platform === 'twitter')   return <XPreview {...props} />;

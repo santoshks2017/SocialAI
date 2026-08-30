@@ -24,7 +24,7 @@ export async function generateOpenRouterImage(prompt: string): Promise<Buffer> {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app',
+      'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app',
       'X-Title': 'CarDekho Social AI',
     },
     timeout: 60000,

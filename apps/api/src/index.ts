@@ -44,7 +44,15 @@ const IS_VERCEL = process.env['VERCEL'] === '1';
 const fastify = Fastify({ logger: true });
 
 const ALLOWED_ORIGINS = new Set([
-  process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app',
+  process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai.web.app',
+  'https://cardekho-social-ai.web.app',
+  'https://cardekho-social-ai.firebaseapp.com',
+  'https://gen-lang-client-0078524499.web.app',
+  'https://gen-lang-client-0078524499.firebaseapp.com',
+  'https://social-ai.web.app',
+  'https://social-ai.firebaseapp.com',
+  'https://social-ai-ed9cf.web.app',
+  'https://social-ai-ed9cf.firebaseapp.com',
   'https://cardekho-social-ai-web.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
@@ -52,9 +60,10 @@ const ALLOWED_ORIGINS = new Set([
 await fastify.register(cors, {
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
-    // Allow exact matches + any *.vercel.app subdomain (covers preview + production deployments)
+    // Allow exact matches, Firebase Hosting domains, Vercel domains, and localhost
     if (
       ALLOWED_ORIGINS.has(origin)
+      || /^https:\/\/[a-z0-9-]+\.(web\.app|firebaseapp\.com)$/.test(origin)
       || /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)
       || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
     ) {
@@ -74,7 +83,7 @@ await fastify.register(rateLimit, {
 
 await fastify.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } }); // 50 MB (images + videos)
 
-// Serve uploaded files as static assets at /uploads/...
+// Serve uploaded files as static assets at /uploads/... and /v1/uploads/...
 // Skip on Vercel — no persistent disk; files are stored in S3/R2 and served via their CDN URLs
 if (!IS_VERCEL) {
   await fastify.register(staticPlugin, {

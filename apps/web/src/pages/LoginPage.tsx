@@ -33,14 +33,12 @@ export default function LoginPage() {
   const handleGoogleSignIn = () => {
     setLoading('google');
     setError('');
-    // Redirect browser to Google login endpoint
     window.location.href = `${API_BASE_URL}/auth/google`;
   };
 
   const handleFacebookSignIn = () => {
     setLoading('facebook');
     setError('');
-    // Redirect browser to Facebook login endpoint
     window.location.href = `${API_BASE_URL}/auth/facebook-login`;
   };
 

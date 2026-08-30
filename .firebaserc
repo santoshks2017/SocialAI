@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "gen-lang-client-0078524499"
+  },
+  "targets": {
+    "gen-lang-client-0078524499": {
+      "hosting": {
+        "web": [
+          "cardekho-social-ai"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

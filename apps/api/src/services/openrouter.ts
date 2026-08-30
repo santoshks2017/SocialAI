@@ -15,7 +15,7 @@ function getClient(): OpenAI {
       apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
       defaultHeaders: {
-        'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai-web.vercel.app',
+        'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app',
         'X-Title': 'CarDekho Social AI',
       },
     });

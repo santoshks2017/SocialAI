@@ -1,0 +1,26 @@
+{
+  "hosting": {
+    "target": "web",
+    "public": "apps/web/dist",
+    "rewrites": [
+      {
+        "source": "/v1/**",
+        "run": {
+          "serviceId": "cardekho-api",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/uploads/**",
+        "run": {
+          "serviceId": "cardekho-api",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

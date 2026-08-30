@@ -73,5 +73,6 @@ apps/uploads/
 # Spreadsheets (domain research artifacts)
 *.xlsx
 .vercel
+.firebase/
 
 Lovable Creative Generation MVP

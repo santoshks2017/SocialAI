@@ -83,10 +83,10 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       orderBy: { created_at: 'desc' },
     });
 
-    const items = dealers.map((dealer) => {
-      const activePlatformNames = dealer.platform_connections
-        .filter((pc) => pc.is_connected)
-        .map((pc) => `${pc.platform}: ${pc.platform_account_name ?? 'Connected'}`);
+    const items = dealers.map((dealer: any) => {
+      const activePlatformNames = (dealer.platform_connections || [])
+        .filter((pc: any) => pc.is_connected)
+        .map((pc: any) => `${pc.platform}: ${pc.platform_account_name ?? 'Connected'}`);
 
       return {
         id: dealer.id,
@@ -95,11 +95,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         state: dealer.state,
         phone: dealer.phone,
         plan: dealer.plan ?? 'starter',
-        expiresAt: dealer.plan_expires_at?.toISOString() ?? null,
+        expiresAt: dealer.plan_expires_at?.toISOString?.() ?? null,
         onboardingCompleted: dealer.onboarding_completed,
         onboardingStep: dealer.onboarding_step,
-        postCount: dealer._count.posts,
-        userCount: dealer._count.dealer_users,
+        postCount: dealer._count?.posts ?? 0,
+        userCount: dealer._count?.dealer_users ?? 0,
         connectedHandles: activePlatformNames,
         subscriptionStatus: dealer.subscription?.status ?? 'none',
       };
@@ -115,7 +115,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.post('/dealers/:id/impersonate', { preHandler: [fastify.authenticate, requireGlobalOwner] }, async (request, reply) => {
     const { id: dealerId } = request.params as { id: string };
 
-    const dealer = await prisma.dealer.findUnique({
+    const dealer: any = await prisma.dealer.findUnique({
       where: { id: dealerId },
       include: { dealer_users: true },
     });
@@ -125,11 +125,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     }
 
     // Find the first active admin user for this dealer org
-    let adminUser = dealer.dealer_users.find((u) => u.is_active && u.role === 'admin');
+    let adminUser = (dealer.dealer_users || []).find((u: any) => u.is_active && u.role === 'admin');
     
     // Fallback to any active user if no admin exists
     if (!adminUser) {
-      adminUser = dealer.dealer_users.find((u) => u.is_active);
+      adminUser = (dealer.dealer_users || []).find((u: any) => u.is_active);
     }
 
     // If no active user exists, create a temporary impersonation admin user
