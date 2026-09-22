@@ -9,6 +9,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { registerJwt } from './plugins/jwt.js';
 import { registerActivityLog } from './plugins/activityLog.js';
 import { registerPlanGate } from './plugins/planGate.js';
+import { createOriginChecker } from './lib/corsOrigins.js';
 import { startPublishWorker } from './workers/publishWorker.js';
 import { startMetricsWorker } from './workers/metricsWorker.js';
 
@@ -43,32 +44,10 @@ const IS_VERCEL = process.env['VERCEL'] === '1';
 
 const fastify = Fastify({ logger: true });
 
-const ALLOWED_ORIGINS = new Set([
-  process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai.web.app',
-  'https://cardekho-social-ai.web.app',
-  'https://cardekho-social-ai.firebaseapp.com',
-  'https://gen-lang-client-0078524499.web.app',
-  'https://gen-lang-client-0078524499.firebaseapp.com',
-  'https://social-ai.web.app',
-  'https://social-ai.firebaseapp.com',
-  'https://social-ai-ed9cf.web.app',
-  'https://social-ai-ed9cf.firebaseapp.com',
-  'https://cardekho-social-ai-web.vercel.app',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-]);
+const isAllowedOrigin = createOriginChecker(process.env['FRONTEND_URL']);
 await fastify.register(cors, {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    // Allow exact matches, Firebase Hosting domains, Vercel domains, and localhost
-    if (
-      ALLOWED_ORIGINS.has(origin)
-      || /^https:\/\/[a-z0-9-]+\.(web\.app|firebaseapp\.com)$/.test(origin)
-      || /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)
-      || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
-    ) {
-      return cb(null, true);
-    }
+    if (!origin || isAllowedOrigin(origin)) return cb(null, true);
     cb(new Error(`Origin ${origin} not allowed by CORS`), false);
   },
   methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
