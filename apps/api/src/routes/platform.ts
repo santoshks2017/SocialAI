@@ -8,7 +8,7 @@ const META_APP_SECRET = process.env['META_APP_SECRET'] ?? '';
 const GOOGLE_CLIENT_ID     = process.env['GOOGLE_CLIENT_ID']     ?? '';
 const GOOGLE_CLIENT_SECRET = process.env['GOOGLE_CLIENT_SECRET'] ?? '';
 
-// API_BASE_URL must be set to the deployed API URL in production (e.g. https://xxx.vercel.app)
+// API_BASE_URL must be set to the deployed API URL in production (e.g. https://xxx.a.run.app)
 const API_BASE_URL      = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
 const FRONTEND_URL      = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
 

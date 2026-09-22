@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return userInfo;
       } catch (networkErr) {
         console.warn('API demo login failed, falling back to local demo sandbox session:', networkErr);
-        // Fallback for static hosting (Firebase/Vercel) without live backend
+        // Fallback for static hosting without live backend
         const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
         const payload = btoa(JSON.stringify({
           id: 'demo-dealer-001',
