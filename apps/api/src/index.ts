@@ -9,8 +9,7 @@ import { registerJwt } from './plugins/jwt.js';
 import { registerActivityLog } from './plugins/activityLog.js';
 import { registerPlanGate } from './plugins/planGate.js';
 import { createOriginChecker } from './lib/corsOrigins.js';
-import { startPublishWorker } from './workers/publishWorker.js';
-import { startMetricsWorker } from './workers/metricsWorker.js';
+import { startWorkers } from './workers/index.js';
 
 import authRoutes from './routes/auth.js';
 import dealerRoutes from './routes/dealer.js';
@@ -128,8 +127,7 @@ if (process.env['NODE_ENV'] !== 'test') {
     const port = parseInt(process.env['PORT'] ?? '3001');
     await fastify.listen({ port, host: '0.0.0.0' });
 
-    startPublishWorker();
-    startMetricsWorker();
+    startWorkers(fastify.log);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
