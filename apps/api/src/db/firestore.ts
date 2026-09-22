@@ -42,6 +42,11 @@ if (globalMemoryFallback) {
   console.log('[Firestore] GCP Environment detected: Connecting live to Google Cloud Firestore (default).');
 }
 
+/** True when the adapter is serving from per-process memory instead of Firestore. */
+export function isUsingMemoryStore(): boolean {
+  return globalMemoryFallback;
+}
+
 export class FirestoreCollection<T extends { id?: string; [key: string]: any } = any> {
   constructor(public collectionName: string) {
     if (!memoryStore.has(collectionName)) {

@@ -29,17 +29,17 @@ const Instagram = ({ className }: { className?: string }) => (
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)
   ?? (import.meta.env.DEV ? 'http://127.0.0.1:3001/v1' : '/v1');
 
+// Page tokens never reach the browser: POST /auth/facebook/pages returns names and
+// ids, and POST /platform-accounts looks the token up server-side by account id.
 interface FacebookPageInfo {
   id: string;
   name: string;
-  access_token: string;
 }
 
 interface InstagramInfo {
   id: string;
   username: string;
   page_id: string;
-  page_access_token: string;
 }
 
 interface OAuthData {
@@ -71,6 +71,9 @@ export default function AccountConnectionWizard({
 
   // Data from OAuth Callback
   const [oauthData, setOauthData] = useState<OAuthData | null>(null);
+  // Set once the popup reports back, so closing it while the Page list loads isn't
+  // treated as the user abandoning authorization.
+  const popupResultRef = useRef(false);
   
   // Selection states
   const [selectedPageId, setSelectedPageId] = useState<string>('');
@@ -135,32 +138,37 @@ export default function AccountConnectionWizard({
 
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
+      if (popupResultRef.current) return;
 
       if (event.data?.type === 'oauth_success') {
-        const payloadStr = event.data?.data as string | undefined;
-        if (payloadStr) {
-          try {
-            const data = JSON.parse(payloadStr) as OAuthData;
+        popupResultRef.current = true;
+        const code = event.data?.code as string | undefined;
+        if (!code) {
+          setError('Authorization succeeded, but no pages list was returned.');
+          setStep('intro');
+          return;
+        }
+
+        api.post<OAuthData>('/auth/facebook/pages', { code })
+          .then((data) => {
             setOauthData(data);
-            
+
             // Pre-select first option if available
             if (platform === 'facebook' && data.pages.length > 0) {
               setSelectedPageId(data.pages[0].id);
             } else if (platform === 'instagram' && data.instagrams.length > 0) {
               setSelectedInstagramId(data.instagrams[0].id);
             }
-            
+
             setStep('select');
-          } catch (err) {
-            console.error('Failed to parse OAuth data payload:', err);
-            setError('Received invalid data from Meta authorization.');
+          })
+          .catch((err) => {
+            console.error('Failed to load pages from Meta authorization:', err);
+            setError('Meta authorization expired before your pages could be loaded. Please try again.');
             setStep('intro');
-          }
-        } else {
-          setError('Authorization succeeded, but no pages list was returned.');
-          setStep('intro');
-        }
+          });
       } else if (event.data?.type === 'oauth_error') {
+        popupResultRef.current = true;
         const errorMsg = event.data?.error as string;
         const messages: Record<string, string> = {
           server_config: 'OAuth credentials are not configured on the server.',
@@ -182,6 +190,7 @@ export default function AccountConnectionWizard({
   const startOAuthFlow = () => {
     setError(null);
     setStep('authenticating');
+    popupResultRef.current = false;
 
     const token = localStorage.getItem('access_token');
     const authUrl = `${API_BASE}/auth/facebook${token ? `?access_token=${encodeURIComponent(token)}` : ''}`;
@@ -204,7 +213,7 @@ export default function AccountConnectionWizard({
         clearInterval(pollTimer);
         // If we didn't advance to 'select', reset step
         setStep((currentStep) => {
-          if (currentStep === 'authenticating') {
+          if (currentStep === 'authenticating' && !popupResultRef.current) {
             setError('Authorization window was closed.');
             return 'intro';
           }
@@ -231,9 +240,6 @@ export default function AccountConnectionWizard({
         await api.post('/platform-accounts', {
           platform: 'facebook',
           accountId: page.id,
-          accountName: page.name,
-          accessToken: page.access_token,
-          tokenExpiry: oauthData.tokenExpiry,
         });
       } else {
         const ig = oauthData.instagrams.find((i) => i.id === selectedInstagramId);
@@ -246,9 +252,6 @@ export default function AccountConnectionWizard({
         await api.post('/platform-accounts', {
           platform: 'instagram',
           accountId: ig.id,
-          accountName: ig.username,
-          accessToken: ig.page_access_token,
-          tokenExpiry: oauthData.tokenExpiry,
         });
       }
 

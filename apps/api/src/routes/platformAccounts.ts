@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import axios from 'axios';
+import { clearMetaPageSelection, resolveMetaAccount } from '../lib/oauthHandoff.js';
 
 const VALID_PLATFORMS = new Set([
   'facebook', 'instagram', 'google', 'gmb', 
@@ -95,11 +96,13 @@ export default async function platformAccountRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // POST /v1/platform-accounts — manually save or update a platform account
+  // POST /v1/platform-accounts — manually save or update a platform account.
+  // After the Meta OAuth flow (POST /v1/auth/facebook/pages), send only platform +
+  // accountId: the name and token come from the server-side page selection.
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const body = request.body as SaveAccountBody | undefined;
 
-    if (!body || !body.platform || !body.accountId || !body.accountName || !body.accessToken) {
+    if (!body || !body.platform || !body.accountId) {
       return reply.code(400).send({
         error: 'Missing required fields: platform, accountId, accountName, accessToken',
       });
@@ -114,6 +117,24 @@ export default async function platformAccountRoutes(fastify: FastifyInstance) {
     const dealer_id = request.user.dealer_id!;
     const platform = body.platform === 'google' ? 'gmb' : body.platform;
 
+    let { accountName, accessToken, tokenExpiry } = body;
+    const fromMetaSelection = !accessToken && (platform === 'facebook' || platform === 'instagram');
+    if (fromMetaSelection) {
+      const picked = await resolveMetaAccount(dealer_id, platform, body.accountId);
+      if (!picked) {
+        return reply.code(400).send({
+          error: 'Facebook authorization has expired or does not include this account. Please connect again.',
+        });
+      }
+      ({ accountName, accessToken, tokenExpiry } = picked);
+    }
+
+    if (!accountName || !accessToken) {
+      return reply.code(400).send({
+        error: 'Missing required fields: platform, accountId, accountName, accessToken',
+      });
+    }
+
     try {
       const connection = await prisma.platformConnection.upsert({
         where: {
@@ -126,21 +147,27 @@ export default async function platformAccountRoutes(fastify: FastifyInstance) {
           dealer_id,
           platform,
           platform_account_id: body.accountId,
-          platform_account_name: body.accountName,
-          access_token: body.accessToken,
+          platform_account_name: accountName,
+          access_token: accessToken,
           refresh_token: body.refreshToken ?? null,
-          token_expires_at: body.tokenExpiry ? new Date(body.tokenExpiry) : null,
+          token_expires_at: tokenExpiry ? new Date(tokenExpiry) : null,
           is_connected: true,
         },
         update: {
           platform_account_id: body.accountId,
-          platform_account_name: body.accountName,
-          access_token: body.accessToken,
+          platform_account_name: accountName,
+          access_token: accessToken,
           refresh_token: body.refreshToken ?? null,
-          token_expires_at: body.tokenExpiry ? new Date(body.tokenExpiry) : null,
+          token_expires_at: tokenExpiry ? new Date(tokenExpiry) : null,
           is_connected: true,
         },
       });
+
+      if (fromMetaSelection) {
+        await clearMetaPageSelection(dealer_id).catch((err) => {
+          fastify.log.warn(err, '[PlatformAccounts] Failed to clear Meta page selection');
+        });
+      }
 
       fastify.log.info(`[PlatformAccounts] Upserted connection for platform=${platform} for dealer=${dealer_id}`);
       return {
