@@ -13,8 +13,7 @@
     "build:packages": "npm run build -w @cardeko/shared -w @cardeko/pattern-engine -w @cardeko/scraper -w @cardeko/render-engine -w @cardeko/template-engine",
     "build:api": "npm run build:packages && npm run build -w @cardeko/api",
     "build:web": "npm run build:shared && npm run build -w web",
-    "build": "npm run build:packages && npm run build -w @cardeko/api -w web",
-    "vercel-build": "npm run build:web"
+    "build": "npm run build:packages && npm run build -w @cardeko/api -w web"
   },
   "keywords": [],
   "author": "",

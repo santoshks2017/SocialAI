@@ -301,7 +301,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           }
         }
         // If scheduled_at but no queue: status is set to 'scheduled' below;
-        // Vercel cron (/v1/cron/publish) will pick it up when the time arrives.
+        // the cron endpoint (/v1/cron/publish) will pick it up when the time arrives.
       }
 
       // Update post status

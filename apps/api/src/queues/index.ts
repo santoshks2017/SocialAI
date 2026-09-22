@@ -1,11 +1,9 @@
 import { Queue } from 'bullmq';
 
 const REDIS_URL = process.env['REDIS_URL']?.replace(/^["']|["']$/g, '');
-const IS_VERCEL = process.env['VERCEL'] === '1';
-
-// Only create queues if Redis is configured and we're not on Vercel serverless or in test mode
-// (Vercel has no persistent process to drain queues — cron handles scheduled jobs instead)
-const hasRedis = !IS_VERCEL && process.env['NODE_ENV'] !== 'test' && !!REDIS_URL;
+// Only create queues if Redis is configured and we're not in test mode
+// (without Redis, /v1/cron/publish handles scheduled jobs instead)
+const hasRedis = process.env['NODE_ENV'] !== 'test' && !!REDIS_URL;
 
 export const redisConnection = hasRedis
   ? {
