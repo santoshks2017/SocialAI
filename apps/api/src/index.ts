@@ -36,17 +36,18 @@ import modelLibraryRoutes from './routes/modelLibrary.js';
 import billingRoutes from './routes/billing.js';
 import adminRoutes from './routes/admin.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
+import { getFrontendUrl } from './lib/frontendUrl.js';
 
 const fastify = Fastify({ logger: true });
 
+if (process.env['NODE_ENV'] === 'production' && !process.env['FRONTEND_URL']?.trim()) {
+  fastify.log.warn(`FRONTEND_URL is not set; OAuth redirects will use ${getFrontendUrl()}`);
+}
+
 const ALLOWED_ORIGINS = new Set([
-  process.env['FRONTEND_URL'] ?? 'https://cardekho-social-ai.web.app',
+  getFrontendUrl(),
   'https://cardekho-social-ai.web.app',
   'https://cardekho-social-ai.firebaseapp.com',
-  'https://social-ai.web.app',
-  'https://social-ai.firebaseapp.com',
-  'https://social-ai-ed9cf.web.app',
-  'https://social-ai-ed9cf.firebaseapp.com',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ]);

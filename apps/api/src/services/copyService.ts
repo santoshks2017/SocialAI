@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getFrontendUrl } from '../lib/frontendUrl.js';
 
 export interface CopyOutput {
   headlines: string[];       // length 3
@@ -110,7 +111,7 @@ Return the result STRICTLY as a JSON object matching this schema:
           headers: {
             Authorization: `Bearer ${process.env.OPENROUTER_TEXT_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": process.env.FRONTEND_URL || "http://localhost:5173",
+            "HTTP-Referer": getFrontendUrl(),
             "X-Title": "CarDekho Social AI",
           },
           timeout: 25000,
