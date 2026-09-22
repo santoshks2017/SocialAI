@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Car, RefreshCw } from 'lucide-react';
 import type { UserInfo } from '../lib/permissions';
@@ -11,74 +11,87 @@ interface AuthCallbackPageProps {
 export default function AuthCallbackPage({ onLogin }: AuthCallbackPageProps) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  // The sign-in code is single-use. StrictMode runs effects twice in development,
+  // and a second exchange would fail and bounce the user back to /login.
+  const exchangeStarted = useRef(false);
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const refresh = searchParams.get('refresh') ?? '';
+    if (exchangeStarted.current) return;
+    exchangeStarted.current = true;
 
-    if (!token) {
-      navigate('/login?error=oauth_failed');
+    const code = searchParams.get('code');
+    // Drop the code from the address bar and this history entry straight away.
+    window.history.replaceState(window.history.state, '', window.location.pathname);
+
+    if (!code) {
+      navigate('/login?error=oauth_failed', { replace: true });
       return;
     }
 
-    try {
-      const [, payload] = token.split('.');
-      const decoded = JSON.parse(atob(payload)) as {
-        dealer_user_id: string;
-        dealer_id: string | null;
-        role: string;
-        phone: string;
-        permissions: Record<string, boolean>;
-      };
-
-      // Store tokens first so API calls can work
-      localStorage.setItem('access_token', token);
-      if (refresh) localStorage.setItem('refresh_token', refresh);
-
-      // Fetch user info + dealer profile to check onboarding
-      Promise.all([
-        api.get<{ user: { id: string; name: string; role: string; dealerId: string | null; permissions: Record<string, boolean> } }>('/users/me'),
-        api.get<{ success: boolean; profile: { onboarding_completed: boolean; onboarding_step: number } }>('/dealer/profile').catch(() => ({ success: false, profile: { onboarding_completed: false, onboarding_step: 1 } }))
-      ]).then(([userRes, profileRes]) => {
-        const onboardingCompleted = profileRes.success && profileRes.profile ? profileRes.profile.onboarding_completed : false;
-        const onboardingStep = profileRes.success && profileRes.profile ? profileRes.profile.onboarding_step : 1;
-
-        const userInfo: UserInfo = {
-          id: decoded.dealer_user_id,
-          name: userRes.user.name,
-          role: decoded.role as UserInfo['role'],
-          dealer_id: decoded.dealer_id,
-          permissions: decoded.permissions as UserInfo['permissions'],
-          onboarding_completed: onboardingCompleted,
-          onboarding_step: onboardingStep,
+    const completeSignIn = (token: string, refresh: string) => {
+      try {
+        const [, payload] = token.split('.');
+        const decoded = JSON.parse(atob(payload)) as {
+          dealer_user_id: string;
+          dealer_id: string | null;
+          role: string;
+          phone: string;
+          permissions: Record<string, boolean>;
         };
 
-        localStorage.setItem('user_info', JSON.stringify(userInfo));
-        onLogin(token, refresh, userInfo);
+        // Store tokens first so API calls can work
+        localStorage.setItem('access_token', token);
+        if (refresh) localStorage.setItem('refresh_token', refresh);
 
-        if (onboardingCompleted) {
-          navigate('/');
-        } else {
-          navigate('/onboarding');
-        }
-      }).catch(() => {
-        // Fallback using JWT payload
-        const userInfo: UserInfo = {
-          id: decoded.dealer_user_id,
-          name: 'User',
-          role: decoded.role as UserInfo['role'],
-          dealer_id: decoded.dealer_id,
-          permissions: decoded.permissions as UserInfo['permissions'],
-          onboarding_completed: false,
-          onboarding_step: 1,
-        };
-        localStorage.setItem('user_info', JSON.stringify(userInfo));
-        onLogin(token, refresh, userInfo);
-        navigate('/onboarding');
-      });
-    } catch {
-      navigate('/login?error=invalid_token');
-    }
+        // Fetch user info + dealer profile to check onboarding
+        Promise.all([
+          api.get<{ user: { id: string; name: string; role: string; dealerId: string | null; permissions: Record<string, boolean> } }>('/users/me'),
+          api.get<{ success: boolean; profile: { onboarding_completed: boolean; onboarding_step: number } }>('/dealer/profile').catch(() => ({ success: false, profile: { onboarding_completed: false, onboarding_step: 1 } }))
+        ]).then(([userRes, profileRes]) => {
+          const onboardingCompleted = profileRes.success && profileRes.profile ? profileRes.profile.onboarding_completed : false;
+          const onboardingStep = profileRes.success && profileRes.profile ? profileRes.profile.onboarding_step : 1;
+
+          const userInfo: UserInfo = {
+            id: decoded.dealer_user_id,
+            name: userRes.user.name,
+            role: decoded.role as UserInfo['role'],
+            dealer_id: decoded.dealer_id,
+            permissions: decoded.permissions as UserInfo['permissions'],
+            onboarding_completed: onboardingCompleted,
+            onboarding_step: onboardingStep,
+          };
+
+          localStorage.setItem('user_info', JSON.stringify(userInfo));
+          onLogin(token, refresh, userInfo);
+
+          if (onboardingCompleted) {
+            navigate('/', { replace: true });
+          } else {
+            navigate('/onboarding', { replace: true });
+          }
+        }).catch(() => {
+          // Fallback using JWT payload
+          const userInfo: UserInfo = {
+            id: decoded.dealer_user_id,
+            name: 'User',
+            role: decoded.role as UserInfo['role'],
+            dealer_id: decoded.dealer_id,
+            permissions: decoded.permissions as UserInfo['permissions'],
+            onboarding_completed: false,
+            onboarding_step: 1,
+          };
+          localStorage.setItem('user_info', JSON.stringify(userInfo));
+          onLogin(token, refresh, userInfo);
+          navigate('/onboarding', { replace: true });
+        });
+      } catch {
+        navigate('/login?error=invalid_token', { replace: true });
+      }
+    };
+
+    api.post<{ token: string; refreshToken: string }>('/auth/oauth/exchange', { code })
+      .then(({ token, refreshToken }) => completeSignIn(token, refreshToken))
+      .catch(() => navigate('/login?error=oauth_failed', { replace: true }));
   }, [searchParams, onLogin, navigate]);
 
   return (

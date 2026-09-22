@@ -42,6 +42,11 @@ if (globalMemoryFallback) {
   console.log('[Firestore] GCP Environment detected: Connecting live to Google Cloud Firestore (default).');
 }
 
+/** True when the adapter is serving from per-process memory instead of Firestore. */
+export function isUsingMemoryStore(): boolean {
+  return globalMemoryFallback;
+}
+
 export class FirestoreCollection<T extends { id?: string; [key: string]: any } = any> {
   constructor(public collectionName: string) {
     if (!memoryStore.has(collectionName)) {
@@ -99,6 +104,12 @@ export class FirestoreCollection<T extends { id?: string; [key: string]: any } =
       const docVal = doc[key];
 
       if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        // Prisma compound unique selector, e.g. { dealer_id_platform: { dealer_id, platform } }.
+        // No document has a field by that name, so match each listed field instead.
+        if (key === Object.keys(value).join('_')) {
+          if (!this.matchesFilter(doc, value)) return false;
+          continue;
+        }
         if ('in' in value && Array.isArray(value.in)) {
           if (!value.in.includes(docVal)) return false;
           continue;

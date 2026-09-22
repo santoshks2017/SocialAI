@@ -6,6 +6,8 @@ import { setOtp, getOtp, deleteOtp } from "../lib/otpStore.js"
 import { SEED_PAGES, scrapePublicPage, extractPatterns } from "../services/socialScraper.js"
 import { saveAccount } from "../services/platformConnections.js"
 import { getFrontendUrl } from "../lib/frontendUrl.js"
+import { issueHandoffCode, redeemHandoffCode, stashMetaPageSelection } from "../lib/oauthHandoff.js"
+import type { MetaPageSelection, SessionHandoff } from "../lib/oauthHandoff.js"
 
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
@@ -545,6 +547,20 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // POST /v1/auth/oauth/exchange — trade the one-time code from an OAuth sign-in
+  // redirect (/auth/callback?code=...) for the session it stands for. Codes are
+  // single-use and expire after 60 seconds.
+  fastify.post("/oauth/exchange", async (request, reply) => {
+    const { code } = (request.body ?? {}) as { code?: unknown }
+    const session = await redeemHandoffCode<SessionHandoff>("session", code)
+    if (!session) {
+      return reply.code(400).send({
+        error: { code: "INVALID_CODE", message: "Sign-in code is invalid or has expired" },
+      })
+    }
+    return { token: session.token, refreshToken: session.refreshToken }
+  })
+
   // ─── Facebook OAuth ────────────────────────────────────────────────────────
 
   const FB_API_VERSION = 'v18.0';
@@ -666,8 +682,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       fastify.log.info(`[FB OAuth] Found ${pages.length} pages for dealer=${dealerId ?? 'unknown'}`);
 
-      const pagesToSelect = [];
-      const instagramsToSelect = [];
+      const pagesToSelect: MetaPageSelection['pages'] = [];
+      const instagramsToSelect: MetaPageSelection['instagrams'] = [];
 
       for (const page of pages) {
         pagesToSelect.push({
@@ -691,7 +707,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
               id: igDetails.id,
               username: igDetails.username ?? `ig_${igDetails.id}`,
               page_id: page.id,
-              page_access_token: page.access_token,
             });
             fastify.log.info(`[FB OAuth] Found linked IG account: ${igDetails.username ?? igDetails.id} for FB page ${page.name}`);
           }
@@ -700,19 +715,52 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const payload = {
+      // Page tokens stay on the server: the web app redeems this code through
+      // POST /facebook/pages, which returns names and ids only.
+      const handoffCode = await issueHandoffCode('meta_pages', {
+        dealerId,
         pages: pagesToSelect,
         instagrams: instagramsToSelect,
         tokenExpiry: userTokenExpiry.toISOString(),
-      };
+      } satisfies MetaPageSelection & { dealerId: string | null });
 
       fastify.log.info(`[FB OAuth] Found ${pagesToSelect.length} FB pages, ${instagramsToSelect.length} IG accounts for selection`);
-      return reply.redirect(`${FRONTEND_URL}/oauth/callback?success=1&platform=facebook&data=${encodeURIComponent(JSON.stringify(payload))}`);
+      return reply.redirect(`${FRONTEND_URL}/oauth/callback?success=1&platform=facebook&code=${handoffCode}`);
 
     } catch (err) {
       fastify.log.error(err, '[FB OAuth] Callback failed with unexpected error');
       return reply.redirect(`${FRONTEND_URL}/oauth/callback?error=token_exchange_failed&platform=facebook`);
     }
+  });
+
+  // POST /v1/auth/facebook/pages — redeem the code from /facebook/callback for the
+  // Pages and Instagram accounts the user can connect. The tokens are parked under
+  // the caller's dealer for POST /v1/platform-accounts to pick up by account id.
+  fastify.post('/facebook/pages', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealerId = request.user.dealer_id;
+    if (!dealerId) {
+      return reply.code(403).send({ error: { code: 'NO_DEALER', message: 'Only dealer accounts can connect pages' } });
+    }
+
+    const { code } = (request.body ?? {}) as { code?: unknown };
+    const handoff = await redeemHandoffCode<MetaPageSelection & { dealerId: string | null }>('meta_pages', code);
+    if (!handoff) {
+      return reply.code(400).send({ error: { code: 'INVALID_CODE', message: 'Facebook authorization has expired. Please connect again.' } });
+    }
+
+    const { dealerId: stateDealerId, ...selection } = handoff;
+    if (stateDealerId && stateDealerId !== dealerId) {
+      fastify.log.warn(`[FB OAuth] Code issued for dealer=${stateDealerId} redeemed by dealer=${dealerId}`);
+      return reply.code(403).send({ error: { code: 'DEALER_MISMATCH', message: 'This Facebook authorization belongs to another account' } });
+    }
+
+    await stashMetaPageSelection(dealerId, selection);
+    return {
+      success: true,
+      pages: selection.pages.map(({ id, name }) => ({ id, name })),
+      instagrams: selection.instagrams.map(({ id, username, page_id }) => ({ id, username, page_id })),
+      tokenExpiry: selection.tokenExpiry,
+    };
   });
 
   // ─── Google OAuth ──────────────────────────────────────────────────────────
@@ -887,9 +935,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.redirect(
-        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
-      );
+      const handoffCode = await issueHandoffCode('session', { token, refreshToken } satisfies SessionHandoff);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?code=${handoffCode}`);
     } catch (err) {
       fastify.log.error(err, '[Google OAuth Mock] Callback failed with unexpected error');
       return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=google`);
@@ -1039,9 +1086,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.redirect(
-        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
-      );
+      const handoffCode = await issueHandoffCode('session', { token, refreshToken } satisfies SessionHandoff);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?code=${handoffCode}`);
     } catch (err) {
       fastify.log.error(err, '[Google OAuth] Callback failed with unexpected error');
       return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=google`);
@@ -1241,9 +1287,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.redirect(
-        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
-      );
+      const handoffCode = await issueHandoffCode('session', { token, refreshToken } satisfies SessionHandoff);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?code=${handoffCode}`);
     } catch (err) {
       fastify.log.error(err, '[FB Login] Callback failed with unexpected error');
       return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=facebook`);
@@ -1355,9 +1400,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.redirect(
-        `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refresh=${encodeURIComponent(refreshToken)}`
-      );
+      const handoffCode = await issueHandoffCode('session', { token, refreshToken } satisfies SessionHandoff);
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?code=${handoffCode}`);
     } catch (err) {
       fastify.log.error(err, '[FB Login Mock] Callback failed with unexpected error');
       return reply.redirect(`${FRONTEND_URL}/auth/callback?error=token_exchange_failed&platform=facebook`);

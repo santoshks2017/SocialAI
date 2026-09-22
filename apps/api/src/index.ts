@@ -8,8 +8,8 @@ import staticPlugin from '@fastify/static';
 import { registerJwt } from './plugins/jwt.js';
 import { registerActivityLog } from './plugins/activityLog.js';
 import { registerPlanGate } from './plugins/planGate.js';
-import { startPublishWorker } from './workers/publishWorker.js';
-import { startMetricsWorker } from './workers/metricsWorker.js';
+import { createOriginChecker } from './lib/corsOrigins.js';
+import { startWorkers } from './workers/index.js';
 
 import authRoutes from './routes/auth.js';
 import dealerRoutes from './routes/dealer.js';
@@ -44,24 +44,10 @@ if (process.env['NODE_ENV'] === 'production' && !process.env['FRONTEND_URL']?.tr
   fastify.log.warn(`FRONTEND_URL is not set; OAuth redirects will use ${getFrontendUrl()}`);
 }
 
-const ALLOWED_ORIGINS = new Set([
-  getFrontendUrl(),
-  'https://cardekho-social-ai.web.app',
-  'https://cardekho-social-ai.firebaseapp.com',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-]);
+const isAllowedOrigin = createOriginChecker(getFrontendUrl());
 await fastify.register(cors, {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    // Allow exact matches, Firebase Hosting domains, and localhost
-    if (
-      ALLOWED_ORIGINS.has(origin)
-      || /^https:\/\/[a-z0-9-]+\.(web\.app|firebaseapp\.com)$/.test(origin)
-      || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
-    ) {
-      return cb(null, true);
-    }
+    if (!origin || isAllowedOrigin(origin)) return cb(null, true);
     cb(new Error(`Origin ${origin} not allowed by CORS`), false);
   },
   methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -146,8 +132,7 @@ if (process.env['NODE_ENV'] !== 'test') {
     const port = parseInt(process.env['PORT'] ?? '3001');
     await fastify.listen({ port, host: '0.0.0.0' });
 
-    startPublishWorker();
-    startMetricsWorker();
+    startWorkers(fastify.log);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

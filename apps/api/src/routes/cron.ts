@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import { publishPostToPlatform } from '../lib/publishDirect.js';
@@ -12,9 +13,16 @@ export default async function cronRoutes(fastify: FastifyInstance) {
     if (secret) {
       const auth = (request.headers['authorization'] ?? '') as string;
       const provided = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-      if (provided !== secret) {
+      // Hash both sides so timingSafeEqual gets equal-length buffers
+      const providedHash = crypto.createHash('sha256').update(provided).digest();
+      const secretHash = crypto.createHash('sha256').update(secret).digest();
+      if (!crypto.timingSafeEqual(providedHash, secretHash)) {
         return reply.code(401).send({ error: 'Unauthorized' });
       }
+    } else if (process.env['NODE_ENV'] === 'production') {
+      // Fail closed: without a secret anyone could trigger publishing
+      fastify.log.error('[cron] CRON_SECRET is not set; refusing to run the publish sweep');
+      return reply.code(503).send({ error: 'Cron is not configured' });
     }
 
     const now = new Date();
