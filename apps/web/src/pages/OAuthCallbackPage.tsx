@@ -10,10 +10,14 @@ export default function OAuthCallbackPage() {
     const error = searchParams.get('error');
     const platform = searchParams.get('platform');
     const pageName = searchParams.get('page_name');
+    // One-time code for the Page list from GET /v1/auth/facebook/callback. The opener
+    // redeems it; keep it out of this window's address bar and history entry.
+    const code = searchParams.get('code');
+    window.history.replaceState(window.history.state, '', window.location.pathname);
 
-    // Build the message to send to the opener (AccountsPage popup flow)
+    // Build the message to send to the opener (AccountsPage / AccountConnectionWizard popup flow)
     const message = success
-      ? { type: 'oauth_success', platform, pageName }
+      ? { type: 'oauth_success', platform, pageName, code }
       : { type: 'oauth_error', error, platform };
 
     // Popup mode: post message to the opener window and close

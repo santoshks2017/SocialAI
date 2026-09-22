@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import axios from 'axios';
 import { exchangeForLongLivedToken, getPageAccessToken } from '../services/meta.js';
+import { issueHandoffCode, type SessionHandoff } from '../lib/oauthHandoff.js';
 
 const META_APP_ID     = process.env['META_APP_ID']     ?? '';
 const META_APP_SECRET = process.env['META_APP_SECRET'] ?? '';
@@ -553,10 +554,15 @@ export default async function platformRoutes(fastify: FastifyInstance) {
 
       const connected = igConnected ? 'facebook,instagram' : 'facebook';
 
-      // For social sign-in: redirect to frontend with JWT so the user is logged in
+      // For social sign-in: hand the JWTs to the frontend through a one-time code
+      // (redeemed via POST /v1/auth/oauth/exchange) so they never appear in a URL
       if (stateData.signin && accessTokenForJwt) {
+        const handoffCode = await issueHandoffCode('session', {
+          token: accessTokenForJwt,
+          refreshToken: refreshTokenForJwt ?? '',
+        } satisfies SessionHandoff);
         return reply.redirect(
-          `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(accessTokenForJwt)}&refresh=${encodeURIComponent(refreshTokenForJwt ?? '')}&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(page.name)}`
+          `${FRONTEND_URL}/auth/callback?code=${handoffCode}&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(page.name)}`
         );
       }
 
@@ -708,8 +714,12 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       }
 
       if (stateData.signin && jwtToken) {
+        const handoffCode = await issueHandoffCode('session', {
+          token: jwtToken,
+          refreshToken: jwtRefresh ?? '',
+        } satisfies SessionHandoff);
         return reply.redirect(
-          `${FRONTEND_URL}/auth/callback?token=${encodeURIComponent(jwtToken)}&refresh=${encodeURIComponent(jwtRefresh ?? '')}&platform=gmb&page_name=${encodeURIComponent(displayName)}`
+          `${FRONTEND_URL}/auth/callback?code=${handoffCode}&platform=gmb&page_name=${encodeURIComponent(displayName)}`
         );
       }
 
