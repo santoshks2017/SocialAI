@@ -1,5 +1,6 @@
 // services/openrouterImage.ts
 import axios from 'axios';
+import { getFrontendUrl } from '../lib/frontendUrl.js';
 
 /** Generate an image using OpenRouter's image model. Returns a Buffer of the JPEG/PNG data. */
 export async function generateOpenRouterImage(prompt: string): Promise<Buffer> {
@@ -24,7 +25,7 @@ export async function generateOpenRouterImage(prompt: string): Promise<Buffer> {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app',
+      'HTTP-Referer': getFrontendUrl(),
       'X-Title': 'CarDekho Social AI',
     },
     timeout: 60000,

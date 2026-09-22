@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import axios from 'axios';
 import { validateRazorpaySignature } from '../lib/webhookSecurity.js';
+import { getFrontendUrl } from '../lib/frontendUrl.js';
 
 export default async function billingRoutes(fastify: FastifyInstance) {
   // GET /v1/billing/status — Get subscription status & limits
@@ -135,7 +136,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       // Mock mode
       fastify.log.warn('Razorpay credentials missing. Generating mock subscription ID.');
       razorpaySubscriptionId = `mock_sub_${Math.random().toString(36).substring(2, 15)}`;
-      shortUrl = `${process.env['FRONTEND_URL'] ?? 'http://localhost:5173'}/billing/success?subscription_id=${razorpaySubscriptionId}`;
+      shortUrl = `${getFrontendUrl()}/billing/success?subscription_id=${razorpaySubscriptionId}`;
     }
 
     if (sub) {

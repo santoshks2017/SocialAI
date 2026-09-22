@@ -1,6 +1,7 @@
 import axios from "axios";
 import type { DealerContext, InventoryContext, GeneratedCaptions } from "./openai.js";
 import { buildEnrichedSystemPrompt } from "../data/indianAutoPatterns.js";
+import { getFrontendUrl } from "../lib/frontendUrl.js";
 
 export interface GeminiCreativeOptionOutput {
   headline: string;
@@ -184,7 +185,7 @@ Return the result STRICTLY as a JSON object matching this schema:
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": process.env.FRONTEND_URL || "http://localhost:5173",
+        "HTTP-Referer": getFrontendUrl(),
         "X-Title": "CarDekho Social AI",
       },
       timeout: 30000,
@@ -372,7 +373,7 @@ async function callOpenRouterBrief(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": process.env.FRONTEND_URL || "http://localhost:5173",
+        "HTTP-Referer": getFrontendUrl(),
         "X-Title": "CarDekho Social AI",
       },
       timeout: 30000,
@@ -827,7 +828,7 @@ Generate the detailed layers and copy now.`;
           headers: {
             Authorization: `Bearer ${process.env.OPENROUTER_TEXT_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": process.env.FRONTEND_URL || "http://localhost:5173",
+            "HTTP-Referer": getFrontendUrl(),
             "X-Title": "CarDekho Social AI",
           },
           timeout: 30000,

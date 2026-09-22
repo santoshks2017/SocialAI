@@ -5,6 +5,7 @@ import type { Role, JwtUser } from "../lib/permissions.js"
 import { setOtp, getOtp, deleteOtp } from "../lib/otpStore.js"
 import { SEED_PAGES, scrapePublicPage, extractPatterns } from "../services/socialScraper.js"
 import { saveAccount } from "../services/platformConnections.js"
+import { getFrontendUrl } from "../lib/frontendUrl.js"
 import { issueHandoffCode, redeemHandoffCode, stashMetaPageSelection } from "../lib/oauthHandoff.js"
 import type { MetaPageSelection, SessionHandoff } from "../lib/oauthHandoff.js"
 
@@ -594,7 +595,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/facebook', async (request, reply) => {
     const META_APP_ID = process.env['META_APP_ID'];
     const META_REDIRECT_URI = process.env['META_REDIRECT_URI'];
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app';
+    const FRONTEND_URL = getFrontendUrl();
 
     if (!META_APP_ID || !META_REDIRECT_URI) {
       fastify.log.error('[FB OAuth] Missing META_APP_ID or META_REDIRECT_URI');
@@ -621,7 +622,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/facebook/callback', async (request, reply) => {
     const { code, error: fbError, state } = request.query as { code?: string; error?: string; state?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app';
+    const FRONTEND_URL = getFrontendUrl();
 
     if (fbError || !code) {
       fastify.log.warn(`[FB OAuth] Callback error: ${fbError ?? 'no_code'}`);
@@ -773,7 +774,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const GOOGLE_CLIENT_ID = process.env['GOOGLE_CLIENT_ID'];
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
     const GOOGLE_REDIRECT_URI_AUTH = process.env['GOOGLE_REDIRECT_URI'] ?? `${API_BASE_URL}/v1/auth/google/callback`;
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const FRONTEND_URL = getFrontendUrl();
 
     if (!GOOGLE_CLIENT_ID) {
       if (process.env['NODE_ENV'] !== 'production') {
@@ -831,7 +832,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/google/mock-callback', async (request, reply) => {
     const { email, name } = request.query as { email?: string; name?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const FRONTEND_URL = getFrontendUrl();
 
     if (process.env['NODE_ENV'] === 'production') {
       return reply.status(403).send({ error: 'Mock login is disabled in production' });
@@ -944,7 +945,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/google/callback', async (request, reply) => {
     const { code, error: gError } = request.query as { code?: string; error?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const FRONTEND_URL = getFrontendUrl();
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
     const GOOGLE_REDIRECT_URI_AUTH = process.env['GOOGLE_REDIRECT_URI'] ?? `${API_BASE_URL}/v1/auth/google/callback`;
 
@@ -1099,7 +1100,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const META_APP_ID = process.env['META_APP_ID'];
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
     const FB_LOGIN_REDIRECT_URI = `${API_BASE_URL}/v1/auth/facebook-login/callback`;
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const FRONTEND_URL = getFrontendUrl();
 
     if (!META_APP_ID) {
       if (process.env['NODE_ENV'] !== 'production') {
@@ -1155,7 +1156,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/facebook-login/callback', async (request, reply) => {
     const { code, error: fbError } = request.query as { code?: string; error?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const FRONTEND_URL = getFrontendUrl();
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
     const FB_LOGIN_REDIRECT_URI = `${API_BASE_URL}/v1/auth/facebook-login/callback`;
 
@@ -1296,7 +1297,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/facebook-login/mock-callback', async (request, reply) => {
     const { email, name } = request.query as { email?: string; name?: string };
-    const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+    const FRONTEND_URL = getFrontendUrl();
 
     if (process.env['NODE_ENV'] === 'production') {
       return reply.status(403).send({ error: 'Mock login is disabled in production' });

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { DealerContext, InventoryContext, GeneratedCaptions, CaptionVariant } from './openai.js';
 import { buildEnrichedSystemPrompt } from '../data/indianAutoPatterns.js';
+import { getFrontendUrl } from '../lib/frontendUrl.js';
 
 export type { DealerContext, InventoryContext, GeneratedCaptions, CaptionVariant };
 
@@ -15,7 +16,7 @@ function getClient(): OpenAI {
       apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
       defaultHeaders: {
-        'HTTP-Referer': process.env['FRONTEND_URL'] ?? 'https://social-ai.web.app',
+        'HTTP-Referer': getFrontendUrl(),
         'X-Title': 'CarDekho Social AI',
       },
     });

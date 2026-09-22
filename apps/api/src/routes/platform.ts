@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import axios from 'axios';
 import { exchangeForLongLivedToken, getPageAccessToken } from '../services/meta.js';
+import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { issueHandoffCode, type SessionHandoff } from '../lib/oauthHandoff.js';
 
 const META_APP_ID     = process.env['META_APP_ID']     ?? '';
@@ -11,7 +12,7 @@ const GOOGLE_CLIENT_SECRET = process.env['GOOGLE_CLIENT_SECRET'] ?? '';
 
 // API_BASE_URL must be set to the deployed API URL in production (e.g. https://xxx.a.run.app)
 const API_BASE_URL      = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
-const FRONTEND_URL      = process.env['FRONTEND_URL'] ?? 'http://localhost:5173';
+const FRONTEND_URL      = getFrontendUrl();
 
 // Redirect URIs — these must be registered in Meta App Dashboard / Google Cloud Console
 const META_CALLBACK_URI   = `${API_BASE_URL}/v1/platforms/callback/meta`;

@@ -36,10 +36,15 @@ import modelLibraryRoutes from './routes/modelLibrary.js';
 import billingRoutes from './routes/billing.js';
 import adminRoutes from './routes/admin.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
+import { getFrontendUrl } from './lib/frontendUrl.js';
 
 const fastify = Fastify({ logger: true });
 
-const isAllowedOrigin = createOriginChecker(process.env['FRONTEND_URL']);
+if (process.env['NODE_ENV'] === 'production' && !process.env['FRONTEND_URL']?.trim()) {
+  fastify.log.warn(`FRONTEND_URL is not set; OAuth redirects will use ${getFrontendUrl()}`);
+}
+
+const isAllowedOrigin = createOriginChecker(getFrontendUrl());
 await fastify.register(cors, {
   origin: (origin, cb) => {
     if (!origin || isAllowedOrigin(origin)) return cb(null, true);
