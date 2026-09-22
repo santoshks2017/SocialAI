@@ -12,9 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm ci && npm run build
+        env:
+          # apps/web/.env.production is gitignored; /v1 is proxied to Cloud Run by firebase.json
+          VITE_API_URL: /v1
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0078524499 || secrets.FIREBASE_SERVICE_ACCOUNT_SOCIAL_AI_ED9CF }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0078524499 }}
           channelId: live
           projectId: gen-lang-client-0078524499
