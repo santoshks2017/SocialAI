@@ -10,9 +10,6 @@
 const ALLOWED_ORIGINS = [
   'https://cardekho-social-ai.web.app',
   'https://cardekho-social-ai.firebaseapp.com',
-  'https://gen-lang-client-0078524499.web.app',
-  'https://gen-lang-client-0078524499.firebaseapp.com',
-  'https://cardekho-social-ai-web.vercel.app',
 ];
 
 // Local dev: Vite on any port calling the API on :3001

@@ -1,6 +1,6 @@
 import api from './api';
 
-// Local type stubs — avoids workspace package resolution issues on Vercel
+// Local type stubs — avoids workspace package resolution issues
 interface Dealer { id: string; name: string; phone: string; city: string; [key: string]: unknown }
 interface DealerFormData { name?: string; city?: string; [key: string]: unknown }
 interface PlatformConnection { id: string; platform: string; [key: string]: unknown }

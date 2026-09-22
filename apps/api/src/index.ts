@@ -4,7 +4,6 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import staticPlugin from '@fastify/static';
-import type { IncomingMessage, ServerResponse } from 'http';
 
 import { registerJwt } from './plugins/jwt.js';
 import { registerActivityLog } from './plugins/activityLog.js';
@@ -39,9 +38,6 @@ import billingRoutes from './routes/billing.js';
 import adminRoutes from './routes/admin.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 
-// Vercel sets this automatically in its environment
-const IS_VERCEL = process.env['VERCEL'] === '1';
-
 const fastify = Fastify({ logger: true });
 
 const isAllowedOrigin = createOriginChecker(process.env['FRONTEND_URL']);
@@ -63,14 +59,11 @@ await fastify.register(rateLimit, {
 await fastify.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } }); // 50 MB (images + videos)
 
 // Serve uploaded files as static assets at /uploads/... and /v1/uploads/...
-// Skip on Vercel — no persistent disk; files are stored in S3/R2 and served via their CDN URLs
-if (!IS_VERCEL) {
-  await fastify.register(staticPlugin, {
-    root: UPLOADS_ROOT,
-    prefix: '/uploads/',
-    decorateReply: false,
-  });
-}
+await fastify.register(staticPlugin, {
+  root: UPLOADS_ROOT,
+  prefix: '/uploads/',
+  decorateReply: false,
+});
 
 await registerJwt(fastify);
 await registerActivityLog(fastify);
@@ -126,22 +119,11 @@ fastify.get('/v1/health', async () => ({
   env: process.env['NODE_ENV'] ?? 'development',
 }));
 
-// ── Vercel serverless handler ─────────────────────────────────────────────────
-// Vercel calls this export for every incoming request instead of binding a port.
-export default async function handler(
-  req: IncomingMessage,
-  res: ServerResponse,
-) {
-  await fastify.ready();
-  fastify.server.emit('request', req, res);
-}
-
 export { fastify };
 
-// ── Traditional server (local dev / Render) ───────────────────────────────────
-// Skipped on Vercel and in test mode — serverless functions don't call listen(),
-// and tests use fastify.inject() in memory.
-if (!IS_VERCEL && process.env['NODE_ENV'] !== 'test') {
+// ── Server (local dev / Cloud Run) ────────────────────────────────────────────
+// Skipped in test mode — tests use fastify.inject() in memory.
+if (process.env['NODE_ENV'] !== 'test') {
   try {
     const port = parseInt(process.env['PORT'] ?? '3001');
     await fastify.listen({ port, host: '0.0.0.0' });

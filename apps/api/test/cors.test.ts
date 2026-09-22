@@ -6,9 +6,6 @@ import { fastify } from '../src/index.js';
 const ALLOWED = [
   'https://cardekho-social-ai.web.app',
   'https://cardekho-social-ai.firebaseapp.com',
-  'https://gen-lang-client-0078524499.web.app',
-  'https://gen-lang-client-0078524499.firebaseapp.com',
-  'https://cardekho-social-ai-web.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3000',
@@ -21,11 +18,14 @@ const REJECTED = [
   // Anyone's Vercel deployment
   'https://evil.vercel.app',
   'https://cardekho-social-ai-web-git-attacker.vercel.app',
-  // Retired old-project domains
+  // Retired domains: old projects, the disabled default Hosting site, Vercel
   'https://social-ai.web.app',
   'https://social-ai.firebaseapp.com',
   'https://social-ai-ed9cf.web.app',
   'https://social-ai-ed9cf.firebaseapp.com',
+  'https://gen-lang-client-0078524499.web.app',
+  'https://gen-lang-client-0078524499.firebaseapp.com',
+  'https://cardekho-social-ai-web.vercel.app',
   // Lookalikes of the production origin
   'https://cardekho-social-ai.web.app.evil.com',
   'https://evil.cardekho-social-ai.web.app',

@@ -3,7 +3,7 @@ import { prisma } from '../db/prisma.js';
 import { publishPostToPlatform } from '../lib/publishDirect.js';
 
 // POST /v1/cron/publish
-// Called by Vercel Cron (or any external scheduler) once per minute.
+// Called by an external scheduler (e.g. Cloud Scheduler) once per minute.
 // Finds all scheduled posts whose scheduled_at has passed and publishes them.
 // Authenticated via CRON_SECRET env var to prevent unauthorized triggers.
 export default async function cronRoutes(fastify: FastifyInstance) {
@@ -25,7 +25,7 @@ export default async function cronRoutes(fastify: FastifyInstance) {
         status: 'scheduled',
         scheduled_at: { lte: now },
       },
-      take: 20, // process at most 20 per invocation to stay within Vercel function time limit
+      take: 20, // process at most 20 per invocation to keep each request short
     });
 
     if (duePosts.length === 0) {

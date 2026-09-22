@@ -4,7 +4,7 @@ node_modules/
 .pnp.js
 
 # Build outputs
-# Ignore compiled output for apps, but NOT for packages (Vercel needs packages/*/dist)
+# Ignore compiled output for apps
 apps/api/dist/
 apps/web/dist/
 build/
