@@ -125,7 +125,13 @@ export default async function cronRoutes(fastify: FastifyInstance) {
     });
 
     // Reels whose in-process render never started or was abandoned (see lib/videoJobs.ts).
-    const videoJobs = await sweepVideoJobs(now);
+    // Isolated: a transient failure here must not stop the publish sweep from returning its results.
+    let videoJobs: { ran: string[]; expired: string[] } = { ran: [], expired: [] };
+    try {
+      videoJobs = await sweepVideoJobs(now);
+    } catch (err) {
+      fastify.log.error({ message: err instanceof Error ? err.message : String(err) }, '[cron] reel sweep failed');
+    }
 
     if (processed || skipped || recovered.length || videoJobs.ran.length || videoJobs.expired.length) {
       fastify.log.info({ results, skipped, recovered, videoJobs }, `[cron] published ${processed} scheduled posts`);

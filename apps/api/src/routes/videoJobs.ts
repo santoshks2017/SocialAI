@@ -69,7 +69,7 @@ export default async function videoJobRoutes(fastify: FastifyInstance) {
     // Start rendering after replying; the cron sweep takes over if this instance can't finish.
     if (process.env['NODE_ENV'] !== 'test') {
       setImmediate(() => {
-        void runVideoJob(job.id).catch((err) => request.log.error({ err, jobId: job.id }, '[video-jobs] run failed'));
+        void runVideoJob(job.id).catch((err) => request.log.error({ message: err instanceof Error ? err.message : String(err), jobId: job.id }, '[video-jobs] run failed'));
       });
     }
     return reply.code(202).send({ success: true, job_id: job.id, status: job.status, engine });
