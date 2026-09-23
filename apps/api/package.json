@@ -25,6 +25,7 @@
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^9.0.0",
     "@google-cloud/firestore": "^9.0.0",
+    "@google-cloud/storage": "^7.22.0",
     "@prisma/client": "^5.22.0",
     "axios": "^1.13.6",
     "bullmq": "^5.71.0",

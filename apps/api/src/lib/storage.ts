@@ -1,18 +1,23 @@
 /**
- * Storage helper — uses S3/R2 when configured, local filesystem otherwise.
+ * Storage helper — uses Google Cloud Storage or S3/R2 when configured, local filesystem otherwise.
  *
- * Set these env vars to enable cloud storage:
- *   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET
+ * Google Cloud Storage (production on Cloud Run): set GCS_BUCKET. Auth comes from the
+ * runtime service account; the bucket must allow public reads so Meta/Google can fetch media.
+ *
+ * S3/R2: set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET
  *
  * For Cloudflare R2 also set:
  *   S3_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
  *   CLOUDFRONT_DOMAIN=https://your-r2-public-domain.com   (optional public CDN)
+ *
+ * Local disk is per Cloud Run instance and wiped on restart, so it is for development only.
  */
-import { writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
-// Lazy-load S3 client only when needed (avoids missing-module errors in dev)
+// Lazy-load cloud clients only when needed (avoids missing-module errors in dev)
 let s3Client: import('@aws-sdk/client-s3').S3Client | null = null;
+let gcsClient: import('@google-cloud/storage').Storage | null = null;
 
 async function getS3Client() {
   if (s3Client) return s3Client;
@@ -27,6 +32,18 @@ async function getS3Client() {
     },
   });
   return s3Client;
+}
+
+async function getGcsBucket() {
+  if (!gcsClient) {
+    const { Storage } = await import('@google-cloud/storage');
+    gcsClient = new Storage();
+  }
+  return gcsClient.bucket(process.env['GCS_BUCKET']!);
+}
+
+function isGcsConfigured(): boolean {
+  return !!process.env['GCS_BUCKET']?.trim();
 }
 
 function isS3Configured(): boolean {
@@ -44,6 +61,12 @@ export async function uploadFile(
   contentType: string,  // e.g. "image/png"
   localDir: string,     // absolute path for local fallback directory
 ): Promise<string> {
+  if (isGcsConfigured()) {
+    const bucket = await getGcsBucket();
+    await bucket.file(key).save(buffer, { contentType, resumable: false });
+    return `https://storage.googleapis.com/${bucket.name}/${key}`;
+  }
+
   if (isS3Configured()) {
     const { PutObjectCommand } = await import('@aws-sdk/client-s3');
     const client = await getS3Client();
@@ -70,4 +93,26 @@ export async function uploadFile(
   const subPath = localDir.split('/uploads/')[1] ?? '';
   const pathPrefix = subPath ? `/uploads/${subPath}/${filename}` : `/uploads/${filename}`;
   return baseUrl ? `${baseUrl.replace(/\/$/, '')}${pathPrefix}` : pathPrefix;
+}
+
+/**
+ * Read back a file stored with uploadFile, from wherever uploadFile put it.
+ * Reading the local directory directly breaks as soon as cloud storage is on,
+ * and on Cloud Run whenever the read lands on a different instance.
+ */
+export async function readStoredFile(key: string, localDir: string): Promise<Buffer> {
+  if (isGcsConfigured()) {
+    const bucket = await getGcsBucket();
+    const [contents] = await bucket.file(key).download();
+    return contents;
+  }
+
+  if (isS3Configured()) {
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const client = await getS3Client();
+    const res = await client.send(new GetObjectCommand({ Bucket: process.env['S3_BUCKET']!, Key: key }));
+    return Buffer.from(await res.Body!.transformToByteArray());
+  }
+
+  return readFile(path.join(localDir, path.basename(key)));
 }
