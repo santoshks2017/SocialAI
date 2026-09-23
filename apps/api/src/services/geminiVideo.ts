@@ -9,8 +9,8 @@ import { uploadFile } from '../lib/storage.js';
 import { UPLOADS_ROOT } from '../routes/upload.js';
 import { getGeminiApiKey } from '../lib/aiKeys.js';
 import { captionLanguage } from '../lib/languages.js';
-import { resolveAiModels } from '../lib/aiModels.js';
-import { generateContentUrl, googleAiHeaders } from '../lib/googleAi.js';
+import { resolveAiModels, type VideoResolution } from '../lib/aiModels.js';
+import { GOOGLE_AI_BASE, generateContentUrl, googleAiHeaders } from '../lib/googleAi.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -28,6 +28,11 @@ export interface VideoOverlayBeat {
   theme?: 'glass-dark' | 'amber-glow' | 'minimal-white' | undefined;
 }
 
+export interface VideoImageInput {
+  data: Buffer;
+  mimeType: string;
+}
+
 export interface GenerateVideoParams {
   prompt: string;
   brand?: string | undefined;
@@ -39,6 +44,7 @@ export interface GenerateVideoParams {
   city?: string | undefined;
   overlays?: VideoOverlayBeat[] | undefined;
   language?: string | undefined;
+  image?: VideoImageInput | undefined;
 }
 
 export interface VideoGenerationResult {
@@ -342,8 +348,39 @@ export async function compositeVideoOverlays(
   }
 }
 
+/** Builds the video-generation prompt: keeps the real car when a photo is supplied, else describes one. */
+export function videoPrompt(p: { hasImage: boolean; vehicleMention: string; motionStyle: string; visualScene: string }): string {
+  const clean = 'Absolutely no text, no words, no letters, no numbers, no typography, no watermarks, no logos, no subtitles, no graphic banners, pristine clean video footage only.';
+  if (p.hasImage) {
+    return `Turn this photo into realistic cinematic footage of the same car. Keep its body shape, colour, grille, lights and badges exactly as in the photo. ${p.motionStyle}. Setting: ${p.visualScene}. Physically accurate wheel rotation, reflections and shadows. ${clean}`;
+  }
+  return `${p.vehicleMention}. ${p.motionStyle}. Setting: ${p.visualScene}. 4k resolution, hyper-realistic, photorealistic, professional automotive commercial grade, cinematic lighting, 60fps smooth fluid motion, physically accurate wheel rotation and ground reflections. ${clean}`;
+}
+
+/** Gemini Omni 1.1 Flash request: text-to-video, or image-to-video when a reference photo is supplied. */
+export function buildOmniRequest(p: { model: string; prompt: string; aspectRatio: '9:16' | '16:9'; resolution: VideoResolution; image?: VideoImageInput }): object {
+  return {
+    model: p.model,
+    input: p.image
+      ? [{ type: 'image', data: p.image.data.toString('base64'), mime_type: p.image.mimeType }, { type: 'text', text: p.prompt }]
+      : p.prompt,
+    response_format: { type: 'video', aspect_ratio: p.aspectRatio, resolution: p.resolution, delivery: 'uri' },
+    generation_config: { video_config: { task: p.image ? 'image_to_video' : 'text_to_video' } },
+  };
+}
+
+// Veo 3.1 renders 720p or 1080p only.
+export function buildVeoRequest(p: { prompt: string; aspectRatio: '9:16' | '16:9'; durationSeconds: number; resolution: VideoResolution; image?: VideoImageInput }): object {
+  const resolution = p.resolution === '1080p' || p.resolution === '4k' ? '1080p' : '720p';
+  return {
+    instances: [{ prompt: p.prompt, ...(p.image ? { image: { bytesBase64Encoded: p.image.data.toString('base64'), mimeType: p.image.mimeType } } : {}) }],
+    parameters: { sampleCount: 1, aspectRatio: p.aspectRatio, durationSeconds: p.durationSeconds, resolution },
+  };
+}
+
 /**
- * Generates an automotive video reel using Google AI Studio Veo 3.1:
+ * Generates an automotive video reel using the chosen video model (Gemini Omni 1.1 Flash by
+ * default, or Veo 3.1):
  * 1. Generates 100% clean, unbranded footage with strict negative text directives.
  * 2. Generates structured timed overlay beats using Gemini.
  * 3. Composites crisp text overlays onto the video stream via FFmpeg.
@@ -355,7 +392,8 @@ export async function generateGeminiVideo(params: GenerateVideoParams): Promise<
     throw new Error('Gemini API key is not configured. Save one in Admin → APIs & models or set GEMINI_API_KEY on the server.');
   }
 
-  const model = process.env['GEMINI_VIDEO_MODEL'] || 'gemini-omni-1.1-flash';
+  const models = await resolveAiModels();
+  const model = models.video;
   const aspectRatio = params.aspect_ratio || '9:16';
   const isGeminiOmni = model.startsWith('gemini-omni');
 
@@ -391,39 +429,27 @@ export async function generateGeminiVideo(params: GenerateVideoParams): Promise<
     ? `A pristine, immaculate ${params.brand ? `${params.brand} ` : ''}${params.model_name} car with no exterior text, no numbers, no logo badges, and clean unmarked bodywork`
     : 'A pristine, immaculate modern automobile with clean unmarked bodywork and zero text';
 
-  // Strict negative prompting: Absolutely no typography, words, or distorted AI text
-  const cleanCinematicPrompt = `${vehicleMention}. ${motionStyle}. Setting: ${visualScene}. 4k resolution, hyper-realistic, photorealistic, professional automotive commercial grade, cinematic lighting, 60fps smooth fluid motion, physically accurate wheel rotation and ground reflections. Absolutely no text, no words, no letters, no numbers, no typography, no watermarks, no logos, no subtitles, no graphic banners, no distorted badges, pristine clean video footage only.`;
+  // Strict negative prompting: keeps the real car (when a photo is supplied) or describes a clean, unbranded one.
+  const cleanCinematicPrompt = videoPrompt({ hasImage: !!params.image, vehicleMention, motionStyle, visualScene });
 
-  console.log(`[Video] Requesting generation with model: ${model} (${isGeminiOmni ? 'Gemini Omni' : 'Veo'}), duration: ${durationSeconds}s, aspect: ${aspectRatio}`);
-  console.log(`[Video] Sanitized Visual Prompt: "${cleanCinematicPrompt}"`);
+  console.log(`[Video] Requesting ${model} (${isGeminiOmni ? 'Gemini Omni' : 'Veo'})${params.image ? ' from the dealer’s photo' : ''}, duration: ${durationSeconds}s, aspect: ${aspectRatio}`);
 
   let videoUri: string | null = null;
 
   if (isGeminiOmni) {
-    // ── Gemini Omni path: POST /v1beta/interactions (text_to_video), then poll Files API ──
+    // ── Gemini Omni path: POST /interactions (text_to_video or image_to_video), then poll Files API ──
     // Note: Omni's duration is model-controlled (3-10s), not settable via the request.
-    const resolution = process.env['GEMINI_OMNI_RESOLUTION'] || '720p';
-    const interactionsUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
-    const omniPayload = {
-      model,
-      input: cleanCinematicPrompt,
-      response_format: {
-        type: 'video',
-        aspect_ratio: aspectRatio,
-        resolution,
-        delivery: 'uri',
-      },
-      generation_config: {
-        video_config: { task: 'text_to_video' },
-      },
-    };
+    const omniPayload = buildOmniRequest({
+      model, prompt: cleanCinematicPrompt, aspectRatio, resolution: models.videoResolution,
+      ...(params.image ? { image: params.image } : {}),
+    });
 
     let omniResponse: any;
     const maxRetries = 2;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        omniResponse = await axios.post(interactionsUrl, omniPayload, {
-          headers: { 'Content-Type': 'application/json' },
+        omniResponse = await axios.post(`${GOOGLE_AI_BASE}/interactions`, omniPayload, {
+          headers: googleAiHeaders(apiKey),
           timeout: 120000, // Omni can be slow — 2 min timeout
         });
         break;
@@ -458,47 +484,46 @@ export async function generateGeminiVideo(params: GenerateVideoParams): Promise<
     }
 
     if (!rawVideoUri) {
-      throw new Error(`Gemini Omni did not return a video file URI. Response: ${JSON.stringify(omniData).slice(0, 400)}`);
+      throw new Error('Gemini Omni did not return a video file URI.');
     }
 
     // The file may still be processing — poll the Files API until ACTIVE.
     const fileId = rawVideoUri.match(/\/files\/([^/:?]+)/)?.[1];
     if (fileId) {
-      const filePollUrl = `https://generativelanguage.googleapis.com/v1beta/files/${fileId}?key=${apiKey}`;
+      const filePollUrl = `${GOOGLE_AI_BASE}/files/${fileId}`;
       const maxFilePolls = 30;
       for (let i = 0; i < maxFilePolls; i++) {
         try {
-          const fileRes = await axios.get(filePollUrl, { timeout: 15000 });
+          const fileRes = await axios.get(filePollUrl, { headers: googleAiHeaders(apiKey), timeout: 15000 });
           const state = fileRes.data?.state;
           if (state === 'ACTIVE') break;
           if (state === 'FAILED') {
-            throw new Error(`Gemini Omni file processing failed: ${JSON.stringify(fileRes.data?.error ?? fileRes.data)}`);
+            throw new Error('Gemini Omni file processing failed.');
           }
         } catch (err: any) {
-          if (err.message?.startsWith('Gemini Omni file processing failed:')) throw err;
-          console.warn(`[Gemini Omni] File poll attempt ${i + 1} warning: ${err.message}`);
+          if (err.message === 'Gemini Omni file processing failed.') throw err;
+          console.warn(`[Gemini Omni] File poll attempt ${i + 1} warning: ${err instanceof Error ? err.message : String(err)}`);
         }
         await new Promise((r) => setTimeout(r, 3000));
       }
     }
 
     videoUri = rawVideoUri.includes('?') ? `${rawVideoUri}&alt=media` : `${rawVideoUri}?alt=media`;
-    console.log(`[Gemini Omni] ✅ Video file ready: ${videoUri}`);
+    console.log('[Gemini Omni] Video file ready');
 
   } else {
     // ── Veo path: predictLongRunning + polling ──
-    const veoUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predictLongRunning?key=${apiKey}`;
-    const payload = {
-      instances: [{ prompt: cleanCinematicPrompt }],
-      parameters: { sampleCount: 1, aspectRatio, durationSeconds },
-    };
+    const payload = buildVeoRequest({
+      prompt: cleanCinematicPrompt, aspectRatio, durationSeconds, resolution: models.videoResolution,
+      ...(params.image ? { image: params.image } : {}),
+    });
 
     let initialResponse: any;
     const maxInitialRetries = 2;
     for (let attempt = 0; attempt <= maxInitialRetries; attempt++) {
       try {
-        initialResponse = await axios.post(veoUrl, payload, {
-          headers: { 'Content-Type': 'application/json' },
+        initialResponse = await axios.post(`${GOOGLE_AI_BASE}/models/${model}:predictLongRunning`, payload, {
+          headers: googleAiHeaders(apiKey),
           timeout: 30000,
         });
         break;
@@ -519,20 +544,20 @@ export async function generateGeminiVideo(params: GenerateVideoParams): Promise<
 
     const operationName = initialResponse?.data?.name;
     if (!operationName) {
-      throw new Error(`Failed to initiate Veo video generation: ${JSON.stringify(initialResponse?.data)}`);
+      throw new Error('Failed to initiate Veo video generation.');
     }
 
-    console.log(`[Veo] Operation started: ${operationName}. Polling for completion...`);
-    const pollUrl = `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`;
+    console.log('[Veo] Operation started. Polling for completion...');
+    const pollUrl = `${GOOGLE_AI_BASE}/${operationName}`;
     const maxPolls = 40;
     const pollIntervalMs = 3000;
 
     for (let i = 0; i < maxPolls; i++) {
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
       try {
-        const pollRes = await axios.get(pollUrl, { timeout: 15000 });
+        const pollRes = await axios.get(pollUrl, { headers: googleAiHeaders(apiKey), timeout: 15000 });
         const opData = pollRes.data;
-        if (opData.error) throw new Error(`Veo generation error: ${opData.error.message || JSON.stringify(opData.error)}`);
+        if (opData.error) throw new Error(`Veo generation error: ${opData.error.message || 'unknown error'}`);
         if (opData.done) {
           console.log(`[Veo] Clean video synthesis complete after ${((i + 1) * pollIntervalMs) / 1000}s`);
           const samples = opData.response?.generateVideoResponse?.generatedSamples;
@@ -544,17 +569,18 @@ export async function generateGeminiVideo(params: GenerateVideoParams): Promise<
         if (i % 3 === 0) console.log(`[Veo] Still synthesizing (${((i + 1) * pollIntervalMs) / 1000}s elapsed)...`);
       } catch (err: any) {
         if (err.message?.startsWith('Veo generation error:')) throw err;
-        console.warn(`[Veo] Poll attempt ${i + 1} warning: ${err.message}`);
+        console.warn(`[Veo] Poll attempt ${i + 1} warning: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
     if (!videoUri) throw new Error('Timed out waiting for Veo video generation to finish.');
   }
 
+  if (!videoUri) throw new Error('Video generation did not return a video URI.');
+
   // ── Common: download video → FFmpeg composite → upload ──
-  console.log(`[Video] Downloading clean MP4 from URI: ${videoUri}`);
-  const downloadUrl = videoUri.includes('?') ? `${videoUri}&key=${apiKey}` : `${videoUri}?key=${apiKey}`;
-  const downloadResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 60000 });
+  console.log('[Video] Downloading generated video');
+  const downloadResponse = await axios.get(videoUri, { headers: { 'x-goog-api-key': apiKey }, responseType: 'arraybuffer', timeout: 60000 });
 
   const cleanBuffer = Buffer.from(downloadResponse.data);
   await mkdir(REELS_DIR, { recursive: true });

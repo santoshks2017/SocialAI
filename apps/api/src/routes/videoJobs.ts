@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import { consumeDailyQuota } from '../lib/dailyQuota.js';
 import { hasGeminiKey } from '../lib/aiKeys.js';
+import { resolveAiModels } from '../lib/aiModels.js';
 import { normalizeLanguage } from '../lib/languages.js';
 import { createVideoJob, inlineRenderEnabled, videoJobView, type VideoEngine } from '../lib/videoJobs.js';
 import { runVideoJob } from '../lib/videoJobRunner.js';
@@ -19,8 +20,10 @@ const DAILY: Record<VideoEngine, { feature: string; env: string; fallback: numbe
 const isMediaUrl = (value: unknown): value is string =>
   typeof value === 'string' && value.length <= 2048 && /^(https?:\/\/|\/uploads\/)/i.test(value);
 
-function defaultEngine(): VideoEngine {
-  return process.env['VIDEO_DEFAULT_ENGINE'] === 'veo' ? 'veo' : 'kenburns';
+// The owner's "Reels use" setting (Admin → APIs & models); AI video needs a Gemini key, else quick render.
+async function defaultEngine(): Promise<VideoEngine> {
+  const { reelEngine } = await resolveAiModels();
+  return reelEngine === 'ai' && (await hasGeminiKey()) ? 'veo' : 'kenburns';
 }
 
 function durationFor(engine: VideoEngine, value: unknown): number {
@@ -51,7 +54,7 @@ export default async function videoJobRoutes(fastify: FastifyInstance) {
     if (body.image_url != null && !isMediaUrl(body.image_url)) {
       return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'image_url must be an uploaded image URL.' } });
     }
-    const engine: VideoEngine = body.engine === 'veo' || body.engine === 'kenburns' ? body.engine : defaultEngine();
+    const engine: VideoEngine = body.engine === 'veo' || body.engine === 'kenburns' ? body.engine : await defaultEngine();
     if (engine === 'veo' && !(await hasGeminiKey())) {
       return reply.code(503).send({ error: { code: 'GEMINI_NOT_CONFIGURED', message: 'Video generation isn’t configured on the server.' } });
     }

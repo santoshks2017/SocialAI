@@ -3,8 +3,9 @@ import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import axios from 'axios';
+import sharp from 'sharp';
 import { generateGeminiImage } from './geminiImage.js';
-import { compositeVideoOverlays, generateGeminiVideo, generateReelCaptionAndMetadata, REELS_DIR, type VideoOverlayBeat } from './geminiVideo.js';
+import { compositeVideoOverlays, generateGeminiVideo, generateReelCaptionAndMetadata, REELS_DIR, type VideoImageInput, type VideoOverlayBeat } from './geminiVideo.js';
 import { extractThumbnail, reelDimensions, renderKenBurns } from './kenBurns.js';
 import { uploadFile } from '../lib/storage.js';
 import { loadImageFromUrl } from '../lib/uploadPaths.js';
@@ -94,7 +95,7 @@ export function veoError(err: unknown): ReelRenderError {
   const status = axios.isAxiosError(err) ? err.response?.status : undefined;
   const message = err instanceof Error ? err.message : String(err);
   if (status === 403 || /permission|access denied/i.test(message)) {
-    return new ReelRenderError('VEO_ACCESS_DENIED', 'Your Google project doesn’t have Veo (video) access enabled yet.');
+    return new ReelRenderError('VEO_ACCESS_DENIED', 'Your Google project doesn’t have access to the selected video model yet.');
   }
   if (status === 429 || /quota|rate limit|RESOURCE_EXHAUSTED/i.test(message)) {
     return new ReelRenderError('VEO_QUOTA_EXCEEDED', 'Video generation quota reached. Try again later.');
@@ -102,13 +103,25 @@ export function veoError(err: unknown): ReelRenderError {
   return new ReelRenderError('VEO_GENERATION_FAILED', 'AI video generation failed.');
 }
 
+async function referenceImage(imageUrl: string): Promise<VideoImageInput> {
+  try {
+    const { buffer } = await loadImageFromUrl(imageUrl, { timeoutMs: 20_000 });
+    const data = await sharp(buffer).resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    return { data, mimeType: 'image/jpeg' };
+  } catch {
+    throw new ReelRenderError('IMAGE_LOAD_FAILED', 'Could not read the attached photo.');
+  }
+}
+
 export async function renderVeoReel(input: ReelRenderInput): Promise<RenderedReel> {
   if (!(await hasGeminiKey())) throw new ReelRenderError('GEMINI_NOT_CONFIGURED', NOT_CONFIGURED);
+  const image = input.imageUrl ? await referenceImage(input.imageUrl) : undefined;
   try {
     const result = await generateGeminiVideo({
       prompt: input.prompt, duration_seconds: input.durationSeconds,
       aspect_ratio: input.aspectRatio === '16:9' ? '16:9' : '9:16',
       dealerName: input.dealerName, city: input.city, language: input.language,
+      ...(image ? { image } : {}),
     });
     return { videoUrl: result.videoUrl, thumbnailUrl: result.thumbnailUrl || null, caption: result.caption ?? '', hashtags: result.hashtags ?? [] };
   } catch (err) {

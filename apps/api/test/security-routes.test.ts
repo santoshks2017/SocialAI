@@ -4,6 +4,8 @@ import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser, type Role } from '../src/lib/permissions.js';
 import { signOAuthState } from '../src/lib/oauthState.js';
+import { invalidateAiKeyCache } from '../src/lib/aiKeys.js';
+import { invalidateAiModelCache } from '../src/lib/aiModels.js';
 
 const originalEnv = { ...process.env };
 
@@ -12,6 +14,9 @@ function restoreEnv() {
     if (!(key in originalEnv)) delete process.env[key];
   }
   Object.assign(process.env, originalEnv);
+  // The reel-engine default now reads the Gemini key/model caches; keep them in step with the env this restores.
+  invalidateAiKeyCache();
+  invalidateAiModelCache();
 }
 
 function token(dealerId: string | null, role: Role = 'admin', permissions?: Partial<JwtUser['permissions']>): string {
@@ -52,6 +57,10 @@ describe('generate-video', () => {
 
   it('caps reels per dealer per day', async () => {
     process.env['REEL_QUICK_DAILY_LIMIT'] = '1';
+    // This tests the quick-render cap specifically: force that engine regardless of any Gemini key on the host.
+    delete process.env['GEMINI_API_KEY'];
+    invalidateAiKeyCache();
+    invalidateAiModelCache();
     const dealerId = await newDealer('reel-dealer');
     const call = (id: string) => fastify.inject({
       method: 'POST', url: '/v1/creatives/generate-video', headers: bearer(token(id)), payload: { prompt: 'Creta launch' },
@@ -65,6 +74,7 @@ describe('generate-video', () => {
 
   it('refuses Veo when no Gemini key is configured', async () => {
     delete process.env['GEMINI_API_KEY'];
+    invalidateAiKeyCache();
     const dealerId = await newDealer('veo-dealer');
     const res = await fastify.inject({
       method: 'POST', url: '/v1/creatives/generate-video', headers: bearer(token(dealerId)), payload: { prompt: 'Creta launch', engine: 'veo' },
