@@ -5,6 +5,7 @@ import { isSuccessfulResult, platformLabel, publishPost } from '../lib/publishDi
 import type { PlatformPublishResult } from '../lib/publishDirect.js';
 import { notifyPublishOutcome } from '../lib/postNotifications.js';
 import { transitionPost } from '../lib/publishClaim.js';
+import { sweepVideoJobs } from '../lib/videoJobRunner.js';
 
 const BATCH_SIZE = 20; // posts per invocation, to keep each request short
 const CONCURRENCY = 5;
@@ -123,9 +124,12 @@ export default async function cronRoutes(fastify: FastifyInstance) {
       }
     });
 
-    if (processed || skipped || recovered.length) {
-      fastify.log.info({ results, skipped, recovered }, `[cron] published ${processed} scheduled posts`);
+    // Reels whose in-process render never started or was abandoned (see lib/videoJobs.ts).
+    const videoJobs = await sweepVideoJobs(now);
+
+    if (processed || skipped || recovered.length || videoJobs.ran.length || videoJobs.expired.length) {
+      fastify.log.info({ results, skipped, recovered, videoJobs }, `[cron] published ${processed} scheduled posts`);
     }
-    return { success: true, processed, skipped, recovered: recovered.length, results };
+    return { success: true, processed, skipped, recovered: recovered.length, results, videoJobs };
   });
 }

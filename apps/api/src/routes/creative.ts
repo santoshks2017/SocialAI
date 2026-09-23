@@ -44,9 +44,7 @@ import {
 } from "../services/geminiService.js"
 import { LANGUAGE_NAMES, normalizeLanguage } from "../lib/languages.js"
 import { getBrandLogoSvg } from "../services/brandLogoService.js"
-import { generateGeminiVideo, generateReelCaptionAndMetadata, type VideoOverlayBeat } from "../services/geminiVideo.js"
 import { loadDealerLogo, loadImageFromUrl, readOriginalUpload } from "../lib/uploadPaths.js"
-import { consumeDailyQuota } from "../lib/dailyQuota.js"
 
 // ── Gradient background fallback (no external AI needed) ──────────────────────
 // Generates a rich automotive-themed 1080×1080 gradient PNG using Sharp + SVG.
@@ -1519,114 +1517,6 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // POST /v1/creatives/generate-reel — AI Video (Reel) generation powered by Google Veo 3.1
-  fastify.post(
-    "/generate-reel",
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      const dealer_id = request.user.dealer_id ?? undefined;
-      const body = (request.body ?? {}) as {
-        prompt: string;
-        brand?: string;
-        model_name?: string;
-        camera_motion?: string;
-        duration_seconds?: number;
-        aspect_ratio?: "9:16" | "16:9";
-        platforms?: string[];
-        overlays?: VideoOverlayBeat[] | undefined;
-      };
-
-      if (!body.prompt || !body.prompt.trim()) {
-        return reply.code(400).send({
-          error: { code: "INVALID_INPUT", message: "Prompt is required to generate a video reel." }
-        });
-      }
-
-      // Veo is billed per video, so each dealer gets a daily allowance.
-      const reelLimit = Number(process.env["REEL_DAILY_LIMIT"] ?? 10)
-      const quotaSubject = dealer_id ?? `user:${request.user.dealer_user_id}`
-      if (!(await consumeDailyQuota("generate_reel", quotaSubject, Number.isFinite(reelLimit) ? reelLimit : 10))) {
-        return reply.code(429).send({
-          error: {
-            code: "REEL_DAILY_LIMIT_REACHED",
-            message: "Daily video reel limit reached for your dealership. Try again tomorrow.",
-          }
-        });
-      }
-
-      try {
-        let dealerName = 'Authorized Dealership';
-        let city = 'Delhi NCR';
-
-        if (dealer_id) {
-          const dealer = await prisma.dealer.findUnique({
-            where: { id: dealer_id },
-            select: { name: true, city: true }
-          });
-          if (dealer) {
-            dealerName = dealer.name;
-            city = dealer.city || 'your city';
-          }
-        }
-
-        fastify.log.info({ prompt: body.prompt, model: body.model_name }, "Starting Veo Reel generation");
-
-        // Generate Video — caption/overlays/hashtags are now bundled in the batched Gemini Flash call
-        // inside generateGeminiVideo, so we only make 2 Gemini API calls total (1 Flash + 1 Veo)
-        const videoResult = await generateGeminiVideo({
-            prompt: body.prompt,
-            brand: body.brand,
-            model_name: body.model_name,
-            camera_motion: body.camera_motion,
-            duration_seconds: body.duration_seconds,
-            aspect_ratio: body.aspect_ratio || "9:16",
-            dealerName,
-            city,
-            overlays: body.overlays,
-          });
-
-        return {
-          success: true,
-          videoUrl: videoResult.videoUrl,
-          cleanVideoUrl: videoResult.cleanVideoUrl,
-          overlays: videoResult.overlays,
-          thumbnailUrl: videoResult.thumbnailUrl,
-          duration: videoResult.duration,
-          aspectRatio: videoResult.aspectRatio,
-          headline: videoResult.headline,
-          caption: videoResult.caption,
-          hashtags: videoResult.hashtags,
-          audioSuggestion: videoResult.audioSuggestion,
-        };
-      } catch (err: any) {
-        fastify.log.error(err, "Veo Reel generation failed");
-
-        // Detect rate limit errors from Veo API and return friendly 429
-        const isRateLimit = err?.response?.status === 429 ||
-          err?.status === 429 ||
-          String(err?.message).includes('429') ||
-          String(err?.message).toLowerCase().includes('rate limit') ||
-          String(err?.message).toLowerCase().includes('too many requests');
-
-        if (isRateLimit) {
-          return reply.code(429).send({
-            error: {
-              code: "RATE_LIMIT_EXCEEDED",
-              message: "Google Veo API rate limit reached. The Veo video generation model allows only a few requests per minute. Please wait 1–2 minutes and try again.",
-              retryAfterSeconds: 90,
-            }
-          });
-        }
-
-        return reply.code(500).send({
-          error: {
-            code: "VIDEO_GENERATION_FAILED",
-            message: err.message || "Failed to generate video reel with Veo."
-          }
-        });
-      }
-    }
-  );
 }
 
 function mockCreatives() {

@@ -1,6 +1,5 @@
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import axios from 'axios';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser, type Role } from '../src/lib/permissions.js';
@@ -44,43 +43,34 @@ after(async () => {
   await fastify.close();
 });
 
-describe('generate-reel', () => {
-  it('rejects anonymous callers before any Veo call', async (t) => {
+describe('generate-video', () => {
+  it('rejects anonymous callers', async () => {
     process.env['NODE_ENV'] = 'production';
-    const veo = t.mock.method(axios, 'post', async () => {
-      throw new Error('Veo must not be called');
-    });
-    const res = await fastify.inject({
-      method: 'POST', url: '/v1/creatives/generate-reel', payload: { prompt: 'Creta launch' },
-    });
+    const res = await fastify.inject({ method: 'POST', url: '/v1/creatives/generate-video', payload: { prompt: 'Creta launch' } });
     assert.equal(res.statusCode, 401);
-    assert.equal(veo.mock.callCount(), 0);
   });
 
-  it('caps reels per dealer per day', async (t) => {
-    process.env['REEL_DAILY_LIMIT'] = '1';
-    const veo = t.mock.method(axios, 'post', async () => {
-      throw new Error('Veo stubbed out');
-    });
+  it('caps reels per dealer per day', async () => {
+    process.env['REEL_QUICK_DAILY_LIMIT'] = '1';
     const dealerId = await newDealer('reel-dealer');
-    const call = () => fastify.inject({
-      method: 'POST', url: '/v1/creatives/generate-reel', headers: bearer(token(dealerId)), payload: { prompt: 'Creta launch' },
+    const call = (id: string) => fastify.inject({
+      method: 'POST', url: '/v1/creatives/generate-video', headers: bearer(token(id)), payload: { prompt: 'Creta launch' },
     });
-
-    const first = await call();
-    assert.notEqual(first.statusCode, 429);
-    const callsAfterFirst = veo.mock.callCount();
-
-    const second = await call();
+    assert.equal((await call(dealerId)).statusCode, 202);
+    const second = await call(dealerId);
     assert.equal(second.statusCode, 429);
     assert.equal(second.json().error.code, 'REEL_DAILY_LIMIT_REACHED');
-    assert.equal(veo.mock.callCount(), callsAfterFirst);
+    assert.equal((await call(await newDealer('reel-dealer-2'))).statusCode, 202, 'limits are per dealer');
+  });
 
-    const otherDealer = await newDealer('reel-dealer-2');
-    const other = await fastify.inject({
-      method: 'POST', url: '/v1/creatives/generate-reel', headers: bearer(token(otherDealer)), payload: { prompt: 'x' },
+  it('refuses Veo when no Gemini key is configured', async () => {
+    delete process.env['GEMINI_API_KEY'];
+    const dealerId = await newDealer('veo-dealer');
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/creatives/generate-video', headers: bearer(token(dealerId)), payload: { prompt: 'Creta launch', engine: 'veo' },
     });
-    assert.notEqual(other.statusCode, 429, 'limits are per dealer');
+    assert.equal(res.statusCode, 503);
+    assert.equal(res.json().error.code, 'GEMINI_NOT_CONFIGURED');
   });
 });
 
