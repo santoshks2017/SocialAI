@@ -6,7 +6,7 @@ import { DealerProfileProvider } from './contexts/DealerProfileContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AppLayout } from './components/shell/AppLayout';
 
-import CreatePost from './pages/CreatePost';
+import CreateStudio from './pages/CreateStudio';
 import CalendarPage from './pages/Calendar';
 import InboxPage from './pages/InboxPage';
 import InventoryPage from './pages/Inventory';
@@ -74,7 +74,7 @@ function AppRoutes() {
       {/* Protected routes */}
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route path="/" element={<RequireAuth><AppLayout><Dashboard /></AppLayout></RequireAuth>} />
-      <Route path="/create" element={<RequireAuth><AppLayout fullBleed><CreatePost /></AppLayout></RequireAuth>} />
+      <Route path="/create" element={<RequireAuth><AppLayout fullBleed><CreateStudio /></AppLayout></RequireAuth>} />
       <Route path="/posts"    element={<RequireAuth><AppLayout><PostsPage /></AppLayout></RequireAuth>} />
       <Route path="/calendar" element={<RequireAuth><AppLayout><CalendarPage /></AppLayout></RequireAuth>} />
       <Route path="/inbox" element={<RequireAuth><AppLayout><InboxPage /></AppLayout></RequireAuth>} />
