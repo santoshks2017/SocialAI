@@ -1,7 +1,7 @@
 import { CircleCheck, Clock, ExternalLink, LoaderCircle, Pencil, RefreshCw, Send, Trash2, X } from 'lucide-react';
 import { Button, cn } from '../ui/Button';
 import type { Post } from '../../services/creative';
-import { approvalRemark, firstCreative, platformResults, postTimeline } from '../../utils/posts';
+import { approvalRemark, platformResults, postMediaLink, postThumbnail, postTimeline } from '../../utils/posts';
 import type { ConfirmKind } from './PostDialogs';
 import { PostStatusBadge } from './PostStatusBadge';
 import { PlatformList } from './PlatformList';
@@ -40,7 +40,7 @@ export function PostRow(props: PostRowProps) {
       className="group bg-white rounded-xl border border-zinc-200/80 shadow-sm transition-all duration-200 hover:shadow-md hover:border-zinc-300 cursor-pointer"
     >
       <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-3 p-3.5">
-        <PostThumbnail url={firstCreative(post.creative_urls)} />
+        <PostThumbnail url={postThumbnail(post)} isVideo={post.media_type === 'video'} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-2">
             <h3 className="flex-1 text-sm font-semibold text-zinc-900 leading-snug line-clamp-1">{post.prompt_text || 'Untitled post'}</h3>
@@ -126,7 +126,7 @@ function RowActions({ post, canPublish, canApprove, approving, submitting, onEdi
         </>
       );
     case 'published': {
-      const url = platformResults(post.publish_results).find((r) => r.url)?.url ?? firstCreative(post.creative_urls);
+      const url = platformResults(post.publish_results).find((r) => r.url)?.url ?? postMediaLink(post);
       if (!url) return null;
       return (
         <a

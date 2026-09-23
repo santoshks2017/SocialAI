@@ -28,6 +28,10 @@ const AWAITING_APPROVAL = {
   },
 }
 
+// Media URLs we store: absolute http(s) or our local /uploads/ path (dev storage fallback).
+const isMediaUrl = (value: unknown): value is string =>
+  typeof value === "string" && value.length <= 2048 && /^(https?:\/\/|\/uploads\/)/i.test(value)
+
 async function requirePublishPermission(request: FastifyRequest, reply: FastifyReply) {
   if (!requirePermission(reply, getUser(request), PERMISSIONS.PUBLISH_POST)) return reply
 }
@@ -55,6 +59,9 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         captionHashtags?: string[]
         creativeUrls?: Record<string, string>
         platforms: string[]
+        mediaType?: string
+        videoUrl?: string
+        thumbnailUrl?: string
       }
 
       if (!body.promptText || !body.platforms?.length) {
@@ -64,6 +71,17 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
             message: "promptText and platforms are required",
           },
         })
+      }
+
+      if (body.mediaType !== undefined && body.mediaType !== "image" && body.mediaType !== "video") {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "mediaType must be image or video" } })
+      }
+      const isVideo = body.mediaType === "video"
+      if (isVideo && !isMediaUrl(body.videoUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "videoUrl is required for video posts" } })
+      }
+      if (body.thumbnailUrl !== undefined && !isMediaUrl(body.thumbnailUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "thumbnailUrl must be a media URL" } })
       }
 
       const post = await prisma.post.create({
@@ -76,6 +94,8 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           platforms: body.platforms,
           status: "draft",
           created_by: request.user.dealer_user_id ?? null,
+          media_type: isVideo ? "video" : "image",
+          ...(isVideo ? { video_url: body.videoUrl, thumbnail_url: body.thumbnailUrl ?? null } : {}),
         },
       })
 
@@ -196,6 +216,9 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         platforms: string[]
         status: string
         scheduled_at: string
+        mediaType: string
+        videoUrl: string
+        thumbnailUrl: string
       }>
 
       if (body.status !== undefined && APPROVAL_STATUSES.has(body.status)) {
@@ -211,11 +234,25 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       )
         return reply
 
+      if (body.mediaType !== undefined && body.mediaType !== "image" && body.mediaType !== "video") {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "mediaType must be image or video" } })
+      }
+      if (body.videoUrl !== undefined && !isMediaUrl(body.videoUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "videoUrl is required for video posts" } })
+      }
+      if (body.thumbnailUrl !== undefined && !isMediaUrl(body.thumbnailUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "thumbnailUrl must be a media URL" } })
+      }
+
       const existing = await prisma.post.findFirst({ where: { id, dealer_id } })
       if (!existing)
         return reply
           .code(404)
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
+
+      if (body.mediaType === "video" && !isMediaUrl(body.videoUrl) && !isMediaUrl(existing.video_url)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "videoUrl is required for video posts" } })
+      }
 
       // A post awaiting or holding approval loses it on a content edit: the approver signed off
       // on specific content, so a change sends it back to drafts unless this same request also
@@ -226,7 +263,10 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         body.captionText !== undefined ||
         body.captionHashtags !== undefined ||
         body.creativeUrls !== undefined ||
-        body.platforms !== undefined
+        body.platforms !== undefined ||
+        body.mediaType !== undefined ||
+        body.videoUrl !== undefined ||
+        body.thumbnailUrl !== undefined
 
       const updateData: Record<string, unknown> = {}
       if (body.promptText !== undefined)
@@ -238,6 +278,18 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       if (body.creativeUrls !== undefined)
         updateData.creative_urls = body.creativeUrls
       if (body.platforms !== undefined) updateData.platforms = body.platforms
+      if (body.videoUrl !== undefined) updateData.video_url = body.videoUrl
+      if (body.thumbnailUrl !== undefined) updateData.thumbnail_url = body.thumbnailUrl
+      // mediaType: 'image' ignores any videoUrl/thumbnailUrl sent in the same request and clears
+      // the existing ones; mediaType: 'video' keeps whichever video URL the checks above accepted
+      // (this request's videoUrl, or the post's existing one).
+      if (body.mediaType === "video") {
+        updateData.media_type = "video"
+      } else if (body.mediaType === "image") {
+        updateData.media_type = "image"
+        updateData.video_url = null
+        updateData.thumbnail_url = null
+      }
       if (body.status !== undefined) updateData.status = body.status
       if (body.scheduled_at !== undefined)
         updateData.scheduled_at = body.scheduled_at
@@ -252,14 +304,17 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         updateData.approved_at = null
       }
 
-      const updated = await prisma.post.updateMany({
-        where: { id, dealer_id },
-        data: updateData,
-      })
-      if (updated.count === 0)
-        return reply
-          .code(404)
-          .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
+      // Write only if nobody changed the post's status since we read it (e.g. an approval landed).
+      const written = await transitionPost(
+        id,
+        (p) => p.dealer_id === dealer_id && p.status === existing.status,
+        updateData,
+      )
+      if (!written) {
+        return reply.code(409).send({
+          error: { code: "POST_CHANGED", message: "This post changed while you were editing it. Reload and try again." },
+        })
+      }
 
       const post = await prisma.post.findFirst({ where: { id, dealer_id } })
 
@@ -346,13 +401,6 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         })
       }
 
-      const scheduledAt = scheduled_at ? new Date(scheduled_at) : null
-      if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
-        return reply.code(400).send({
-          error: { code: "INVALID_INPUT", message: "scheduled_at must be an ISO date" },
-        })
-      }
-
       // Verify the post belongs to this dealer
       const post = await prisma.post.findFirst({
         where: { id: post_id, dealer_id },
@@ -363,6 +411,15 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
       if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
       if (post.status === "pending_approval") return reply.code(409).send(AWAITING_APPROVAL)
+
+      // Facebook and Instagram process video for minutes, longer than a web request may run,
+      // so publishing a video now hands it to the every-minute cron (/v1/cron/publish).
+      const scheduledAt = scheduled_at ? new Date(scheduled_at) : post?.media_type === "video" ? new Date() : null
+      if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "scheduled_at must be an ISO date" },
+        })
+      }
 
       // Load platform connections for this dealer
       const connections = await prisma.platformConnection.findMany({
@@ -390,10 +447,14 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       }
 
       if (scheduledAt) {
-        await prisma.post.update({
-          where: { id: post_id },
-          data: { status: "scheduled", platforms, scheduled_at: scheduledAt },
-        })
+        // Only if the status is still the one accepted above: a cron run may have claimed the post
+        // ('publishing') or published it since, and must not be flipped back to 'scheduled'.
+        const scheduled = await transitionPost(
+          post_id,
+          (p) => p.dealer_id === dealer_id && p.status === post.status,
+          { status: "scheduled", platforms, scheduled_at: scheduledAt },
+        )
+        if (!scheduled) return reply.code(409).send(PUBLISH_IN_PROGRESS)
         // Without a queue, the cron endpoint (/v1/cron/publish) publishes it when due.
         const jobIds = useQueue
           ? await enqueue(Math.max(0, scheduledAt.getTime() - Date.now()))
@@ -403,7 +464,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           status: "scheduled",
           job_ids: jobIds,
           skipped_platforms: skipped,
-          scheduled_at,
+          scheduled_at: scheduled_at ?? scheduledAt.toISOString(),
         }
       }
 

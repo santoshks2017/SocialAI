@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { approvalRemark, firstCreative, metricTotals, pageList, parsePostTab, platformResults, postTimeline, toLocalInput } from './posts.js';
+import { approvalRemark, firstCreative, metricTotals, pageList, parsePostTab, platformResults, postMediaLink, postThumbnail, postTimeline, toLocalInput } from './posts.js';
 
 describe('parsePostTab', () => {
   it('accepts known statuses and falls back to all', () => {
@@ -90,5 +90,18 @@ describe('metricTotals', () => {
     assert.deepEqual(metricTotals({ facebook: { reach: 100, likes: 5 }, instagram: { reach: 50, comments: 2 } }), { reach: 150, likes: 5, comments: 2 });
     assert.deepEqual(metricTotals({ reach: 7, likes: 1, comments: 0 }), { reach: 7, likes: 1, comments: 0 });
     assert.deepEqual(metricTotals(undefined), { reach: 0, likes: 0, comments: 0 });
+  });
+});
+
+describe('post media', () => {
+  it('uses a reel’s thumbnail and video, else the first creative', () => {
+    const reel = { media_type: 'video', thumbnail_url: 'https://cdn.test/r.jpg', video_url: 'https://cdn.test/r.mp4', creative_urls: {} };
+    const image = { media_type: 'image', creative_urls: { facebook: 'https://cdn.test/a.jpg' } };
+    assert.equal(postThumbnail(reel), 'https://cdn.test/r.jpg');
+    assert.equal(postMediaLink(reel), 'https://cdn.test/r.mp4');
+    assert.equal(postThumbnail(image), 'https://cdn.test/a.jpg');
+    assert.equal(postMediaLink(image), 'https://cdn.test/a.jpg');
+    assert.equal(postThumbnail({ creative_urls: null }), null);
+    assert.equal(postThumbnail({ media_type: 'video', thumbnail_url: null }), null);
   });
 });

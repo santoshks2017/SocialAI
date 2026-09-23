@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import { uploadFile } from '../lib/storage.js';
 import { UPLOADS_ROOT } from '../routes/upload.js';
 import { getGeminiApiKey } from '../lib/aiKeys.js';
+import { captionLanguage } from '../lib/languages.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,6 +36,7 @@ export interface GenerateVideoParams {
   dealerName?: string | undefined;
   city?: string | undefined;
   overlays?: VideoOverlayBeat[] | undefined;
+  language?: string | undefined;
 }
 
 export interface VideoGenerationResult {
@@ -117,6 +119,7 @@ async function batchVideoCreativeData(params: {
   city?: string;
   duration: number;
   apiKey: string;
+  language?: string;
 }): Promise<{
   visualScene: string;
   overlays: VideoOverlayBeat[];
@@ -125,7 +128,7 @@ async function batchVideoCreativeData(params: {
   hashtags: string[];
   audioSuggestion: string;
 }> {
-  const { rawPrompt, brand, model_name, dealerName, duration, apiKey } = params;
+  const { rawPrompt, brand, model_name, dealerName, duration, apiKey, language } = params;
   const car = model_name ? `${brand ? `${brand} ` : ''}${model_name}` : 'NEW CAR';
   const dealer = dealerName || 'Authorized Dealership';
 
@@ -166,7 +169,7 @@ Return ONLY a single valid JSON object (no markdown, no preamble) with exactly t
     { "id": "beat-3", "startTime": ${(duration * 0.72).toFixed(1)}, "endTime": ${duration}.0, "badge": "EXCLUSIVE AT", "title": "${dealer.toUpperCase()}", "subtitle": "Book Test Drive Today", "cta": "Book Now", "position": "bottom", "theme": "minimal-white" }
   ],
   "headline": "<Short impactful 4-6 word reel headline>",
-  "caption": "<Punchy 2-3 line Hinglish caption with emojis, hook, and booking CTA>",
+  "caption": "<Punchy 2-3 line caption in ${captionLanguage(language ?? 'en')} with emojis, hook, and booking CTA>",
   "hashtags": ["#Tag1", "#Tag2", "#Tag3", "#Tag4", "#Tag5", "#Tag6"],
   "audioSuggestion": "<Short name of trending audio vibe e.g. 'Trending High-Octane Phonk'>"
 }
@@ -252,6 +255,25 @@ export async function generateReelOverlays(params: {
 }
 
 /**
+ * FFmpeg arguments for burning the overlay filter graph into the video (a second H.264 encode).
+ * Instagram needs the moov atom first (+faststart) and 4:2:0 chroma, so this encode keeps both.
+ */
+export function compositeOverlayArgs(inputVideoPath: string, outputVideoPath: string, filterGraph: string): string[] {
+  return [
+    '-y',
+    '-i', inputVideoPath,
+    '-vf', filterGraph,
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '22',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy',
+    '-movflags', '+faststart',
+    outputVideoPath,
+  ];
+}
+
+/**
  * Composites high-contrast, crisp typography overlays onto video frames using FFmpeg.
  */
 export async function compositeVideoOverlays(
@@ -309,16 +331,7 @@ export async function compositeVideoOverlays(
   try {
     const filterGraph = filters.join(',');
     console.log(`[Veo Compositor] Executing FFmpeg drawtext overlay on ${inputVideoPath}...`);
-    await execFileAsync('ffmpeg', [
-      '-y',
-      '-i', inputVideoPath,
-      '-vf', filterGraph,
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '22',
-      '-c:a', 'copy',
-      outputVideoPath
-    ]);
+    await execFileAsync('ffmpeg', compositeOverlayArgs(inputVideoPath, outputVideoPath, filterGraph));
     console.log(`[Veo Compositor] Successfully composited overlays to ${outputVideoPath}`);
     return true;
   } catch (err: any) {
@@ -366,6 +379,7 @@ export async function generateGeminiVideo(params: GenerateVideoParams): Promise<
     ...(params.city !== undefined && { city: params.city }),
     duration: durationSeconds,
     apiKey,
+    ...(params.language !== undefined && { language: params.language }),
   });
   const { visualScene, overlays: precomputedOverlays, headline, caption: reelCaption, hashtags, audioSuggestion } = batchResult;
   const motionStyle = MOTION_DESCRIPTIONS[params.camera_motion || 'tracking'] || MOTION_DESCRIPTIONS['tracking']!;
@@ -590,6 +604,7 @@ export async function generateReelCaptionAndMetadata(params: {
   model_name?: string | undefined;
   dealerName?: string | undefined;
   city?: string | undefined;
+  language?: string | undefined;
 }): Promise<ReelMetadataResult> {
   const apiKey = await getGeminiApiKey();
   const textModel = process.env['GEMINI_TEXT_MODEL'] || 'gemini-2.5-flash';
@@ -608,11 +623,11 @@ export async function generateReelCaptionAndMetadata(params: {
   }
 
   const systemPrompt = `You are a viral social media manager for top Indian car dealerships creating high-engagement Instagram Reels and Facebook Reels.
-Generate a reel headline, engaging Hinglish caption with clear hook and call-to-action, viral hashtags, and a trending audio track vibe.
+Generate a reel headline, an engaging caption in ${captionLanguage(params.language ?? 'en')} with a clear hook and call-to-action, viral hashtags, and a trending audio track vibe.
 Return strictly valid JSON matching this schema:
 {
   "headline": "Short impactful 4-6 word headline for reel cover",
-  "caption": "Punchy 2-3 line Hinglish caption with emojis, hook, and booking CTA",
+  "caption": "Punchy 2-3 line caption in ${captionLanguage(params.language ?? 'en')} with emojis, hook, and booking CTA",
   "hashtags": ["#Tag1", "#Tag2", "#Tag3", "#Tag4", "#Tag5", "#Tag6"],
   "audioSuggestion": "Short name of trending vibe (e.g. 'Trending High-Octane Phonk', 'Luxury Ambient Chill')"
 }`;

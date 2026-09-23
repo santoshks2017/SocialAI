@@ -165,7 +165,15 @@ export function PostDetailDialog({ post, onClose }: { post: Post | null; onClose
           <span className="text-xs text-zinc-400">· {postTimeline(post)}</span>
         </div>
 
-        {creatives.length > 0 && (
+        {post.media_type === 'video' && post.video_url ? (
+          <video
+            src={post.video_url}
+            poster={post.thumbnail_url ?? undefined}
+            controls
+            playsInline
+            className="w-full max-h-80 rounded-lg bg-black ring-1 ring-zinc-200"
+          />
+        ) : creatives.length > 0 && (
           <div className="flex gap-2 flex-wrap">
             {creatives.map(([platform, url]) => (
               <img key={platform} src={url} alt={platform} className="w-28 h-28 object-cover rounded-lg ring-1 ring-zinc-200" />

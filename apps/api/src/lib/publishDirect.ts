@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { Prisma, Post, PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
-import { publishToFacebook, publishToInstagram } from '../services/meta.js';
+import { publishToFacebook, publishToInstagram, publishReelToInstagram, publishVideoToFacebook } from '../services/meta.js';
 import { publishToGmb } from '../services/gmb.js';
 import { getFreshGoogleAccessToken } from './googleToken.js';
 import { notifyPublishOutcome } from './postNotifications.js';
@@ -19,6 +19,8 @@ export interface PublishDirectData {
   gmb_location_name?: string;
   dealer_phone?: string;
   dealer_whatsapp?: string;
+  media_type: 'image' | 'video';
+  video_url: string;
 }
 
 export interface PlatformPublishResult {
@@ -34,7 +36,7 @@ export interface PostPublishOutcome {
   results: PlatformPublishResult[];
 }
 
-export type PublishablePost = Pick<Post, 'id' | 'dealer_id' | 'caption_text' | 'creative_urls'>;
+export type PublishablePost = Pick<Post, 'id' | 'dealer_id' | 'caption_text' | 'creative_urls'> & Partial<Pick<Post, 'media_type' | 'video_url' | 'caption_hashtags'>>;
 
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
@@ -76,6 +78,31 @@ export async function resolveAccessToken(conn: PlatformConnection): Promise<stri
   return conn.access_token;
 }
 
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A tag the caption already contains as a whole tag (not a prefix of a longer one), ignoring case.
+function captionHasTag(caption: string, tag: string): boolean {
+  return new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_#])${escapeRegExp(tag)}(?![\\p{L}\\p{M}\\p{N}_])`, 'iu').test(caption);
+}
+
+/**
+ * The text platforms receive: the caption, a blank line, then the post's hashtags.
+ * Tags already in the caption (older posts wrote them into it) aren't repeated.
+ */
+export function captionWithHashtags(caption: string, hashtags: readonly string[]): string {
+  const tags: string[] = [];
+  for (const raw of hashtags) {
+    const name = raw.trim().replace(/^#+/, '');
+    if (!name) continue;
+    const tag = `#${name}`;
+    if (captionHasTag(caption, tag) || tags.some((t) => t.toLowerCase() === tag.toLowerCase())) continue;
+    tags.push(tag);
+  }
+  if (tags.length === 0) return caption;
+  const body = caption.trimEnd();
+  return body ? `${body}\n\n${tags.join(' ')}` : tags.join(' ');
+}
+
 export function buildPublishData(
   post: PublishablePost,
   platform: string,
@@ -87,16 +114,37 @@ export function buildPublishData(
     dealer_id: post.dealer_id,
     platform: platform as PublishDirectData['platform'],
     image_url: (post.creative_urls as Record<string, string> | null)?.[platform] ?? '',
-    caption: post.caption_text ?? '',
+    // Every path to a platform (direct, cron and queued jobs) sends this caption.
+    caption: captionWithHashtags(post.caption_text ?? '', post.caption_hashtags ?? []),
     access_token: accessToken,
     ...(platform === 'facebook' ? { page_id: conn.platform_account_id } : {}),
     ...(platform === 'instagram' ? { ig_user_id: conn.platform_account_id } : {}),
     ...(platform === 'gmb' ? { gmb_location_name: conn.platform_account_id } : {}),
+    media_type: post.media_type === 'video' ? 'video' : 'image',
+    video_url: post.video_url ?? '',
   };
+}
+
+async function sendVideoToPlatform(data: PublishDirectData): Promise<{ platform_post_id: string; url: string }> {
+  const { platform, video_url, caption, access_token } = data;
+  if (!video_url) throw new Error('This post has no video to publish.');
+  if (platform === 'facebook') {
+    if (!data.page_id) throw new Error('page_id required for Facebook publish');
+    const result = await publishVideoToFacebook(data.page_id, access_token, video_url, caption);
+    return { platform_post_id: result.post_id, url: result.url };
+  }
+  if (platform === 'instagram') {
+    if (!data.ig_user_id) throw new Error('ig_user_id required for Instagram publish');
+    const result = await publishReelToInstagram(data.ig_user_id, access_token, video_url, caption);
+    return { platform_post_id: result.post_id, url: result.url };
+  }
+  if (platform === 'gmb') throw new Error("Google Business Profile doesn't support video posts. Remove it from this post's platforms.");
+  throw new Error(`${platformLabel(platform)} video publishing isn't available yet.`);
 }
 
 // Calls the platform API only; no database writes.
 async function sendToPlatform(data: PublishDirectData): Promise<{ platform_post_id: string; url: string }> {
+  if (data.media_type === 'video') return sendVideoToPlatform(data);
   const { platform, image_url, caption, access_token } = data;
   if (platform === 'facebook') {
     if (!data.page_id) throw new Error('page_id required for Facebook publish');
@@ -159,7 +207,10 @@ export async function publishPost(
         };
       }
       try {
-        const accessToken = await resolveAccessToken(conn);
+        // Video compatibility doesn't depend on a fresh access token, so an unsupported platform
+        // (e.g. Google Business Profile) fails fast here instead of behind a token refresh.
+        const skipTokenResolution = post.media_type === 'video' && platform !== 'facebook' && platform !== 'instagram';
+        const accessToken = skipTokenResolution ? '' : await resolveAccessToken(conn);
         const sent = await sendToPlatform(buildPublishData(post, platform, conn, accessToken));
         return { platform, success: true, post_id: sent.platform_post_id, url: sent.url };
       } catch (err) {
@@ -216,7 +267,9 @@ export async function publishPostToPlatform(
     const conn = await prisma.platformConnection.findFirst({
       where: { dealer_id: data.dealer_id, platform, is_connected: true },
     });
-    const accessToken = conn ? await resolveAccessToken(conn) : data.access_token;
+    // Same fast-fail as publishPost: an unsupported video platform doesn't need a token.
+    const skipTokenResolution = data.media_type === 'video' && platform !== 'facebook' && platform !== 'instagram';
+    const accessToken = skipTokenResolution ? '' : conn ? await resolveAccessToken(conn) : data.access_token;
     sent = await sendToPlatform({ ...data, access_token: accessToken });
   } catch (err) {
     failure = err;

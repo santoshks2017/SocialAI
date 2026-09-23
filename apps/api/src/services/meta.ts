@@ -65,6 +65,23 @@ export async function waitForInstagramContainer(
   }
 }
 
+// Instagram links use a shortcode, not the media id the Graph API returns, so ask for the
+// post's permalink. Publishing already succeeded, so a failure here keeps the fallback link.
+async function instagramPermalink(mediaId: string, accessToken: string, fallback: string): Promise<string> {
+  try {
+    const res = await axios.get<{ permalink?: unknown }>(
+      `${META_GRAPH_BASE}/${mediaId}`,
+      { params: { fields: 'permalink', access_token: accessToken } },
+    );
+    const permalink = res.data?.permalink;
+    return typeof permalink === 'string' && permalink.startsWith('https://') ? permalink : fallback;
+  } catch (err) {
+    // The message only: a raw axios error carries the request config, including the access token.
+    console.warn('[meta] Could not fetch the Instagram permalink:', err instanceof Error ? err.message : String(err));
+    return fallback;
+  }
+}
+
 export async function publishToInstagram(
   igUserId: string,
   accessToken: string,
@@ -96,7 +113,55 @@ export async function publishToInstagram(
 
   return {
     post_id: publishRes.data.id,
-    url: `https://www.instagram.com/p/${publishRes.data.id}/`,
+    url: await instagramPermalink(publishRes.data.id, accessToken, `https://www.instagram.com/p/${publishRes.data.id}/`),
+  };
+}
+
+// ─── Video (reels) ─────────────────────────────────────────────────────────────
+
+// Video containers take longer to process than images; ~3 minutes in total.
+export const IG_VIDEO_POLL_DELAYS_MS = [5000, 5000, 5000, 5000, 5000, 5000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000];
+
+export async function publishVideoToFacebook(
+  pageId: string,
+  accessToken: string,
+  videoUrl: string,
+  caption: string,
+): Promise<MetaPublishResult> {
+  if (accessToken.startsWith('mock_') || pageId.startsWith('mock_')) {
+    const mockId = `mock_fb_video_${Date.now()}`;
+    return { post_id: mockId, url: `https://www.facebook.com/${pageId}/videos/${mockId}` };
+  }
+  const response = await axios.post<{ id: string }>(
+    `${META_GRAPH_BASE}/${pageId}/videos`,
+    { file_url: videoUrl, description: caption, access_token: accessToken },
+  );
+  return { post_id: response.data.id, url: `https://www.facebook.com/${pageId}/videos/${response.data.id}` };
+}
+
+export async function publishReelToInstagram(
+  igUserId: string,
+  accessToken: string,
+  videoUrl: string,
+  caption: string,
+  pollDelaysMs: readonly number[] = IG_VIDEO_POLL_DELAYS_MS,
+): Promise<MetaPublishResult> {
+  if (accessToken.startsWith('mock_') || igUserId.startsWith('mock_')) {
+    const mockId = `mock_ig_reel_${Date.now()}`;
+    return { post_id: mockId, url: `https://www.instagram.com/reel/${mockId}/` };
+  }
+  const containerRes = await axios.post<{ id: string }>(
+    `${META_GRAPH_BASE}/${igUserId}/media`,
+    { media_type: 'REELS', video_url: videoUrl, caption, share_to_feed: true, access_token: accessToken },
+  );
+  await waitForInstagramContainer(containerRes.data.id, accessToken, pollDelaysMs);
+  const publishRes = await axios.post<{ id: string }>(
+    `${META_GRAPH_BASE}/${igUserId}/media_publish`,
+    { creation_id: containerRes.data.id, access_token: accessToken },
+  );
+  return {
+    post_id: publishRes.data.id,
+    url: await instagramPermalink(publishRes.data.id, accessToken, `https://www.instagram.com/reel/${publishRes.data.id}/`),
   };
 }
 

@@ -40,11 +40,11 @@ import {
   generateGeminiCaptions,
   isGeminiTextAvailable,
   elaboratePromptBrief,
+  geminiTransformCaption,
 } from "../services/geminiService.js"
+import { LANGUAGE_NAMES, normalizeLanguage } from "../lib/languages.js"
 import { getBrandLogoSvg } from "../services/brandLogoService.js"
-import { generateGeminiVideo, generateReelCaptionAndMetadata, type VideoOverlayBeat } from "../services/geminiVideo.js"
 import { loadDealerLogo, loadImageFromUrl, readOriginalUpload } from "../lib/uploadPaths.js"
-import { consumeDailyQuota } from "../lib/dailyQuota.js"
 
 // ── Gradient background fallback (no external AI needed) ──────────────────────
 // Generates a rich automotive-themed 1080×1080 gradient PNG using Sharp + SVG.
@@ -161,14 +161,19 @@ async function generateCaptionsAI(
 }
 
 async function transformCaptionAI(caption: string, instruction: string): Promise<string> {
+  if (await isGeminiTextAvailable()) {
+    try { return await geminiTransformCaption(caption, instruction) } catch (err) {
+      console.error("Gemini transform failed, falling back to Groq:", err instanceof Error ? err.message : String(err))
+    }
+  }
   if (isGroqAvailable()) {
     try { return await groqTransformCaption(caption, instruction) } catch (err) {
-      console.error("Groq transform failed, falling back to OpenRouter:", err)
+      console.error("Groq transform failed, falling back to OpenRouter:", err instanceof Error ? err.message : String(err))
     }
   }
   if (isOpenRouterAvailable()) {
     try { return await openrouterTransformCaption(caption, instruction) } catch (err) {
-      console.error("OpenRouter transform failed:", err)
+      console.error("OpenRouter transform failed:", err instanceof Error ? err.message : String(err))
     }
   }
   return caption
@@ -1132,22 +1137,25 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
   // POST /v1/creatives/hashtags
   fastify.post("/hashtags", { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { caption, brand, city } = request.body as { caption: string; brand?: string; city?: string }
+    const { caption, brand, city, language } = request.body as { caption: string; brand?: string; city?: string; language?: string }
     if (!caption?.trim()) {
       return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "caption is required" } })
     }
+    const lang = normalizeLanguage(language)
     const context = [brand && `Brand: ${brand}`, city && `City: ${city}`].filter(Boolean).join(", ")
-    const instruction = `Generate 15 highly relevant hashtags for this Indian automobile dealer caption.${context ? ` Context: ${context}.` : ""} Include: city hashtags, brand hashtags, model hashtags (if mentioned), and engagement hashtags. Return ONLY a JSON array of hashtag strings, e.g. ["#tag1","#tag2"]. No other text.`
+    const languageHint = lang === "en" ? "" : ` Include 3–4 hashtags written in ${LANGUAGE_NAMES[lang]}.`
+    const instruction = `Generate 15 highly relevant hashtags for this Indian automobile dealer caption.${context ? ` Context: ${context}.` : ""} Include: city hashtags, brand hashtags, model hashtags (if mentioned), and engagement hashtags.${languageHint} Return ONLY a JSON array of hashtag strings, e.g. ["#tag1","#tag2"]. No other text.`
     try {
-      const result = await transformCaptionAI(caption, instruction)
+      const result = (await transformCaptionAI(caption, instruction)).replace(/^```(?:json)?\s*|\s*```$/g, "")
       let hashtags: string[] = []
       try {
         const parsed = JSON.parse(result) as unknown
-        if (Array.isArray(parsed)) hashtags = (parsed as string[]).filter((h) => typeof h === 'string')
+        if (Array.isArray(parsed)) hashtags = parsed.filter((h): h is string => typeof h === "string")
       } catch {
-        hashtags = result.match(/#\w+/g) ?? []
+        hashtags = result.match(/#[\p{L}\p{M}\p{N}_]+/gu) ?? []
       }
-      return { success: true, hashtags }
+      const normalized = hashtags.map((h) => h.trim()).filter(Boolean).map((h) => (h.startsWith("#") ? h : `#${h}`))
+      return { success: true, hashtags: normalized.slice(0, 15) }
     } catch (err) {
       fastify.log.error(err, "Hashtag generation failed")
       return reply.code(500).send({ error: { code: "AI_ERROR", message: "Hashtag generation failed. Please try again." } })
@@ -1177,7 +1185,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id as string;
-      const { prompt } = request.body as { prompt: string };
+      const { prompt, language } = request.body as { prompt: string; language?: string };
 
       if (!prompt?.trim()) {
         return reply.code(400).send({
@@ -1202,7 +1210,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const brief = await elaboratePromptBrief(prompt, matchedModel);
+        const brief = await elaboratePromptBrief(prompt, matchedModel, normalizeLanguage(language));
 
         return {
           success: true,
@@ -1509,114 +1517,6 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // POST /v1/creatives/generate-reel — AI Video (Reel) generation powered by Google Veo 3.1
-  fastify.post(
-    "/generate-reel",
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      const dealer_id = request.user.dealer_id ?? undefined;
-      const body = (request.body ?? {}) as {
-        prompt: string;
-        brand?: string;
-        model_name?: string;
-        camera_motion?: string;
-        duration_seconds?: number;
-        aspect_ratio?: "9:16" | "16:9";
-        platforms?: string[];
-        overlays?: VideoOverlayBeat[] | undefined;
-      };
-
-      if (!body.prompt || !body.prompt.trim()) {
-        return reply.code(400).send({
-          error: { code: "INVALID_INPUT", message: "Prompt is required to generate a video reel." }
-        });
-      }
-
-      // Veo is billed per video, so each dealer gets a daily allowance.
-      const reelLimit = Number(process.env["REEL_DAILY_LIMIT"] ?? 10)
-      const quotaSubject = dealer_id ?? `user:${request.user.dealer_user_id}`
-      if (!(await consumeDailyQuota("generate_reel", quotaSubject, Number.isFinite(reelLimit) ? reelLimit : 10))) {
-        return reply.code(429).send({
-          error: {
-            code: "REEL_DAILY_LIMIT_REACHED",
-            message: "Daily video reel limit reached for your dealership. Try again tomorrow.",
-          }
-        });
-      }
-
-      try {
-        let dealerName = 'Authorized Dealership';
-        let city = 'Delhi NCR';
-
-        if (dealer_id) {
-          const dealer = await prisma.dealer.findUnique({
-            where: { id: dealer_id },
-            select: { name: true, city: true }
-          });
-          if (dealer) {
-            dealerName = dealer.name;
-            city = dealer.city || 'your city';
-          }
-        }
-
-        fastify.log.info({ prompt: body.prompt, model: body.model_name }, "Starting Veo Reel generation");
-
-        // Generate Video — caption/overlays/hashtags are now bundled in the batched Gemini Flash call
-        // inside generateGeminiVideo, so we only make 2 Gemini API calls total (1 Flash + 1 Veo)
-        const videoResult = await generateGeminiVideo({
-            prompt: body.prompt,
-            brand: body.brand,
-            model_name: body.model_name,
-            camera_motion: body.camera_motion,
-            duration_seconds: body.duration_seconds,
-            aspect_ratio: body.aspect_ratio || "9:16",
-            dealerName,
-            city,
-            overlays: body.overlays,
-          });
-
-        return {
-          success: true,
-          videoUrl: videoResult.videoUrl,
-          cleanVideoUrl: videoResult.cleanVideoUrl,
-          overlays: videoResult.overlays,
-          thumbnailUrl: videoResult.thumbnailUrl,
-          duration: videoResult.duration,
-          aspectRatio: videoResult.aspectRatio,
-          headline: videoResult.headline,
-          caption: videoResult.caption,
-          hashtags: videoResult.hashtags,
-          audioSuggestion: videoResult.audioSuggestion,
-        };
-      } catch (err: any) {
-        fastify.log.error(err, "Veo Reel generation failed");
-
-        // Detect rate limit errors from Veo API and return friendly 429
-        const isRateLimit = err?.response?.status === 429 ||
-          err?.status === 429 ||
-          String(err?.message).includes('429') ||
-          String(err?.message).toLowerCase().includes('rate limit') ||
-          String(err?.message).toLowerCase().includes('too many requests');
-
-        if (isRateLimit) {
-          return reply.code(429).send({
-            error: {
-              code: "RATE_LIMIT_EXCEEDED",
-              message: "Google Veo API rate limit reached. The Veo video generation model allows only a few requests per minute. Please wait 1–2 minutes and try again.",
-              retryAfterSeconds: 90,
-            }
-          });
-        }
-
-        return reply.code(500).send({
-          error: {
-            code: "VIDEO_GENERATION_FAILED",
-            message: err.message || "Failed to generate video reel with Veo."
-          }
-        });
-      }
-    }
-  );
 }
 
 function mockCreatives() {

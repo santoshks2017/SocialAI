@@ -137,6 +137,9 @@ model Post {
   caption_text           String?
   caption_hashtags       String[]
   creative_urls          Json?
+  media_type        String    @default("image") // 'image' | 'video'
+  video_url         String?   // reels: the rendered MP4
+  thumbnail_url     String?   // reels: a still from the video
   template_id            String?
   template               Template? @relation(fields: [template_id], references: [id])
   inventory_item_ids     String[]
@@ -456,4 +459,37 @@ model ApprovalToken {
   created_at DateTime  @default(now())
 
   @@index([post_id])
+}
+
+// One reel render request. It renders after the request returns; the page polls
+// /creatives/generate-video/status and the every-minute cron picks up jobs that stall.
+model VideoJob {
+  id               String    @id @default(uuid())
+  dealer_id        String
+  user_id          String    // DealerUser.id who asked for the reel
+  engine           String    // 'kenburns' | 'veo'
+  // queued | processing | ready | failed. No schema default: createVideoJob sets it, and a
+  // default would keep status filters in memory (see pushable() in src/db/firestore.ts).
+  status           String
+  prompt           String
+  image_url        String?   // attached car photo
+  aspect_ratio     String    @default("9:16")
+  duration_seconds Int
+  language         String    @default("en")
+  video_url        String?
+  thumbnail_url    String?
+  caption          String?
+  hashtags         String[]
+  error_code       String?
+  error_message    String?
+  attempts         Int       @default(0)
+  worker_id        String?
+  heartbeat_at     DateTime?
+  started_at       DateTime?
+  finished_at      DateTime?
+  expires_at       DateTime? // Firestore TTL policy on video_jobs.expires_at deletes finished jobs after this time
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  @@index([dealer_id, created_at])
 }

@@ -100,7 +100,7 @@ describe('POST /v1/cron/publish sweep (cron.ts)', () => {
   const runCron = async () => {
     const res = await app.inject({ method: 'POST', url: '/v1/cron/publish' });
     assert.equal(res.statusCode, 200);
-    return res.json() as { processed: number; skipped: number; recovered: number; results: unknown[] };
+    return res.json() as { processed: number; skipped: number; recovered: number; results: unknown[]; videoJobs?: { ran: string[]; expired: string[] } };
   };
 
   async function newDealer(withFacebook: boolean): Promise<string> {
@@ -253,5 +253,14 @@ describe('POST /v1/cron/publish sweep (cron.ts)', () => {
     const stored = await prisma.post.findUnique({ where: { id: post.id } });
     const results = stored?.publish_results as Record<string, { post_id?: string; published_at?: string }>;
     assert.equal(results['facebook']?.published_at, '2026-09-01T00:00:00.000Z');
+  });
+
+  it('does not fail the publish sweep when the reel sweep throws', async (t) => {
+    const findMany = t.mock.method(prisma.videoJob, 'findMany', async () => {
+      throw new Error('Firestore is down');
+    });
+    const body = await runCron();
+    assert.deepEqual(body.videoJobs, { ran: [], expired: [] });
+    assert.ok(findMany.mock.callCount() >= 1);
   });
 });

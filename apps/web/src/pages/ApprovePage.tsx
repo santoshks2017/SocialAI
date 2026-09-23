@@ -36,7 +36,8 @@ export default function ApprovePage() {
     }
   };
 
-  const image = data ? firstCreative(data.post.creative_urls) : null;
+  const video = data?.post.media_type === 'video' ? data.post.video_url ?? null : null;
+  const image = data && !video ? firstCreative(data.post.creative_urls) : null;
   const hashtags = (data?.post.caption_hashtags ?? []).map((t) => (t.startsWith('#') ? t : `#${t}`));
 
   return (
@@ -69,6 +70,15 @@ export default function ApprovePage() {
               <p className="text-sm text-zinc-500 mb-3">
                 <span className="font-medium text-zinc-700">{data.dealer_name}</span> submitted a post for your approval.
               </p>
+              {video && (
+                <video
+                  src={video}
+                  poster={data.post.thumbnail_url ?? undefined}
+                  controls
+                  playsInline
+                  className="w-full max-h-96 rounded-xl ring-1 ring-zinc-100 mb-3 bg-black"
+                />
+              )}
               {image && <img src={image} alt="Creative preview" className="w-full rounded-xl ring-1 ring-zinc-100 mb-3 object-cover" />}
               {data.post.caption_text && <p className="text-sm text-zinc-700 whitespace-pre-wrap mb-2">{data.post.caption_text}</p>}
               {hashtags.length > 0 && <p className="text-sm text-orange-600 mb-3">{hashtags.join(' ')}</p>}

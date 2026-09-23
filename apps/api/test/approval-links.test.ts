@@ -50,6 +50,9 @@ describe('GET /v1/publisher/approval/:token', () => {
         caption_text: 'Exchange your old car',
         caption_hashtags: ['Exchange'],
         platforms: ['instagram'],
+        media_type: 'image',
+        video_url: null,
+        thumbnail_url: null,
       },
     });
   });
@@ -88,7 +91,7 @@ describe('POST /v1/publisher/approval/:token', () => {
   it("tells publishers the decision came through the review link", async () => {
     const s = await submitted();
     await decide(s.token, { decision: 'approve', comment: 'Go ahead' });
-    const [n] = await prisma.notification.findMany({ where: { user_id: s.admin.id } });
+    const [n] = await prisma.notification.findMany({ where: { user_id: s.admin.id, type: 'approval_decided' } });
     assert.match(n?.body ?? '', /review link/);
     assert.equal(n?.body, `"Festive exchange bonus" was approved through the review link and is ready to publish. Approver note: Go ahead`);
   });
