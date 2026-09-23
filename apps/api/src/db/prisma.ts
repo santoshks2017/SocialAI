@@ -1,5 +1,6 @@
 import 'dotenv/config';
-import { FirestoreCollection, firestore } from './firestore.js';
+import { FirestoreCollection, collectionFor } from './firestore.js';
+import { modelForAccessor } from './schema.js';
 import type {
   Dealer,
   DealerUser,
@@ -24,25 +25,25 @@ import type {
 
 // Prisma-compatible Firestore database adapter with strong typing
 class FirestoreDb {
-  dealer = new FirestoreCollection<Dealer>('dealers');
-  dealerUser = new FirestoreCollection<DealerUser>('dealer_users');
-  post = new FirestoreCollection<Post>('posts');
-  platformConnection = new FirestoreCollection<PlatformConnection>('platform_connections');
-  activityLog = new FirestoreCollection<ActivityLog>('activity_logs');
-  inboxMessage = new FirestoreCollection<InboxMessage>('inbox_messages');
-  autoReplyRule = new FirestoreCollection<AutoReplyRule>('auto_reply_rules');
-  autoReplyTemplate = new FirestoreCollection<AutoReplyTemplate>('auto_reply_templates');
-  inspirationHandle = new FirestoreCollection<InspirationHandle>('inspiration_handles');
-  lead = new FirestoreCollection<Lead>('leads');
-  syncedModel = new FirestoreCollection<SyncedModel>('synced_models');
-  subscription = new FirestoreCollection<Subscription>('subscriptions');
-  socialConnection = new FirestoreCollection<SocialConnection>('social_connections');
-  boostCampaign = new FirestoreCollection<BoostCampaign>('boost_campaigns');
-  inventoryItem = new FirestoreCollection<InventoryItem>('inventory_items');
-  dealerStyle = new FirestoreCollection<DealerStyle>('dealer_styles');
-  userSession = new FirestoreCollection<UserSession>('user_sessions');
-  prompt = new FirestoreCollection<Prompt>('prompts');
-  template = new FirestoreCollection<Template>('templates');
+  dealer = new FirestoreCollection<Dealer>('dealers', 'Dealer');
+  dealerUser = new FirestoreCollection<DealerUser>('dealer_users', 'DealerUser');
+  post = new FirestoreCollection<Post>('posts', 'Post');
+  platformConnection = new FirestoreCollection<PlatformConnection>('platform_connections', 'PlatformConnection');
+  activityLog = new FirestoreCollection<ActivityLog>('activity_logs', 'ActivityLog');
+  inboxMessage = new FirestoreCollection<InboxMessage>('inbox_messages', 'InboxMessage');
+  autoReplyRule = new FirestoreCollection<AutoReplyRule>('auto_reply_rules', 'AutoReplyRule');
+  autoReplyTemplate = new FirestoreCollection<AutoReplyTemplate>('auto_reply_templates', 'AutoReplyTemplate');
+  inspirationHandle = new FirestoreCollection<InspirationHandle>('inspiration_handles', 'InspirationHandle');
+  lead = new FirestoreCollection<Lead>('leads', 'Lead');
+  syncedModel = new FirestoreCollection<SyncedModel>('synced_models', 'SyncedModel');
+  subscription = new FirestoreCollection<Subscription>('subscriptions', 'Subscription');
+  socialConnection = new FirestoreCollection<SocialConnection>('social_connections', 'SocialConnection');
+  boostCampaign = new FirestoreCollection<BoostCampaign>('boost_campaigns', 'BoostCampaign');
+  inventoryItem = new FirestoreCollection<InventoryItem>('inventory_items', 'InventoryItem');
+  dealerStyle = new FirestoreCollection<DealerStyle>('dealer_styles', 'DealerStyle');
+  userSession = new FirestoreCollection<UserSession>('user_sessions', 'UserSession');
+  prompt = new FirestoreCollection<Prompt>('prompts', 'Prompt');
+  template = new FirestoreCollection<Template>('templates', 'Template');
   mediaAsset = new FirestoreCollection<any>('media_assets');
   systemSetting = new FirestoreCollection<any>('system_settings');
   postAnalytics = new FirestoreCollection<any>('post_analytics');
@@ -50,6 +51,7 @@ class FirestoreDb {
 
   [key: string]: any;
 
+  // Not atomic: array entries are already-running promises, and callbacks get this same client.
   async $transaction<T>(arg: ((tx: FirestoreDb) => Promise<T>) | Promise<any>[]): Promise<any> {
     if (typeof arg === 'function') {
       return arg(this);
@@ -78,8 +80,10 @@ export const prisma: FirestoreDb = new Proxy(baseDb, {
       return (target as any)[prop];
     }
     if (typeof prop === 'string' && !prop.startsWith('$')) {
-      const colName = prop.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase() + 's';
-      const col = new FirestoreCollection(colName);
+      const model = modelForAccessor(prop);
+      const col = model
+        ? collectionFor(model)
+        : new FirestoreCollection(prop.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase() + 's');
       (target as any)[prop] = col;
       return col;
     }
@@ -115,7 +119,7 @@ async function seedDefaultDataIfNeeded() {
           name: 'Apex Admin',
           phone: '9876543210',
           email: 'admin@cardekho.com',
-          role: 'owner',
+          role: 'admin',
           onboarding_completed: true,
           onboarding_step: 4,
           permissions: {
