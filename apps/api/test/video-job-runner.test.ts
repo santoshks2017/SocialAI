@@ -209,6 +209,34 @@ describe('reel engine default', () => {
     assert.equal((res.json() as { engine: string }).engine, 'kenburns');
   });
 
+  it('falls back to a quick render once the AI reel cap is used up, unless AI video was asked for', async (ctx) => {
+    const saved = { ai: process.env['REEL_DAILY_LIMIT'], quick: process.env['REEL_QUICK_DAILY_LIMIT'] };
+    ctx.after(() => {
+      for (const [name, value] of [['REEL_DAILY_LIMIT', saved.ai], ['REEL_QUICK_DAILY_LIMIT', saved.quick]] as const) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    });
+    process.env['REEL_DAILY_LIMIT'] = '1';
+    process.env['REEL_QUICK_DAILY_LIMIT'] = '1';
+    process.env['GEMINI_API_KEY'] = 'test-key-0000';
+    invalidateAiKeyCache();
+    invalidateAiModelCache();
+    const t = await team();
+
+    const first = await post(t, { prompt: 'Creta summer offer' });
+    assert.deepEqual([first.statusCode, (first.json() as { engine: string }).engine], [202, 'veo']);
+    const second = await post(t, { prompt: 'Creta summer offer', duration_seconds: 20 });
+    assert.deepEqual([second.statusCode, (second.json() as { engine: string }).engine], [202, 'kenburns']);
+    const stored = await prisma.videoJob.findUnique({ where: { id: (second.json() as { job_id: string }).job_id } });
+    assert.deepEqual([stored?.engine, stored?.duration_seconds], ['kenburns', 20]);
+
+    const explicit = await post(t, { prompt: 'Creta summer offer', engine: 'veo' });
+    assert.equal(explicit.statusCode, 429);
+    const both = await post(t, { prompt: 'Creta summer offer' });
+    assert.deepEqual([both.statusCode, (both.json() as { error: { code: string } }).error.code], [429, 'REEL_DAILY_LIMIT_REACHED']);
+  });
+
   it('lets an explicit engine in the body win over the default', async () => {
     process.env['GEMINI_API_KEY'] = 'test-key-0000';
     invalidateAiKeyCache();

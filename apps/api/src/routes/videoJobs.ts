@@ -54,11 +54,19 @@ export default async function videoJobRoutes(fastify: FastifyInstance) {
     if (body.image_url != null && !isMediaUrl(body.image_url)) {
       return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'image_url must be an uploaded image URL.' } });
     }
-    const engine: VideoEngine = body.engine === 'veo' || body.engine === 'kenburns' ? body.engine : await defaultEngine();
+    const requested: VideoEngine | null = body.engine === 'veo' || body.engine === 'kenburns' ? body.engine : null;
+    let engine: VideoEngine = requested ?? await defaultEngine();
     if (engine === 'veo' && !(await hasGeminiKey())) {
       return reply.code(503).send({ error: { code: 'GEMINI_NOT_CONFIGURED', message: 'Video generation isn’t configured on the server.' } });
     }
-    if (!(await consumeDailyQuota(DAILY[engine].feature, dealerId, dailyLimit(engine)))) {
+    let allowed = await consumeDailyQuota(DAILY[engine].feature, dealerId, dailyLimit(engine));
+    // AI video by default shouldn't cost dealers their daily reels: once the AI cap is used up, a
+    // request that didn't ask for AI video gets a quick render (its own cap) instead.
+    if (!allowed && !requested && engine === 'veo') {
+      engine = 'kenburns';
+      allowed = await consumeDailyQuota(DAILY.kenburns.feature, dealerId, dailyLimit('kenburns'));
+    }
+    if (!allowed) {
       return reply.code(429).send({ error: { code: 'REEL_DAILY_LIMIT_REACHED', message: 'You’ve reached today’s reel limit. Try again tomorrow.' } });
     }
 
