@@ -137,6 +137,9 @@ model Post {
   caption_text           String?
   caption_hashtags       String[]
   creative_urls          Json?
+  media_type        String    @default("image") // 'image' | 'video'
+  video_url         String?   // reels: the rendered MP4
+  thumbnail_url     String?   // reels: a still from the video
   template_id            String?
   template               Template? @relation(fields: [template_id], references: [id])
   inventory_item_ids     String[]

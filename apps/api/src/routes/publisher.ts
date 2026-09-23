@@ -28,6 +28,10 @@ const AWAITING_APPROVAL = {
   },
 }
 
+// Media URLs we store: absolute http(s) or our local /uploads/ path (dev storage fallback).
+const isMediaUrl = (value: unknown): value is string =>
+  typeof value === "string" && value.length <= 2048 && /^(https?:\/\/|\/uploads\/)/i.test(value)
+
 async function requirePublishPermission(request: FastifyRequest, reply: FastifyReply) {
   if (!requirePermission(reply, getUser(request), PERMISSIONS.PUBLISH_POST)) return reply
 }
@@ -55,6 +59,9 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         captionHashtags?: string[]
         creativeUrls?: Record<string, string>
         platforms: string[]
+        mediaType?: string
+        videoUrl?: string
+        thumbnailUrl?: string
       }
 
       if (!body.promptText || !body.platforms?.length) {
@@ -64,6 +71,17 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
             message: "promptText and platforms are required",
           },
         })
+      }
+
+      if (body.mediaType !== undefined && body.mediaType !== "image" && body.mediaType !== "video") {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "mediaType must be image or video" } })
+      }
+      const isVideo = body.mediaType === "video"
+      if (isVideo && !isMediaUrl(body.videoUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "videoUrl is required for video posts" } })
+      }
+      if (body.thumbnailUrl !== undefined && !isMediaUrl(body.thumbnailUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "thumbnailUrl must be a media URL" } })
       }
 
       const post = await prisma.post.create({
@@ -76,6 +94,8 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           platforms: body.platforms,
           status: "draft",
           created_by: request.user.dealer_user_id ?? null,
+          media_type: isVideo ? "video" : "image",
+          ...(isVideo ? { video_url: body.videoUrl, thumbnail_url: body.thumbnailUrl ?? null } : {}),
         },
       })
 
@@ -196,6 +216,8 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         platforms: string[]
         status: string
         scheduled_at: string
+        videoUrl: string
+        thumbnailUrl: string
       }>
 
       if (body.status !== undefined && APPROVAL_STATUSES.has(body.status)) {
@@ -210,6 +232,13 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         !requirePermission(reply, getUser(request), PERMISSIONS.PUBLISH_POST)
       )
         return reply
+
+      if (body.videoUrl !== undefined && !isMediaUrl(body.videoUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "videoUrl is required for video posts" } })
+      }
+      if (body.thumbnailUrl !== undefined && !isMediaUrl(body.thumbnailUrl)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "thumbnailUrl must be a media URL" } })
+      }
 
       const existing = await prisma.post.findFirst({ where: { id, dealer_id } })
       if (!existing)
@@ -226,7 +255,9 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         body.captionText !== undefined ||
         body.captionHashtags !== undefined ||
         body.creativeUrls !== undefined ||
-        body.platforms !== undefined
+        body.platforms !== undefined ||
+        body.videoUrl !== undefined ||
+        body.thumbnailUrl !== undefined
 
       const updateData: Record<string, unknown> = {}
       if (body.promptText !== undefined)
@@ -238,6 +269,8 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       if (body.creativeUrls !== undefined)
         updateData.creative_urls = body.creativeUrls
       if (body.platforms !== undefined) updateData.platforms = body.platforms
+      if (body.videoUrl !== undefined) updateData.video_url = body.videoUrl
+      if (body.thumbnailUrl !== undefined) updateData.thumbnail_url = body.thumbnailUrl
       if (body.status !== undefined) updateData.status = body.status
       if (body.scheduled_at !== undefined)
         updateData.scheduled_at = body.scheduled_at
@@ -252,14 +285,17 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         updateData.approved_at = null
       }
 
-      const updated = await prisma.post.updateMany({
-        where: { id, dealer_id },
-        data: updateData,
-      })
-      if (updated.count === 0)
-        return reply
-          .code(404)
-          .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
+      // Write only if nobody changed the post's status since we read it (e.g. an approval landed).
+      const written = await transitionPost(
+        id,
+        (p) => p.dealer_id === dealer_id && p.status === existing.status,
+        updateData,
+      )
+      if (!written) {
+        return reply.code(409).send({
+          error: { code: "POST_CHANGED", message: "This post changed while you were editing it. Reload and try again." },
+        })
+      }
 
       const post = await prisma.post.findFirst({ where: { id, dealer_id } })
 

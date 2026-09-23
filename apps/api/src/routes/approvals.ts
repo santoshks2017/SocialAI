@@ -124,6 +124,9 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
         caption_text: post.caption_text ?? '',
         caption_hashtags: post.caption_hashtags ?? [],
         platforms: post.platforms ?? [],
+        media_type: post.media_type ?? 'image',
+        video_url: post.video_url ?? null,
+        thumbnail_url: post.thumbnail_url ?? null,
       },
     };
   });

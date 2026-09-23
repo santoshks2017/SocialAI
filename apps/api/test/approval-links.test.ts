@@ -50,6 +50,9 @@ describe('GET /v1/publisher/approval/:token', () => {
         caption_text: 'Exchange your old car',
         caption_hashtags: ['Exchange'],
         platforms: ['instagram'],
+        media_type: 'image',
+        video_url: null,
+        thumbnail_url: null,
       },
     });
   });
