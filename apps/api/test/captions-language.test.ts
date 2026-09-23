@@ -4,6 +4,7 @@ import axios from 'axios';
 import { fastify } from '../src/index.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
 import { briefCaptionInstructions, captionLanguage, normalizeLanguage } from '../src/lib/languages.js';
+import { elaboratePromptBrief } from '../src/services/geminiService.js';
 
 before(async () => { await fastify.ready(); });
 after(async () => { await fastify.close(); });
@@ -61,6 +62,27 @@ describe('POST /v1/creatives/hashtags', () => {
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual((res.json() as { hashtags: string[] }).hashtags, ['#पुणे', '#சென்னை', '#Creta_2026']);
+    delete process.env['GEMINI_API_KEY'];
+    invalidateAiKeyCache();
+  });
+});
+
+describe('elaboratePromptBrief', () => {
+  it('asks for the image headline in English (Latin script) when captions are in another language', async (t) => {
+    process.env['GEMINI_API_KEY'] = 'test-key';
+    const { invalidateAiKeyCache } = await import('../src/lib/aiKeys.js');
+    invalidateAiKeyCache();
+    const prompts: string[] = [];
+    t.mock.method(axios, 'post', async (_url: string, body: { contents: Array<{ parts: Array<{ text: string }> }> }) => {
+      prompts.push(body.contents[0]!.parts[0]!.text);
+      return { data: { candidates: [{ content: { parts: [{ text: '{}' }] } }] } };
+    });
+
+    await elaboratePromptBrief('Creta Diwali exchange offer', null, 'ta');
+
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0]!, /"headline": "[^"]*written in English \(Latin script\)[^"]*"/);
+    assert.match(prompts[0]!, /"caption": "[^"]*Tamil/);
     delete process.env['GEMINI_API_KEY'];
     invalidateAiKeyCache();
   });

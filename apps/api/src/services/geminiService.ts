@@ -717,6 +717,8 @@ export async function elaboratePromptBrief(
   const apiKey = await getGeminiApiKey();
 
   const [caption1, caption2, caption3] = briefCaptionInstructions(language);
+  // The headline stays English whatever the caption language: the image compositor's fonts cover
+  // Latin and Devanagari only (reel overlays follow the same rule).
 
   const systemInstructions = `You are a premium automotive advertising director.
 Analyze the user's campaign concept and output a detailed structure that outlines 3 distinct creative options and 3 distinct caption/hashtag copy options for a social media banner.
@@ -730,7 +732,7 @@ You must return only a JSON object matching this schema:
   "background_details_option2": "Highly-detailed Imagen prompt describing ONLY the empty background scene for Option 2 (make this visually distinct from Option 1, e.g. different time of day or location).",
   "background_details_option3": "Highly-detailed Imagen prompt describing ONLY the empty background scene for Option 3 (another visually distinct background).",
   "lighting_mood": "Short phrase describing the lighting and mood (e.g. warm sunset glow, cool neon reflections)",
-  "headline": "A short, punchy marketing headline to overlay on the poster (max 6-8 words)",
+  "headline": "A short, punchy marketing headline to overlay on the poster (max 6-8 words), always written in English (Latin script) whatever the caption language",
   "caption": "${caption1}",
   "caption_option2": "${caption2}",
   "caption_option3": "${caption3}",
