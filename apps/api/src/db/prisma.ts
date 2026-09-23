@@ -25,6 +25,7 @@ import type {
   ApiConnection,
   ApiConnectionSecret,
   ApprovalToken,
+  VideoJob,
 } from '../generated/client/index.js';
 
 // Prisma-compatible Firestore database adapter with strong typing
@@ -48,6 +49,7 @@ class FirestoreDb {
   userSession = new FirestoreCollection<UserSession>('user_sessions', 'UserSession');
   notification = new FirestoreCollection<Notification>('notifications', 'Notification');
   approvalToken = new FirestoreCollection<ApprovalToken>('approval_tokens', 'ApprovalToken');
+  videoJob = new FirestoreCollection<VideoJob>('video_jobs', 'VideoJob');
   apiConnection = new FirestoreCollection<ApiConnection>('api_connections', 'ApiConnection');
   apiConnectionSecret = new FirestoreCollection<ApiConnectionSecret>('api_connection_secrets', 'ApiConnectionSecret');
   prompt = new FirestoreCollection<Prompt>('prompts', 'Prompt');
