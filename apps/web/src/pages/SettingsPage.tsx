@@ -15,6 +15,8 @@ function IgSvg() {
 import { Button } from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeMode } from '../utils/theme';
 import { userService } from '../services/users';
 import { CONFIGURABLE_PERMISSIONS, ROLE_LABELS, isAtLeast } from '../lib/permissions';
 import type { Permission } from '../lib/permissions';
@@ -63,6 +65,7 @@ interface InspirationHandle {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const { addToast } = useToast();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -779,6 +782,23 @@ export default function SettingsPage() {
       {/* --- PREFERENCES TAB --- */}
       {activeTab === 'preferences' && (
         <div className="space-y-5">
+          <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+            <h3 className="font-semibold text-zinc-900 text-sm mb-1">Appearance</h3>
+            <p className="text-xs text-zinc-500 mb-3">Choose how Social AI looks on this device.</p>
+            <div className="inline-flex gap-1 bg-zinc-100/80 rounded-xl p-1">
+              {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setThemeMode(m)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-all ${themeMode === m ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
+                >
+                  {m === 'light' ? 'Light' : m === 'dark' ? 'Dark' : 'System'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
             <div>
               <h3 className="font-semibold text-slate-800 text-sm mb-1">Caption Languages</h3>
