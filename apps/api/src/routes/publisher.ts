@@ -17,6 +17,16 @@ const PUBLISH_IN_PROGRESS = {
   },
 }
 
+// Approval statuses change only through the approval routes (routes/approvals.ts).
+const APPROVAL_STATUSES = new Set(["pending_approval", "approved"])
+
+const AWAITING_APPROVAL = {
+  error: {
+    code: "AWAITING_APPROVAL",
+    message: "Approve or reject this post before publishing it.",
+  },
+}
+
 async function requirePublishPermission(request: FastifyRequest, reply: FastifyReply) {
   if (!requirePermission(reply, getUser(request), PERMISSIONS.PUBLISH_POST)) return reply
 }
@@ -64,6 +74,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           ...(body.creativeUrls ? { creative_urls: body.creativeUrls } : {}),
           platforms: body.platforms,
           status: "draft",
+          created_by: request.user.dealer_user_id ?? null,
         },
       })
 
@@ -151,6 +162,12 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         scheduled_at: string
       }>
 
+      if (body.status !== undefined && APPROVAL_STATUSES.has(body.status)) {
+        return reply.code(400).send({
+          error: { code: "INVALID_STATUS", message: "Use the approval actions to send, approve or reject a post." },
+        })
+      }
+
       if (
         body.status !== undefined &&
         PUBLISH_STATUSES.has(body.status) &&
@@ -205,6 +222,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: { code: "ALREADY_PUBLISHED", message: "Cannot reschedule a published post" } })
       }
       if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
+      if (post.status === "pending_approval") return reply.code(409).send(AWAITING_APPROVAL)
       // Remove any existing delayed BullMQ jobs for this post
       await removeQueuedJobs(id)
       const updated = await prisma.post.update({
@@ -275,6 +293,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           .code(404)
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
       if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
+      if (post.status === "pending_approval") return reply.code(409).send(AWAITING_APPROVAL)
 
       // Load platform connections for this dealer
       const connections = await prisma.platformConnection.findMany({
@@ -322,7 +341,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       // Claim the post so a concurrent request or cron run can't publish it twice.
       const claimed = await transitionPost(
         post_id,
-        (p) => p.dealer_id === dealer_id && p.status !== "publishing",
+        (p) => p.dealer_id === dealer_id && p.status !== "publishing" && p.status !== "pending_approval",
         { status: "publishing", platforms },
       )
       if (!claimed) return reply.code(409).send(PUBLISH_IN_PROGRESS)
