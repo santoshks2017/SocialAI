@@ -124,11 +124,11 @@ export function mergeHashtags(existing: readonly string[], incoming: readonly st
 
 export function reelErrorMessage(code?: string | null): string {
   switch (code) {
-    case 'FEATURE_NOT_IN_PLAN': return "Reels aren't in your current plan. Upgrade in Settings → Billing.";
-    case 'VEO_ACCESS_DENIED': return "Your Google project doesn't have Veo (video) access enabled yet.";
+    case 'FEATURE_NOT_IN_PLAN': return "Reels aren’t in your current plan. Upgrade in Settings → Billing.";
+    case 'VEO_ACCESS_DENIED': return "Your Google project doesn’t have Veo (video) access enabled yet.";
     case 'VEO_QUOTA_EXCEEDED': return 'Video generation quota reached. Try again later.';
-    case 'GEMINI_NOT_CONFIGURED': return "Video generation isn't configured on the server.";
-    case 'REEL_DAILY_LIMIT_REACHED': return "You've reached today's reel limit. Try again tomorrow.";
+    case 'GEMINI_NOT_CONFIGURED': return "Video generation isn’t configured on the server.";
+    case 'REEL_DAILY_LIMIT_REACHED': return "You’ve reached today’s reel limit. Try again tomorrow.";
     default: return 'Could not generate. Please try again.';
   }
 }

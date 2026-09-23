@@ -18,13 +18,13 @@ const specs: PlatformSpecs = {
 };
 
 describe('language and platforms', () => {
-  it("starts from the dealer's first supported language", () => {
+  it("starts from the dealer’s first supported language", () => {
     assert.equal(initialLanguage(['ta', 'en']), 'ta');
     assert.equal(initialLanguage(['xx']), 'en');
     assert.equal(initialLanguage(null), 'en');
   });
 
-  it("offers only connected platforms, in the type's order", () => {
+  it("offers only connected platforms, in the type’s order", () => {
     const connected = ['instagram', 'youtube', 'gmb'];
     assert.deepEqual(platformOptions('image', connected).map((p) => p.id), ['instagram', 'gmb']);
     assert.deepEqual(defaultPlatforms('reel', connected), ['youtube', 'instagram']);
@@ -41,7 +41,7 @@ describe('output format and limits', () => {
     assert.equal(parseAspect(undefined), null);
   });
 
-  it("uses a single platform's format, otherwise the common one", () => {
+  it("uses a single platform’s format, otherwise the common one", () => {
     assert.equal(outputFormat('image', ['gmb'], specs), '4:3');
     assert.equal(outputFormat('image', ['facebook', 'gmb'], specs), '1:1');
     assert.equal(outputFormat('image', ['instagram'], specs), '1:1');
@@ -50,7 +50,7 @@ describe('output format and limits', () => {
     assert.equal(outputFormatNote(['facebook', 'gmb']), '— common format for the selected platforms.');
   });
 
-  it("flags captions and hashtags over a platform's limits", () => {
+  it("flags captions and hashtags over a platform’s limits", () => {
     const issues = limitIssues('image', ['facebook', 'gmb'], specs, 'x'.repeat(101), ['#a', '#b', '#c', '#d']);
     assert.deepEqual(issues, [{ platform: 'facebook', label: 'Facebook', captionOver: true, hashtagsOver: true }]);
     assert.equal(limitMessage(issues[0]!), 'Facebook: caption too long · too many hashtags.');
@@ -82,7 +82,7 @@ describe('hashtags', () => {
 describe('reel errors', () => {
   it('explains error codes and falls back only from Veo', () => {
     assert.equal(reelErrorMessage('VEO_QUOTA_EXCEEDED'), 'Video generation quota reached. Try again later.');
-    assert.equal(reelErrorMessage('REEL_DAILY_LIMIT_REACHED'), "You've reached today's reel limit. Try again tomorrow.");
+    assert.equal(reelErrorMessage('REEL_DAILY_LIMIT_REACHED'), "You’ve reached today’s reel limit. Try again tomorrow.");
     assert.equal(reelErrorMessage(undefined), 'Could not generate. Please try again.');
     assert.equal(shouldFallBackToQuickRender('VEO_QUOTA_EXCEEDED', 'veo'), true);
     assert.equal(shouldFallBackToQuickRender('VEO_QUOTA_EXCEEDED', 'kenburns'), false);
@@ -107,7 +107,7 @@ describe('deliveryRows', () => {
 });
 
 describe('scheduleFromQuery', () => {
-  it("pre-fills the schedule from the calendar's date and time", () => {
+  it("pre-fills the schedule from the calendar’s date and time", () => {
     assert.equal(scheduleFromQuery('2026-10-02', '18:30'), '2026-10-02T18:30');
     assert.equal(scheduleFromQuery('2026-10-02', null), '2026-10-02T10:00');
     assert.equal(scheduleFromQuery('2026-10-02', '6pm'), '2026-10-02T10:00');
