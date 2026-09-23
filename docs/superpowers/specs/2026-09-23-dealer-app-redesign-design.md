@@ -80,10 +80,13 @@ The DevOps team runs a separately deployed version of this product at `https://s
 **Dark mode:**
 - The mechanism matches theirs: a `.dark` class on `<html>` remaps the zinc scale and `--color-white` to dark values in one CSS block. For example, canvas `#0f0f12`, surface `#18181b`, line `#2c2c33`, and zinc-900 becomes `#f4f4f5`.
 - Components use ordinary light-mode classes and get dark mode without extra work.
-- The mode is Light / Dark / System, stored in `localStorage` under `themeMode` (a per-viewer convenience). System follows `prefers-color-scheme` live.
+- The mode is Light / Dark / System, stored in `localStorage` under `themeMode`. System follows `prefers-color-scheme` live.
+- **The default is Light until Stage E** so users are not dropped into half-ported pages in dark mode. Stage E switches the default to System and syncs `theme_mode` to the dealer profile, as the reference does.
+- **One grey palette:** older pages use slate/stone/gray/neutral. Those scales are pointed at zinc, so every page gets the reference greys and dark mode immediately.
 
 **Dealer brand colours:**
-- An opt-in accent that uses the dealer's primary and secondary colours (Settings → Preferences).
+- An opt-in accent that uses the dealer's primary and secondary colours (Settings → Preferences). It is built in **Stage E**, together with the tab that switches it on.
+- As in the reference, it rebuilds the `orange-*` and `amber-*` scales from the dealer's colours. It keeps each colour's hue and saturation, and sets fixed lightness steps for the 50–950 shades.
 - Stored on the dealer profile (`primary_color` and `secondary_color` already exist). The on/off switch is a per-viewer preference.
 
 **UI kit:**
@@ -93,7 +96,7 @@ The DevOps team runs a separately deployed version of this product at `https://s
 ## 5. App shell
 
 **Sidebar** (`components/shell/Sidebar`):
-- **Header:** the logo (Sparkles icon in an orange gradient square, then "Social **AI**") and the notifications bell on the right.
+- **Header:** the logo (Sparkles icon in an orange gradient square, then "Social **AI**"). The reference shows the bell only in the mobile top bar. We also show it here on desktop (an extra), because approvers must see approval requests.
 - **Create Post** button, full width.
 - **Sections:**
   - **Work:** Dashboard, Posts, Calendar
@@ -115,9 +118,10 @@ The DevOps team runs a separately deployed version of this product at `https://s
 - A red bar at the top of the main area: "**YouTube** is disconnected — reconnect to keep publishing and review sync running."
 - Plural when several platforms are disconnected ("… are disconnected …").
 - A "Reconnect" link goes to `/accounts`. An ✕ dismisses the banner for the session.
-- Data comes from `/platform-accounts` (connections whose token has expired or that are marked disconnected).
+- Data comes from `GET /v1/platforms`. The API adds `needs_reconnect` per connection: true when the connection is marked disconnected, or its token has expired and cannot be refreshed. Google tokens expire hourly but refresh automatically. Labels: Facebook, Instagram, Google Business Profile, YouTube.
+- Dismissing the banner lasts until the page is reloaded, as in the reference.
 
-**Page chrome:** the content sits in a white rounded card with a border, on the canvas. Create is the exception: it is a full-bleed editor with a preview column on the right.
+**Page chrome:** the layout supplies only the `bg-zinc-50` canvas and padding. Each page renders its own root card (`max-w-6xl mx-auto bg-white border border-zinc-200 rounded-xl shadow-sm p-5 sm:p-6`) when it is ported. Create is the exception: it is a full-bleed editor with a preview column on the right.
 
 ## 6. Pages
 
@@ -196,7 +200,7 @@ The API is Fastify on Cloud Run with the Firestore adapter (`apps/api/src/db`). 
 | `POST /publisher/posts/:id/reject` `{reason}` | Moves `pending_approval` → `draft` and stores the reason as the approver note. Notifies the author. |
 | `GET /publisher/approval/:token` | Public. Returns the post preview and dealer name when the token is valid, unused and unexpired. |
 | `POST /publisher/approval/:token` `{decision, comment}` | Public. A single decision, then the token is spent. Rate-limited. |
-| `GET /notifications?pageSize=` | Returns `{ items: [{id, type, title, body, link, isRead, createdAt}], unreadCount }`. |
+| `GET /notifications?pageSize=` | Returns `{ items: [{id, type, title, body, deepLink, isRead, createdAt}], unreadCount }`. One row per recipient, so read state is per person. |
 | `POST /notifications/:id/read`, `POST /notifications/read-all` | Mark one or all as read. |
 | `GET /dealer/analytics` | Returns `{ engagementByType, reviewSummary, followerTrend, … }`. |
 | `GET /dealer/analytics/posts?days=&platform=` | Returns per-post reach and engagement for published posts. |
@@ -238,7 +242,7 @@ One branch and one PR per stage. Each stage is merged and deployed (web via CI, 
 
 | Stage | Frontend | Backend |
 |---|---|---|
-| **A: Shell** | Tokens, dark mode, restyled UI kit, Sidebar, notifications bell, disconnected banner, page chrome. All existing pages render inside the new shell. | Notification model and endpoints |
+| **A: Shell** | Tokens, one grey palette, dark mode (default Light), Button restyle, Sidebar, mobile top bar, notifications bell, disconnected banner. All existing pages render inside the new shell. Page primitives (StatCard, SectionCard, PageCard, PageHeader) arrive with their first consumer in Stage B. | Notification model and endpoints; `needs_reconnect` on `/platforms` |
 | **B: Posts + Dashboard** | Posts page, approval page, Dashboard. The existing Create page's "Save for approval" now submits to `pending_approval`, so the Approvals tab has content before Stage C. | Approval workflow, approval tokens, notifications on approve/reject/publish |
 | **C: Create** | Create studio and previews, Edit in Canvas | Platform specs, Ken Burns reels, video status |
 | **D: Inbox + Analytics** | Inbox, Analytics, Report | Analytics endpoints, metrics collection, events |
