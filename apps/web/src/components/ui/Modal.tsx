@@ -26,9 +26,9 @@ const sizeClasses = {
 };
 
 const variantClasses = {
-  default: 'rounded-2xl',
-  confirm: 'rounded-2xl',
-  danger: 'rounded-2xl border-red-200',
+  default: 'rounded-xl',
+  confirm: 'rounded-xl',
+  danger: 'rounded-xl border-red-200',
 };
 
 export function Modal({
@@ -91,28 +91,28 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
         className={cn(
-          'relative bg-white shadow-xl w-full mx-4 animate-scale-in',
+          'relative bg-white shadow-xl w-full mx-4 animate-scale-in flex flex-col max-h-[90vh]',
           sizeClasses[size],
           variantClasses[variant],
           className
         )}
       >
         {(title || showCloseButton) && (
-          <div className="flex items-start justify-between p-6 pb-0">
+          <div className="flex items-start justify-between p-6 pb-0 shrink-0">
             <div>
               {title && (
-                <h2 id="modal-title" className="text-lg font-bold text-gray-900">
+                <h2 id="modal-title" className="text-lg font-bold text-zinc-900">
                   {title}
                 </h2>
               )}
               {description && (
-                <p className="text-sm text-gray-500 mt-1">{description}</p>
+                <p className="text-sm text-zinc-500 mt-1">{description}</p>
               )}
             </div>
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
@@ -121,10 +121,10 @@ export function Modal({
           </div>
         )}
 
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
 
         {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-200 bg-zinc-50 rounded-b-xl shrink-0">
             {footer}
           </div>
         )}
