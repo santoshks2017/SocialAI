@@ -429,6 +429,11 @@ model ApiConnection {
   key_last4      String?
   key_updated_at DateTime?
   key_updated_by String?   // DealerUser.id of the platform owner who last saved or removed the key
+  text_model       String?   // null = env GEMINI_TEXT_MODEL or the latest default
+  image_model      String?
+  video_model      String?
+  video_resolution String?   // '360p' | '720p' | '1080p' | '4k'
+  reel_engine      String?   // 'ai' | 'quick'
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 }
