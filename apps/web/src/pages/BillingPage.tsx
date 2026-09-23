@@ -340,12 +340,12 @@ export default function BillingPage() {
 
               <div className="mt-8">
                 {isCurrent ? (
-                  <Button variant="secondary" className="w-full text-xs font-extrabold py-3 bg-slate-100 text-slate-500 cursor-default hover:bg-slate-100" disabled>
+                  <Button variant="secondary" className="w-full h-auto text-xs font-extrabold py-3 bg-slate-100 text-slate-500 cursor-default hover:bg-slate-100" disabled>
                     Current Active Plan
                   </Button>
                 ) : (
-                  <Button 
-                    className={`w-full text-xs font-extrabold py-3 shadow-md ${
+                  <Button
+                    className={`w-full h-auto text-xs font-extrabold py-3 shadow-md ${
                       p.highlight 
                         ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20' 
                         : 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/10'
