@@ -21,6 +21,7 @@ export const MODEL_OPTIONS: Record<ModelKind, ModelOption[]> = {
   video: [
     { id: 'gemini-omni-1.1-flash', label: 'Gemini Omni 1.1 Flash' },
     { id: 'veo-3.1-generate-preview', label: 'Veo 3.1 (preview)' },
+    { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (preview)' },
     { id: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (preview)' },
   ],
 };

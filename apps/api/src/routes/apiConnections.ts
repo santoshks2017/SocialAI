@@ -34,6 +34,12 @@ function view(c: ApiConnection, active: ResolvedGeminiKey) {
   };
 }
 
+// Body field → stored column, for the model-change audit log.
+const MODEL_FIELDS = [
+  ['textModel', 'text_model'], ['imageModel', 'image_model'], ['videoModel', 'video_model'],
+  ['videoResolution', 'video_resolution'], ['reelEngine', 'reel_engine'],
+] as const;
+
 const bad = (reply: FastifyReply, message: string) =>
   reply.code(400).send({ error: { code: 'INVALID_INPUT', message } });
 const notFound = (reply: FastifyReply) =>
@@ -89,7 +95,8 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
       textModel?: string | null; imageModel?: string | null; videoModel?: string | null;
       videoResolution?: string | null; reelEngine?: string | null;
     };
-    if (!(await load(id))) return notFound(reply);
+    const existing = await load(id);
+    if (!existing) return notFound(reply);
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
       const cleanName = name.trim();
@@ -132,6 +139,12 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
     const updated = await prisma.apiConnection.update({ where: { id }, data });
     invalidateAiKeyCache();
     invalidateAiModelCache();
+    const body = { textModel, imageModel, videoModel, videoResolution, reelEngine };
+    if (Object.values(body).some((value) => value !== undefined)) {
+      // Field names only: the audit trail says what changed, not the values.
+      const fields = MODEL_FIELDS.filter(([field, column]) => body[field] !== undefined && data[column] !== (existing[column] ?? null)).map(([field]) => field);
+      request.log.info({ action: 'api_connection.models_changed', connectionId: id, by: request.user.dealer_user_id, fields });
+    }
     return view(updated, await resolveGeminiKey());
   });
 

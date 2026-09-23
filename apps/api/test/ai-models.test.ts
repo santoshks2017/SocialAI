@@ -4,7 +4,7 @@ import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { invalidateAiKeyCache } from '../src/lib/aiKeys.js';
 import {
-  DEFAULT_MODELS, TEXT_FALLBACK_MODEL, invalidateAiModelCache, isReelEngine, isValidModelId, isVideoResolution,
+  DEFAULT_MODELS, MODEL_OPTIONS, TEXT_FALLBACK_MODEL, invalidateAiModelCache, isReelEngine, isValidModelId, isVideoResolution,
   modelLabel, pickModels, resolveAiModels,
 } from '../src/lib/aiModels.js';
 
@@ -54,6 +54,15 @@ describe('validators and labels', () => {
     assert.equal(isReelEngine('veo'), false);
     assert.equal(modelLabel('video', 'gemini-omni-1.1-flash'), 'Gemini Omni 1.1 Flash');
     assert.equal(modelLabel('text', 'gemini-9-ultra'), 'gemini-9-ultra');
+  });
+
+  it('offers Omni first, then the Veo 3.1 family', () => {
+    assert.deepEqual(MODEL_OPTIONS.video, [
+      { id: 'gemini-omni-1.1-flash', label: 'Gemini Omni 1.1 Flash' },
+      { id: 'veo-3.1-generate-preview', label: 'Veo 3.1 (preview)' },
+      { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (preview)' },
+      { id: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (preview)' },
+    ]);
   });
 });
 

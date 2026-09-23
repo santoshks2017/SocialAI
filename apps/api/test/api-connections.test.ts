@@ -161,6 +161,29 @@ describe('model choices', () => {
     }
   });
 
+  it('logs which model fields a save changed, without other values', async (t) => {
+    const id = await firstConnectionId();
+    const logged: Array<Record<string, unknown>> = [];
+    const makeChild = fastify.log.child.bind(fastify.log);
+    t.mock.method(fastify.log, 'child', (...args: Parameters<typeof fastify.log.child>) => {
+      const child = makeChild(...args);
+      const info = child.info.bind(child);
+      child.info = ((obj: unknown, ...rest: unknown[]) => {
+        if (typeof obj === 'object' && obj !== null) logged.push(obj as Record<string, unknown>);
+        return (info as (...a: unknown[]) => void)(obj, ...rest);
+      }) as typeof child.info;
+      return child;
+    });
+    const patch = (payload: object) => fastify.inject({ method: 'PATCH', url: `${BASE}/${id}`, headers: owner, payload });
+    const changes = () => logged.filter((entry) => entry['action'] === 'api_connection.models_changed');
+
+    await patch({ textModel: null, imageModel: 'gemini-3-pro-image', videoResolution: '1080p', notes: 'secret-ish note' });
+    assert.deepEqual(changes(), [{ action: 'api_connection.models_changed', connectionId: id, by: 'owner-user-1', fields: ['imageModel', 'videoResolution'] }]);
+
+    await patch({ name: 'Renamed' });
+    assert.equal(changes().length, 1);
+  });
+
   it('tests which chosen models the key can use', async (t) => {
     const id = await firstConnectionId();
     await fastify.inject({ method: 'PUT', url: `${BASE}/${id}/key`, headers: owner, payload: { key: KEY } });

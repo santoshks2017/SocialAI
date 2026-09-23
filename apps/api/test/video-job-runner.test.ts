@@ -1,5 +1,6 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { randomUUID } from 'node:crypto';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
@@ -174,6 +175,13 @@ describe('reel renderer helpers', () => {
     assert.equal(veoError(new Error('RESOURCE_EXHAUSTED: quota')).code, 'VEO_QUOTA_EXCEEDED');
     assert.equal(veoError(new Error('Permission denied for model')).code, 'VEO_ACCESS_DENIED');
     assert.equal(veoError(new Error('boom')).code, 'VEO_GENERATION_FAILED');
+    const httpError = (status: number) => new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_REQUEST', undefined, undefined, {
+      status, statusText: '', data: {}, headers: {}, config: { headers: new AxiosHeaders() },
+    });
+    const missing = veoError(httpError(404));
+    assert.deepEqual([missing.code, missing.message], ['VEO_ACCESS_DENIED', 'The selected video model isn’t available to this key.']);
+    assert.equal(veoError(httpError(403)).code, 'VEO_ACCESS_DENIED');
+    assert.equal(veoError(httpError(429)).code, 'VEO_QUOTA_EXCEEDED');
   });
 });
 

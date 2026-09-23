@@ -94,6 +94,9 @@ export async function renderKenBurnsReel(input: ReelRenderInput): Promise<Render
 export function veoError(err: unknown): ReelRenderError {
   const status = axios.isAxiosError(err) ? err.response?.status : undefined;
   const message = err instanceof Error ? err.message : String(err);
+  if (status === 404) {
+    return new ReelRenderError('VEO_ACCESS_DENIED', 'The selected video model isn’t available to this key.');
+  }
   if (status === 403 || /permission|access denied/i.test(message)) {
     return new ReelRenderError('VEO_ACCESS_DENIED', 'Your Google project doesn’t have access to the selected video model yet.');
   }
