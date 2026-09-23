@@ -87,6 +87,17 @@ h1, h2, h3, h4 { letter-spacing: -.014em; }
 .dark ::-webkit-scrollbar-thumb { background: #3a3a42; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
+/* Our extra (the reference leaves these light in dark mode): readable tints for the shell.
+   Scoped to the exact classes the shell uses; light mode is untouched. */
+.dark .bg-orange-50 { background-color: color-mix(in oklab, #f97316 14%, #18181b); }
+.dark .bg-orange-50\/40 { background-color: color-mix(in oklab, #f97316 8%, #18181b); }
+.dark .bg-orange-100 { background-color: color-mix(in oklab, #f97316 24%, #18181b); }
+.dark .text-orange-700 { color: #fdba74; }
+.dark .bg-red-50 { background-color: color-mix(in oklab, #ef4444 14%, #18181b); }
+.dark .border-red-200 { border-color: color-mix(in oklab, #ef4444 35%, #18181b); }
+.dark .text-red-800 { color: #fca5a5; }
+.dark .hover\:bg-red-100:hover { background-color: color-mix(in oklab, #ef4444 24%, #18181b); }
+
 /* ── Vinyl disc spin animation (YouTube Shorts preview) ──────────────────── */
 @keyframes spin-slow {
   from { transform: rotate(0deg); }

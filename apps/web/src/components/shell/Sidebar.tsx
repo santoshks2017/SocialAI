@@ -127,7 +127,7 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
         )}
         {user && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg mt-1 hover:bg-zinc-50 transition-colors group">
-            <div className="w-8 h-8 bg-gradient-to-br from-zinc-700 to-zinc-900 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 ring-2 ring-white">
+            <div className="w-8 h-8 bg-gradient-to-br from-[#3f3f46] to-[#18181b] rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 ring-2 ring-white">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
