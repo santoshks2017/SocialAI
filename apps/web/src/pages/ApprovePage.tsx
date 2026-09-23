@@ -13,6 +13,7 @@ export default function ApprovePage() {
   const [comment, setComment] = useState('');
   const [pending, setPending] = useState<'approve' | 'reject' | null>(null);
   const [result, setResult] = useState<ApprovalResult | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,11 +25,12 @@ export default function ApprovePage() {
   }, [token]);
 
   const decide = async (decision: 'approve' | 'reject') => {
+    setActionError(null);
     setPending(decision);
     try {
       setResult(await approvalService.decide(token, decision, comment.trim()));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.');
+      setActionError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.');
     } finally {
       setPending(null);
     }
@@ -87,6 +89,7 @@ export default function ApprovePage() {
                     placeholder="Add a note for the team — e.g. why you're rejecting, or any change requested."
                     className="w-full rounded-xl border border-zinc-200 p-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-orange-200"
                   />
+                  {actionError && <p role="alert" className="text-sm text-red-600 mb-3">{actionError}</p>}
                   <div className="flex gap-2">
                     <button
                       type="button"
