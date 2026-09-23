@@ -34,7 +34,8 @@ export default function CreatePost() {
   const [selectedCaptionIdx, setSelectedCaptionIdx] = useState<number | null>(null);
   const [previewTab, setPreviewTab] = useState<'facebook' | 'instagram' | 'gmb'>('facebook');
   const [zoomImageIdx, setZoomImageIdx] = useState<number | null>(null);
-  const [published, setPublished] = useState<false | 'published' | 'scheduled' | 'draft'>(false);
+  const [published, setPublished] = useState<false | 'published' | 'scheduled' | 'approval'>(false);
+  const [approvalShare, setApprovalShare] = useState<string | null>(null);
   const { user } = useAuth();
   const canPublish = can(user, PERMISSIONS.PUBLISH_POST);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -564,24 +565,34 @@ export default function CreatePost() {
     }
   };
 
-  // Saves a draft without publishing (no publish_post needed); someone who can publish sends it from Posts.
+  // Creates the post and sends it for approval: approvers are notified in the app, and the
+  // author gets a review link to share (for approvers who don't use the app).
   const handleSaveForApproval = async () => {
     if (!variants) return;
     setIsPublishing(true);
+    let savedId: string | null = null;
     try {
       const cap = selectedCaptionIdx !== null ? variants.captions[selectedCaptionIdx] : null;
       const cre = selectedCreativeIdx !== null ? variants.creatives[selectedCreativeIdx] : null;
-      await postService.create({
+      const { item } = await postService.create({
         promptText: prompt,
         captionText: caption,
         captionHashtags: cap?.hashtags ?? [],
         creativeUrls: (cre?.platform_urls as Record<string, string>) ?? {},
         platforms: selectedPlatforms,
       });
-      setPublished('draft');
-      addToast({ type: 'success', title: 'Saved for approval', message: 'The post is in your drafts, ready to be published from Posts.' });
+      savedId = item.id;
+      const submitted = await postService.submitForApproval(item.id, selectedPlatforms);
+      setApprovalShare(submitted.whatsappShare);
+      setPublished('approval');
     } catch (err) {
-      addToast({ type: 'error', title: 'Could not save post', message: err instanceof Error && err.message ? err.message : 'Please try again.' });
+      addToast({
+        type: 'error',
+        title: 'Could not send for approval',
+        message: savedId
+          ? 'The post was saved to your drafts. Send it for approval from Posts.'
+          : err instanceof Error && err.message ? err.message : 'Please try again.',
+      });
     } finally {
       setIsPublishing(false);
     }
@@ -602,7 +613,43 @@ export default function CreatePost() {
     setShowAllModelsSelector(false);
   };
 
+  const startAnother = () => {
+    setVariants(null);
+    setPrompt('');
+    setPublished(false);
+    setApprovalShare(null);
+    setElaboratedBrief(null);
+    setUploadedImageUrl(null);
+  };
+
   // Success Screen
+  if (published === 'approval') {
+    return (
+      <div className="h-full flex items-center justify-center bg-zinc-50">
+        <div className="text-center bg-white border border-zinc-200 rounded-2xl p-10 shadow-sm max-w-md w-full mx-4">
+          <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Check className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-zinc-900">Sent for approval</h3>
+          <p className="text-zinc-500 text-sm mt-2">Your approver has been notified with the review link.</p>
+          <div className="flex flex-wrap gap-3 mt-8 justify-center">
+            <button onClick={startAnother} className="px-5 py-2.5 text-sm font-semibold text-zinc-700 border border-zinc-200 bg-white rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer">
+              Create another
+            </button>
+            {approvalShare && (
+              <a href={approvalShare} target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 text-sm font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors">
+                Share on WhatsApp
+              </a>
+            )}
+            <NavLink to="/posts?status=pending_approval" className="px-5 py-2.5 text-sm font-bold bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors shadow-md shadow-orange-500/10">
+              Go to Posts
+            </NavLink>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (published) {
     return (
       <div className="h-full flex items-center justify-center bg-slate-50">
@@ -610,17 +657,11 @@ export default function CreatePost() {
           <div className="w-16 h-16 bg-emerald-50 border border-emerald-150 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8 text-emerald-600 animate-bounce" />
           </div>
-          <h3 className="text-xl font-black text-slate-900">{published === 'scheduled' ? 'Post scheduled!' : published === 'draft' ? 'Saved for approval' : 'Post sent for publishing!'}</h3>
-          <p className="text-slate-500 text-sm mt-2">{published === 'scheduled' ? 'Scheduled for' : published === 'draft' ? 'Draft for' : 'Queued to'}: {selectedPlatforms.join(', ')}</p>
+          <h3 className="text-xl font-black text-slate-900">{published === 'scheduled' ? 'Post scheduled!' : 'Post sent for publishing!'}</h3>
+          <p className="text-slate-500 text-sm mt-2">{published === 'scheduled' ? 'Scheduled for' : 'Queued to'}: {selectedPlatforms.join(', ')}</p>
           <div className="flex gap-3 mt-8 justify-center">
             <button
-              onClick={() => {
-                setVariants(null);
-                setPrompt('');
-                setPublished(false);
-                setElaboratedBrief(null);
-                setUploadedImageUrl(null);
-              }}
+              onClick={startAnother}
               className="px-5 py-2.5 text-sm font-semibold text-slate-700 border border-slate-200 bg-white rounded-xl hover:bg-slate-55 transition-colors cursor-pointer"
             >
               Create Another
@@ -1504,7 +1545,7 @@ export default function CreatePost() {
               </button>
             ) : (
               <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 leading-relaxed">
-                You don't have permission to publish. Save the post for approval and a team admin can publish it from Posts.
+                You don't have permission to publish. Send the post for approval and your approver will be notified.
               </p>
             )}
 
@@ -1525,7 +1566,7 @@ export default function CreatePost() {
                 className="flex-1 py-3 border border-slate-250 text-slate-700 bg-white hover:bg-slate-50 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Check className="w-4 h-4 text-emerald-500" />
-                Save for approval
+                Send for approval
               </button>
             </div>
           </div>
