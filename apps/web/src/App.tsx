@@ -33,6 +33,7 @@ import SignupPage from './pages/SignupPage';
 import ConnectProfilesPage from './pages/ConnectProfilesPage';
 import type { UserInfo } from './lib/permissions';
 import { isGlobalOwner } from './lib/permissions';
+import ApprovePage from './pages/ApprovePage';
 
 // ─── Dashboard data ───────────────────────────────────────────────────────────
 interface DashboardData {
@@ -446,6 +447,7 @@ function AppRoutes() {
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage onLogin={handleLogin} />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+      <Route path="/approve/:token" element={<ApprovePage />} />
 
       {/* Protected routes */}
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
