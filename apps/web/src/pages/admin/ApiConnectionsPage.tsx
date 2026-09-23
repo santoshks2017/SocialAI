@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { KeyRound, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import { apiConnectionService } from '../../services/apiConnections';
-import type { ApiConnectionView, ApiConnectionsList } from '../../services/apiConnections';
+import type { ApiConnectionView, ApiConnectionsList, ModelDefaults, ModelOption, ModelOptions } from '../../services/apiConnections';
 import { ApiError } from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
 import { formatRelativeTime } from '../../utils/helpers';
+import { choiceFromStored, storedFromChoice } from '../../utils/aiModels';
 
 const CARD = 'bg-white rounded-xl border border-zinc-200 shadow-sm';
 const CARD_HEADER = 'px-5 py-4 border-b border-zinc-100';
@@ -15,11 +16,36 @@ const DEFAULT_PROVIDER = 'google-gemini';
 
 type Busy = 'save' | 'saveKey' | 'test' | 'removeKey' | 'enabled' | 'delete' | null;
 
-// id is null while the editor holds a connection that hasn't been saved yet.
-interface Draft { id: string | null; name: string; provider: string; notes: string }
+// A model select's value: '' (default), an option id, or 'other' (with the id typed into `custom`).
+interface ModelChoiceDraft { select: string; custom: string }
+const emptyModelChoice = (): ModelChoiceDraft => ({ select: '', custom: '' });
+const emptyModels = () => ({ text: emptyModelChoice(), image: emptyModelChoice(), video: emptyModelChoice(), videoResolution: '', reelEngine: '' });
 
-const draftFrom = (c: ApiConnectionView): Draft => ({ id: c.id, name: c.name, provider: c.provider, notes: c.notes ?? '' });
+// id is null while the editor holds a connection that hasn't been saved yet.
+interface Draft {
+  id: string | null;
+  name: string;
+  provider: string;
+  notes: string;
+  models: { text: ModelChoiceDraft; image: ModelChoiceDraft; video: ModelChoiceDraft; videoResolution: string; reelEngine: string };
+}
+
+const draftFrom = (c: ApiConnectionView, options: ModelOptions): Draft => ({
+  id: c.id,
+  name: c.name,
+  provider: c.provider,
+  notes: c.notes ?? '',
+  models: {
+    text: choiceFromStored(c.models.text, options.text),
+    image: choiceFromStored(c.models.image, options.image),
+    video: choiceFromStored(c.models.video, options.video),
+    videoResolution: c.models.videoResolution ?? '',
+    reelEngine: c.models.reelEngine ?? '',
+  },
+});
 const messageOf = (err: unknown) => (err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+const labelFor = (defaultId: string, options: ModelOption[]) => options.find((o) => o.id === defaultId)?.label ?? defaultId;
+const resolutionLabel = (value: string) => (value === '4k' ? '4K' : value);
 
 function statusBanner(c: ApiConnectionView, active: ApiConnectionsList['activeKey']): { ok: boolean; text: string } {
   const ok = active.source !== 'none';
@@ -45,7 +71,7 @@ export default function ApiConnectionsPage() {
     try {
       const next = await apiConnectionService.list();
       setData(next);
-      setDraft(next.items[0] ? draftFrom(next.items[0]) : null);
+      setDraft(next.items[0] ? draftFrom(next.items[0], next.modelOptions) : null);
     } catch (err) {
       addToast({ type: 'error', title: "Couldn't load API connections", message: messageOf(err) });
     } finally {
@@ -83,11 +109,31 @@ export default function ApiConnectionsPage() {
   const saveConnection = () => run('save', "Couldn't save the connection", async () => {
     if (!draft) return;
     const name = draft.name.trim();
-    const saved = draft.id
-      ? await apiConnectionService.update(draft.id, { name, notes: draft.notes })
-      : await apiConnectionService.create({ name, provider: draft.provider, notes: draft.notes.trim() || undefined });
-    await reload();
-    setDraft(draftFrom(saved));
+    if (!draft.id) {
+      const saved = await apiConnectionService.create({ name, provider: draft.provider, notes: draft.notes.trim() || undefined });
+      const next = await reload();
+      setDraft(draftFrom(saved, next.modelOptions));
+      addToast({ type: 'success', title: 'Connection saved' });
+      return;
+    }
+    const textModel = storedFromChoice(draft.models.text.select, draft.models.text.custom);
+    const imageModel = storedFromChoice(draft.models.image.select, draft.models.image.custom);
+    const videoModel = storedFromChoice(draft.models.video.select, draft.models.video.custom);
+    if (textModel === 'invalid' || imageModel === 'invalid' || videoModel === 'invalid') {
+      addToast({ type: 'error', title: 'Check the model IDs', message: 'Model IDs look like gemini-3.9-flash.' });
+      return;
+    }
+    const saved = await apiConnectionService.update(draft.id, {
+      name,
+      notes: draft.notes,
+      textModel,
+      imageModel,
+      videoModel,
+      videoResolution: draft.models.videoResolution || null,
+      reelEngine: (draft.models.reelEngine || null) as 'ai' | 'quick' | null,
+    });
+    const next = await reload();
+    setDraft(draftFrom(saved, next.modelOptions));
     addToast({ type: 'success', title: 'Connection saved' });
   });
 
@@ -126,7 +172,7 @@ export default function ApiConnectionsPage() {
     void run('delete', "Couldn't delete the connection", async () => {
       await apiConnectionService.remove(c.id);
       const next = await reload();
-      openEditor(next.items[0] ? draftFrom(next.items[0]) : null);
+      openEditor(next.items[0] ? draftFrom(next.items[0], next.modelOptions) : null);
       addToast({ type: 'success', title: 'Connection deleted' });
     });
   };
@@ -160,7 +206,7 @@ export default function ApiConnectionsPage() {
                 <h2 className="text-lg font-semibold text-zinc-900">API connections</h2>
                 <span className="text-[12px] font-semibold text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded-full">{data.items.length}</span>
               </div>
-              <Button variant="secondary" className="whitespace-nowrap" onClick={() => openEditor({ id: null, name: '', provider: data.providers[0]?.id ?? DEFAULT_PROVIDER, notes: '' })}>
+              <Button variant="secondary" className="whitespace-nowrap" onClick={() => openEditor({ id: null, name: '', provider: data.providers[0]?.id ?? DEFAULT_PROVIDER, notes: '', models: emptyModels() })}>
                 <Plus className="w-4 h-4" /> Add API
               </Button>
             </div>
@@ -172,7 +218,7 @@ export default function ApiConnectionsPage() {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => openEditor(draftFrom(c))}
+                    onClick={() => openEditor(draftFrom(c, data.modelOptions))}
                     className={`w-full text-left rounded-xl border p-3.5 transition-colors ${isSelected ? 'border-orange-600 bg-orange-50 ring-1 ring-orange-600/20' : 'border-zinc-200 hover:bg-zinc-50'}`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -288,6 +334,15 @@ export default function ApiConnectionsPage() {
                     <p className="text-[13px] text-zinc-500 rounded-xl bg-zinc-50 px-4 py-3">Save the connection first, then add its key.</p>
                   )}
 
+                  {selected && (
+                    <ModelsSection
+                      draft={draft}
+                      modelOptions={data.modelOptions}
+                      modelDefaults={data.modelDefaults}
+                      onChange={(models) => setDraft({ ...draft, models })}
+                    />
+                  )}
+
                   <div>
                     <label htmlFor="api-notes" className={LABEL}>Notes</label>
                     <textarea
@@ -358,6 +413,113 @@ function Banner({ ok, text }: { ok: boolean; text: string }) {
     <div className={`flex gap-2 rounded-xl px-4 py-3 text-sm ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
       {ok ? <KeyRound className="w-4 h-4 mt-0.5 shrink-0" /> : <TriangleAlert className="w-4 h-4 mt-0.5 shrink-0" />}
       <span>{text}</span>
+    </div>
+  );
+}
+
+function ModelsSection({
+  draft, modelOptions, modelDefaults, onChange,
+}: {
+  draft: Draft;
+  modelOptions: ModelOptions;
+  modelDefaults: ModelDefaults;
+  onChange: (models: Draft['models']) => void;
+}) {
+  const { models } = draft;
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-zinc-900">Models</h3>
+        <p className="text-[12px] text-zinc-500 mt-0.5">Used for captions, AI images and reels. Leave on default to always get the latest.</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <ModelSelect
+          id="model-text"
+          label="Text"
+          choice={models.text}
+          options={modelOptions.text}
+          defaultLabel={labelFor(modelDefaults.text, modelOptions.text)}
+          onChange={(text) => onChange({ ...models, text })}
+        />
+        <ModelSelect
+          id="model-image"
+          label="Image"
+          choice={models.image}
+          options={modelOptions.image}
+          defaultLabel={labelFor(modelDefaults.image, modelOptions.image)}
+          onChange={(image) => onChange({ ...models, image })}
+        />
+        <ModelSelect
+          id="model-video"
+          label="Video"
+          choice={models.video}
+          options={modelOptions.video}
+          defaultLabel={labelFor(modelDefaults.video, modelOptions.video)}
+          onChange={(video) => onChange({ ...models, video })}
+        />
+        <div>
+          <label htmlFor="model-resolution" className={LABEL}>Reel resolution</label>
+          <select
+            id="model-resolution"
+            className={INPUT}
+            value={models.videoResolution}
+            onChange={(e) => onChange({ ...models, videoResolution: e.target.value })}
+          >
+            <option value="">Default — {resolutionLabel(modelDefaults.videoResolution)}</option>
+            {modelOptions.videoResolutions.map((r) => <option key={r} value={r}>{resolutionLabel(r)}</option>)}
+          </select>
+          <p className="text-[12px] text-zinc-500 mt-1">Higher resolution costs more per second of video.</p>
+        </div>
+        <div>
+          <label htmlFor="model-engine" className={LABEL}>Reels use</label>
+          <select
+            id="model-engine"
+            className={INPUT}
+            value={models.reelEngine}
+            onChange={(e) => onChange({ ...models, reelEngine: e.target.value })}
+          >
+            <option value="">Default — {modelDefaults.reelEngine === 'quick' ? 'Quick animation' : 'AI video'}</option>
+            <option value="ai">AI video (video model)</option>
+            <option value="quick">Quick animation (no AI video cost)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModelSelect({
+  id, label, choice, options, defaultLabel, onChange,
+}: {
+  id: string;
+  label: string;
+  choice: ModelChoiceDraft;
+  options: ModelOption[];
+  defaultLabel: string;
+  onChange: (choice: ModelChoiceDraft) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className={LABEL}>{label}</label>
+      <select
+        id={id}
+        className={INPUT}
+        value={choice.select}
+        onChange={(e) => onChange({ select: e.target.value, custom: choice.custom })}
+      >
+        <option value="">Default — {defaultLabel}</option>
+        {options.map((o, i) => <option key={o.id} value={o.id}>{o.label}{i === 0 ? ' — latest' : ''}</option>)}
+        <option value="other">Other model ID…</option>
+      </select>
+      {choice.select === 'other' && (
+        <input
+          className={`${INPUT} mt-2`}
+          value={choice.custom}
+          spellCheck={false}
+          placeholder="e.g. gemini-3.9-flash"
+          onChange={(e) => onChange({ select: 'other', custom: e.target.value })}
+        />
+      )}
     </div>
   );
 }
