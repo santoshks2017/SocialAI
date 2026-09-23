@@ -16,6 +16,7 @@ import { startWorkers } from './workers/index.js';
 import authRoutes from './routes/auth.js';
 import dealerRoutes from './routes/dealer.js';
 import platformRoutes from './routes/platform.js';
+import platformSpecRoutes from './routes/platformSpecs.js';
 import creativeRoutes from './routes/creative.js';
 import robustCreativeRoutes from './routes/robustCreative.js';
 import publisherRoutes from './routes/publisher.js';
@@ -131,6 +132,7 @@ fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request
 fastify.register(authRoutes,      { prefix: '/v1/auth' });
 fastify.register(dealerRoutes,    { prefix: '/v1/dealer' });
 fastify.register(platformRoutes,  { prefix: '/v1/platforms' });
+fastify.register(platformSpecRoutes, { prefix: '/v1/platform-specs' });
 fastify.register(creativeRoutes,  { prefix: '/v1/creatives' });
 fastify.register(robustCreativeRoutes, { prefix: '/v1/creatives' });
 fastify.register(publisherRoutes, { prefix: '/v1/publisher' });
