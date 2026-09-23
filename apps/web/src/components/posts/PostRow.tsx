@@ -39,7 +39,7 @@ export function PostRow(props: PostRowProps) {
       }}
       className="group bg-white rounded-xl border border-zinc-200/80 shadow-sm transition-all duration-200 hover:shadow-md hover:border-zinc-300 cursor-pointer"
     >
-      <div className="flex items-center gap-4 p-3.5">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-3 p-3.5">
         <PostThumbnail url={firstCreative(post.creative_urls)} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-2">
@@ -69,7 +69,7 @@ export function PostRow(props: PostRowProps) {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <RowActions {...props} />
           {post.status !== 'publishing' && (
             <button

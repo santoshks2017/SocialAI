@@ -24,7 +24,7 @@ export function SectionCard({ title, subtitle, icon, action, to, className, chil
             <h3 className="text-sm font-semibold text-zinc-900 truncate">{title}</h3>
           </div>
           {(action || to) && (
-            <div className="flex items-center gap-2.5 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 min-w-0">
               {action}
               {to && <NavLink to={to} className={LINK_CLASS}>View details →</NavLink>}
             </div>

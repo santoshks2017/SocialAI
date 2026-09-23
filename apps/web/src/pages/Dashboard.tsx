@@ -95,7 +95,7 @@ export default function Dashboard() {
           subtitle={`Posts created over the last ${range} days`}
           to="/analytics"
           action={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {trend && (
                 <span
                   title={`Last 7d: ${trend.last7} · Prev 7d: ${trend.prev7}`}
@@ -138,9 +138,9 @@ export default function Dashboard() {
           ) : pipelineTotal === 0 ? (
             <InlineEmpty icon={<ChartPie className="w-5 h-5" />} text="No posts yet — create one to get started." />
           ) : (
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-center gap-4">
               <PipelineDonut segments={segments} total={pipelineTotal} />
-              <div className="flex-1 space-y-1.5 min-w-0">
+              <div className="flex-1 min-w-[120px] space-y-1.5">
                 {segments.filter((s) => s.value > 0).map((s) => (
                   <div key={s.key} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />

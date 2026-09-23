@@ -92,7 +92,7 @@ export function ActivityChart({ buckets }: { buckets: ActivityBucket[] }) {
               key={b.key}
               x={x(i)}
               y={174}
-              textAnchor="middle"
+              textAnchor={i === n - 1 ? 'end' : 'middle'}
               style={{ fontSize: 10, fontWeight: 500 }}
               className={hover === i ? 'fill-zinc-800' : b.date.getDay() === 1 ? 'fill-zinc-500' : 'fill-zinc-400'}
             >
