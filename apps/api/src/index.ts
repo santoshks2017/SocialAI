@@ -36,6 +36,7 @@ import analyticsRoutes from './routes/analytics.js';
 import modelLibraryRoutes from './routes/modelLibrary.js';
 import billingRoutes from './routes/billing.js';
 import adminRoutes from './routes/admin.js';
+import apiConnectionRoutes from './routes/apiConnections.js';
 import notificationRoutes from './routes/notifications.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 import { getFrontendUrl } from './lib/frontendUrl.js';
@@ -133,6 +134,7 @@ fastify.register(cronRoutes,            { prefix: '/v1/cron' });
 fastify.register(analyticsRoutes,       { prefix: '/v1/analytics' });
 fastify.register(modelLibraryRoutes,    { prefix: '/v1/model-library' });
 fastify.register(billingRoutes,         { prefix: '/v1/billing' });
+fastify.register(apiConnectionRoutes,   { prefix: '/v1/admin/api-connections' });
 fastify.register(adminRoutes,           { prefix: '/v1/admin' });
 fastify.register(notificationRoutes,    { prefix: '/v1/notifications' });
 
