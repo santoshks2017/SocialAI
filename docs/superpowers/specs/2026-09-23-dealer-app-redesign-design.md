@@ -118,7 +118,7 @@ The DevOps team runs a separately deployed version of this product at `https://s
 - A red bar at the top of the main area: "**YouTube** is disconnected — reconnect to keep publishing and review sync running."
 - Plural when several platforms are disconnected ("… are disconnected …").
 - A "Reconnect" link goes to `/accounts`. An ✕ dismisses the banner for the session.
-- Data comes from `GET /v1/platforms`. The API adds `needs_reconnect` per connection: true when the connection is marked disconnected, or its token has expired and cannot be refreshed. Google tokens expire hourly but refresh automatically. Labels: Facebook, Instagram, Google Business Profile, YouTube.
+- Data comes from `GET /v1/platforms`. The API adds `needs_reconnect` per connection: true when a live connection's token has expired and cannot be refreshed. Connections the dealer removed are not flagged. Google tokens expire hourly but refresh automatically. Labels: Facebook, Instagram, Google Business Profile, YouTube.
 - Dismissing the banner lasts until the page is reloaded, as in the reference.
 
 **Page chrome:** the layout supplies only the `bg-zinc-50` canvas and padding. Each page renders its own root card (`max-w-6xl mx-auto bg-white border border-zinc-200 rounded-xl shadow-sm p-5 sm:p-6`) when it is ported. Create is the exception: it is a full-bleed editor with a preview column on the right.
@@ -215,7 +215,7 @@ The API is Fastify on Cloud Run with the Firestore adapter (`apps/api/src/db`). 
 **Post statuses** become: `draft` → `pending_approval` → `approved` → `scheduled` / `publishing` → `published` / `failed`. Existing statuses keep their meaning. "Save for approval" in Create sends a post to `pending_approval` and notifies the approvers.
 
 **New records:**
-- **Notification:** `dealer_id`, `user_id` (optional; null means all dealer users), `type`, `title`, `body`, `link`, `is_read`, `created_at`.
+- **Notification:** `dealer_id`, `user_id` (required; one row per recipient), `type`, `title`, `body`, `link`, `is_read`, `created_at`.
 - **ApprovalToken:** `post_id`, `token_hash`, `expires_at` (7 days), `used_at`, `decision`, `comment`.
 - **Event:** `dealer_id`, `user_id`, `action`, `meta`, `created_at`.
 - **Post:** gains `approver_note`.
