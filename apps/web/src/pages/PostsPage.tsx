@@ -1,403 +1,301 @@
-import { useState, useEffect, useCallback } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { postService } from '../services/creative';
-import type { Post } from '../services/creative';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw } from 'lucide-react';
+import { Button, cn } from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
-import { summarizePublishResult, publishErrorMessage } from '../utils/publishResult';
+import { PageCard, PageHeader } from '../components/ui/PageCard';
+import { PostRow, PostRowSkeleton } from '../components/posts/PostRow';
+import { PostsEmptyState } from '../components/posts/PostsEmptyState';
+import { ConfirmDialog, PostDetailDialog, RejectDialog, RescheduleDialog, type ConfirmKind } from '../components/posts/PostDialogs';
+import { postService, type Post } from '../services/creative';
+import { ApiError } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { can, PERMISSIONS } from '../lib/permissions';
-import {
-  Plus, RefreshCw, Send, Trash2, Clock, CheckCircle2,
-  AlertCircle, FileText, ChevronLeft, ChevronRight,
-  ExternalLink, MoreHorizontal, X,
-} from 'lucide-react';
-
-type StatusFilter = 'all' | 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
-
-const TABS: { id: StatusFilter; label: string }[] = [
-  { id: 'all',       label: 'All' },
-  { id: 'draft',     label: 'Drafts' },
-  { id: 'scheduled', label: 'Scheduled' },
-  { id: 'published', label: 'Published' },
-  { id: 'failed',    label: 'Failed' },
-];
-
-const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
-  draft:      { label: 'Draft',      dot: 'bg-slate-300',  badge: 'bg-slate-100 text-slate-600' },
-  scheduled:  { label: 'Scheduled',  dot: 'bg-yellow-400', badge: 'bg-yellow-50 text-yellow-700 border border-yellow-200' },
-  publishing: { label: 'Publishing', dot: 'bg-blue-400 animate-pulse', badge: 'bg-blue-50 text-blue-700' },
-  published:  { label: 'Published',  dot: 'bg-green-500',  badge: 'bg-green-50 text-green-700 border border-green-200' },
-  failed:     { label: 'Failed',     dot: 'bg-red-500',    badge: 'bg-red-50 text-red-600 border border-red-200' },
-};
-
-const PLATFORM_LABELS: Record<string, string> = {
-  facebook: 'FB', instagram: 'IG', gmb: 'GMB',
-};
-const PLATFORM_COLORS: Record<string, string> = {
-  facebook: 'bg-blue-100 text-blue-700',
-  instagram: 'bg-pink-100 text-pink-700',
-  gmb: 'bg-green-100 text-green-700',
-};
-
-const GRADIENT_BY_STATUS: Record<string, string> = {
-  draft:      'from-slate-700 to-slate-600',
-  scheduled:  'from-yellow-700 to-orange-600',
-  publishing: 'from-blue-700 to-blue-600',
-  published:  'from-teal-700 to-teal-600',
-  failed:     'from-red-800 to-red-700',
-};
-
-function timeLabel(post: Post): string {
-  if (post.status === 'scheduled' && post.scheduled_at) {
-    const d = new Date(post.scheduled_at);
-    return `Scheduled ${d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
-  }
-  if (post.status === 'published' && post.published_at) {
-    const d = new Date(post.published_at);
-    return `Published ${d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
-  }
-  const d = new Date(post.created_at);
-  return `Created ${d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
-}
-
-interface PostCardProps {
-  post: Post;
-  canPublish: boolean;
-  onPublishNow: (id: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  onCancelSchedule: (id: string) => Promise<void>;
-}
-
-function PostCard({ post, canPublish, onPublishNow, onDelete, onCancelSchedule }: PostCardProps) {
-  const [acting, setAct] = useState<string | null>(null);
-  const navigate = useNavigate();
-  const cfg = STATUS_CONFIG[post.status] ?? STATUS_CONFIG['draft']!;
-  const gradient = GRADIENT_BY_STATUS[post.status] ?? 'from-slate-700 to-slate-600';
-
-  const act = async (key: string, fn: () => Promise<void>) => {
-    setAct(key);
-    try { await fn(); } finally { setAct(null); }
-  };
-
-  const publishUrls = post.creative_urls as Record<string, string> | undefined;
-  const firstUrl = publishUrls ? Object.values(publishUrls).find(Boolean) : null;
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex overflow-hidden hover:shadow-md transition-shadow">
-      {/* Thumbnail strip */}
-      <div className={`w-2 flex-shrink-0 bg-gradient-to-b ${gradient}`} />
-
-      {/* Image/gradient placeholder */}
-      <div className={`w-20 flex-shrink-0 bg-gradient-to-br ${gradient} flex items-center justify-center`}>
-        <FileText className="w-6 h-6 text-white/40" />
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0 p-4">
-        <div className="flex items-start gap-2 mb-1.5">
-          <p className="text-sm font-semibold text-slate-800 leading-snug flex-1 line-clamp-1">
-            {post.prompt_text || 'Untitled Post'}
-          </p>
-          <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>
-            {cfg.label}
-          </span>
-        </div>
-
-        {post.caption_text && (
-          <p className="text-xs text-slate-400 line-clamp-2 mb-2 leading-relaxed">
-            {post.caption_text}
-          </p>
-        )}
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Platform badges */}
-          {(post.platforms ?? []).map((p) => (
-            <span key={p} className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${PLATFORM_COLORS[p] ?? 'bg-slate-100 text-slate-600'}`}>
-              {PLATFORM_LABELS[p] ?? p.toUpperCase()}
-            </span>
-          ))}
-          <span className="text-[11px] text-slate-400 ml-1">{timeLabel(post)}</span>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 px-4 flex-shrink-0">
-        {post.status === 'draft' && (
-          <>
-            {canPublish && <button
-              onClick={() => act('publish', () => onPublishNow(post.id))}
-              disabled={!!acting}
-              className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors"
-            >
-              {acting === 'publish' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-              Publish
-            </button>}
-            <button
-              onClick={() => navigate(`/create?prompt=${encodeURIComponent(post.prompt_text ?? '')}`)}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              Edit
-            </button>
-          </>
-        )}
-
-        {post.status === 'scheduled' && (
-          <button
-            onClick={() => act('cancel', () => onCancelSchedule(post.id))}
-            disabled={!!acting}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
-          >
-            {acting === 'cancel' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
-            Cancel
-          </button>
-        )}
-
-        {post.status === 'published' && firstUrl && (
-          <a
-            href={firstUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-teal-600 border border-teal-200 rounded-lg hover:bg-teal-50 transition-colors"
-          >
-            <ExternalLink className="w-3 h-3" />
-            View
-          </a>
-        )}
-
-        {post.status === 'failed' && canPublish && (
-          <button
-            onClick={() => act('retry', () => onPublishNow(post.id))}
-            disabled={!!acting}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
-          >
-            {acting === 'retry' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-            Retry
-          </button>
-        )}
-
-        <button
-          onClick={() => act('delete', () => onDelete(post.id))}
-          disabled={!!acting || post.status === 'publishing'}
-          className="p-1.5 text-slate-300 hover:text-red-500 disabled:opacity-30 transition-colors rounded-lg hover:bg-red-50"
-          title="Delete post"
-        >
-          {acting === 'delete' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ status }: { status: StatusFilter }) {
-  const msgs: Record<StatusFilter, { icon: React.ReactNode; title: string; sub: string }> = {
-    all:       { icon: <FileText className="w-8 h-8 text-slate-300" />,       title: 'No posts yet',          sub: 'Create your first post to get started.' },
-    draft:     { icon: <FileText className="w-8 h-8 text-slate-300" />,       title: 'No drafts',             sub: 'Drafts appear here when you save without publishing.' },
-    scheduled: { icon: <Clock className="w-8 h-8 text-yellow-300" />,         title: 'Nothing scheduled',     sub: 'Use the schedule option when creating a post.' },
-    publishing:{ icon: <MoreHorizontal className="w-8 h-8 text-blue-300" />,  title: 'Nothing publishing',    sub: 'Posts in flight will appear here.' },
-    published:  { icon: <CheckCircle2 className="w-8 h-8 text-green-300" />,  title: 'No published posts',    sub: 'Published posts will appear here.' },
-    failed:    { icon: <AlertCircle className="w-8 h-8 text-red-300" />,      title: 'No failed posts',       sub: 'Great — nothing went wrong.' },
-  };
-  const { icon, title, sub } = msgs[status];
-  return (
-    <div className="text-center py-16">
-      <div className="flex justify-center mb-3">{icon}</div>
-      <p className="text-sm font-semibold text-slate-700">{title}</p>
-      <p className="text-xs text-slate-400 mt-1 mb-4">{sub}</p>
-      {(status === 'all' || status === 'draft') && (
-        <NavLink
-          to="/create"
-          className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" /> Create Post
-        </NavLink>
-      )}
-    </div>
-  );
-}
+import { POST_TABS, pageList, parsePostTab, type PostTab } from '../utils/posts';
+import { publishErrorMessage, summarizePublishResult } from '../utils/publishResult';
 
 const PAGE_SIZE = 15;
+const POLL_MS = 4000;
+const MAX_POLLS = 20; // about 80 seconds of watching a post that is publishing
 
 export default function PostsPage() {
-  const [activeTab, setActiveTab] = useState<StatusFilter>('all');
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [tabCounts, setTabCounts] = useState<Partial<Record<StatusFilter, number>>>({});
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addToast } = useToast();
   const { user } = useAuth();
   const canPublish = can(user, PERMISSIONS.PUBLISH_POST);
+  const canApprove = can(user, PERMISSIONS.APPROVE_POST);
 
-  const fetch = useCallback(async (tab: StatusFilter, p: number) => {
-    setLoading(true);
-    try {
-      const params = tab === 'all' ? { page: p, pageSize: PAGE_SIZE } : { status: tab, page: p, pageSize: PAGE_SIZE };
-      const res = await postService.list(params);
-      setPosts(res.data ?? []);
-      setTotal(res.total ?? 0);
-    } catch {
-      addToast({ type: 'error', title: 'Load failed', message: 'Could not load posts. Please try again.' });
-    } finally {
-      setLoading(false);
+  const [tab, setTab] = useState<PostTab>(() => parsePostTab(searchParams.get('status')));
+  const [page, setPage] = useState(1);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<Partial<Record<string, number>>>({});
+  const [loading, setLoading] = useState(true);
+  const [listKey, setListKey] = useState(0);
+  const [countsKey, setCountsKey] = useState(0);
+  const [confirm, setConfirm] = useState<{ kind: ConfirmKind; post: Post } | null>(null);
+  const [rejecting, setRejecting] = useState<Post | null>(null);
+  const [rescheduling, setRescheduling] = useState<Post | null>(null);
+  const [viewing, setViewing] = useState<Post | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const polls = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    postService.list(tab === 'all' ? { page, pageSize: PAGE_SIZE } : { status: tab, page, pageSize: PAGE_SIZE })
+      .then((res) => {
+        if (cancelled) return;
+        setPosts(res.data ?? []);
+        setTotal(res.total ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) addToast({ type: 'error', title: 'Load failed', message: 'Could not load posts. Please try again.' });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [tab, page, listKey, addToast]);
+
+  useEffect(() => {
+    postService.counts().then((res) => setCounts(res.counts)).catch(() => { /* tab counts are optional */ });
+  }, [countsKey]);
+
+  const refreshQuietly = useCallback(() => {
+    setListKey((k) => k + 1);
+    setCountsKey((k) => k + 1);
+  }, []);
+
+  // Keep watching while any visible post is publishing, then stop.
+  const hasPublishing = posts.some((p) => p.status === 'publishing');
+  useEffect(() => {
+    if (!hasPublishing) {
+      polls.current = 0;
+      return;
     }
-  }, []);
+    if (polls.current >= MAX_POLLS) return;
+    const timer = window.setTimeout(() => {
+      polls.current += 1;
+      refreshQuietly();
+    }, POLL_MS);
+    return () => window.clearTimeout(timer);
+  }, [hasPublishing, posts, refreshQuietly]);
 
-  // Tab counts: one lightweight request per status
-  const refreshCounts = useCallback(() => {
-    const statuses: StatusFilter[] = ['draft', 'scheduled', 'published', 'failed'];
-    statuses.forEach((s) => {
-      postService.list({ status: s, page: 1, pageSize: 1 })
-        .then((res) => setTabCounts((prev) => ({ ...prev, [s]: res.total ?? 0 })))
-        .catch(() => {});
-    });
-  }, []);
-
-  useEffect(() => { refreshCounts(); }, [refreshCounts]);
-
-  useEffect(() => { fetch(activeTab, page); }, [activeTab, page, fetch]);
-
-  const handleTabChange = (tab: StatusFilter) => {
-    setActiveTab(tab);
+  const switchTab = (next: PostTab) => {
+    if (next === tab) return;
+    setTab(next);
     setPage(1);
+    setLoading(true);
+  };
+  const goToPage = (next: number) => {
+    setPage(next);
+    setLoading(true);
+  };
+  const refreshAll = () => {
+    setLoading(true);
+    refreshQuietly();
   };
 
-  const handlePublishNow = async (id: string) => {
-    const post = posts.find((p) => p.id === id);
-    if (!post) return;
+  const publish = async (post: Post, retry: boolean) => {
+    const failTitle = retry ? 'Retry failed' : 'Publish failed';
     try {
-      const res = await postService.publish(id, post.platforms);
+      const res = await postService.publish(post.id, post.platforms);
       const outcome = summarizePublishResult(res, post.platforms);
       if (!outcome.ok) {
-        addToast({ type: 'error', title: 'Publish failed', message: outcome.message ?? 'Could not publish.' });
+        addToast({ type: 'error', title: failTitle, message: outcome.message ?? 'Could not publish. Check your platform connections.' });
       } else if (outcome.message) {
         addToast({ type: 'warning', title: 'Partly published', message: outcome.message });
       } else {
-        addToast({ type: 'success', title: 'Publishing!', message: 'Post is being published to selected platforms.' });
+        addToast(retry
+          ? { type: 'success', title: 'Re-published', message: 'The post is being published again.' }
+          : { type: 'success', title: 'Publishing', message: 'Your post is being published to the selected platforms.' });
       }
     } catch (err) {
-      addToast({ type: 'error', title: 'Publish failed', message: publishErrorMessage(err, 'Could not publish. Check platform connections.') });
-    }
-    // Status changes on failure too (e.g. draft → failed), so always reload.
-    await fetch(activeTab, page);
-    refreshCounts();
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this post? This cannot be undone.')) return;
-    try {
-      await postService.delete(id);
-      addToast({ type: 'success', title: 'Deleted', message: 'Post deleted.' });
-      setPosts((prev) => prev.filter((p) => p.id !== id));
-      setTotal((t) => Math.max(0, t - 1));
-      refreshCounts();
-    } catch (err) {
-      addToast({ type: 'error', title: 'Delete failed', message: err instanceof Error && err.message ? err.message : 'Could not delete post. Try again.' });
+      addToast({ type: 'error', title: failTitle, message: publishErrorMessage(err, 'Could not publish. Check your platform connections.') });
     }
   };
 
-  const handleCancelSchedule = async (id: string) => {
+  const runConfirmed = async () => {
+    if (!confirm) return;
+    const { kind, post } = confirm;
     try {
-      await postService.cancelSchedule(id);
-      addToast({ type: 'success', title: 'Schedule cancelled', message: 'The post is back in your drafts.' });
-      await fetch(activeTab, page);
-      refreshCounts();
+      if (kind === 'publish' || kind === 'retry') {
+        await publish(post, kind === 'retry');
+      } else if (kind === 'delete') {
+        await postService.delete(post.id)
+          .then(() => addToast({ type: 'success', title: 'Post deleted', message: 'The post has been removed.' }))
+          .catch(() => addToast({ type: 'error', title: 'Delete failed', message: 'Could not delete the post. Try again.' }));
+      } else {
+        await postService.cancelSchedule(post.id)
+          .then(() => addToast({ type: 'success', title: 'Schedule cancelled', message: 'The post was moved back to drafts.' }))
+          .catch(() => addToast({ type: 'error', title: 'Cancel failed', message: 'Could not cancel the schedule. Try again.' }));
+      }
+    } finally {
+      setConfirm(null);
+      refreshQuietly();
+    }
+  };
+
+  const approve = async (post: Post) => {
+    setApprovingId(post.id);
+    try {
+      await postService.approve(post.id);
+      addToast({ type: 'success', title: 'Post approved', message: "It's now ready to publish — open the Ready tab to publish it." });
     } catch (err) {
-      addToast({ type: 'error', title: 'Cancel failed', message: err instanceof Error && err.message ? err.message : 'Could not cancel. Try again.' });
+      addToast({ type: 'error', title: 'Approve failed', message: err instanceof ApiError ? err.message : 'Could not approve. Try again.' });
+    } finally {
+      setApprovingId(null);
+      refreshQuietly();
+    }
+  };
+
+  const reject = async (post: Post, reason: string) => {
+    try {
+      await postService.reject(post.id, reason.trim());
+      addToast({ type: 'success', title: 'Post rejected', message: 'The post has been sent back to drafts.' });
+    } catch {
+      addToast({ type: 'error', title: 'Reject failed', message: 'Could not reject the post. Try again.' });
+    } finally {
+      setRejecting(null);
+      refreshQuietly();
+    }
+  };
+
+  const reschedule = async (post: Post, isoTime: string) => {
+    try {
+      await postService.reschedule(post.id, isoTime);
+      addToast({ type: 'success', title: 'Rescheduled', message: 'The post will publish at the new time.' });
+    } catch {
+      addToast({ type: 'error', title: 'Reschedule failed', message: 'Could not reschedule. Try again.' });
+    } finally {
+      setRescheduling(null);
+      refreshQuietly();
+    }
+  };
+
+  const submitForApproval = async (post: Post) => {
+    try {
+      await postService.submitForApproval(post.id);
+      addToast({ type: 'success', title: 'Sent for approval', message: 'Your approver has been notified with the review link.' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not send for approval', message: err instanceof ApiError ? err.message : 'Please try again.' });
+    } finally {
+      refreshQuietly();
     }
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
+  const subtitle = total > 0 ? `${total} ${total === 1 ? 'post' : 'posts'} across your social channels` : 'Create and manage your social posts';
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">My Posts</h1>
-          <p className="text-sm text-slate-400 mt-0.5">{total > 0 ? `${total} post${total !== 1 ? 's' : ''}` : 'Manage your content'}</p>
+    <PageCard>
+      <PageHeader
+        title="Posts"
+        subtitle={subtitle}
+        actions={
+          <>
+            <Button variant="secondary" className="px-2.5" disabled={loading} aria-label="Refresh posts" title="Refresh" onClick={refreshAll}>
+              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+            </Button>
+            <Button onClick={() => navigate('/create')}><Plus className="w-4 h-4" /> New Post</Button>
+          </>
+        }
+      />
+
+      <div className="flex mb-4 overflow-x-auto">
+        <div className="inline-flex gap-1 bg-zinc-100/80 rounded-xl p-1" role="tablist">
+          {POST_TABS.map(({ id, label }) => {
+            const active = id === tab;
+            const count = id === 'all' ? 0 : counts[id] ?? 0;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => switchTab(id)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-all flex-shrink-0',
+                  active ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800',
+                )}
+              >
+                {label}
+                {count > 0 && (
+                  <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full', active ? 'bg-zinc-100 text-zinc-600' : 'bg-zinc-200/70 text-zinc-500')}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-        <NavLink
-          to="/create"
-          className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> New Post
-        </NavLink>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1 mb-5 overflow-x-auto">
-        {TABS.map((tab) => {
-          const count = tab.id === 'all' ? undefined : tabCounts[tab.id];
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
-                isActive
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              {tab.label}
-              {count !== undefined && count > 0 && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <RefreshCw className="w-6 h-6 text-slate-300 animate-spin" />
+        <div className="space-y-2.5">
+          {Array.from({ length: 5 }, (_, i) => <PostRowSkeleton key={i} />)}
         </div>
       ) : posts.length === 0 ? (
-        <EmptyState status={activeTab} />
+        <PostsEmptyState status={tab} onCreate={() => navigate('/create')} />
       ) : (
         <>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {posts.map((post) => (
-              <PostCard
+              <PostRow
                 key={post.id}
                 post={post}
                 canPublish={canPublish}
-                onPublishNow={handlePublishNow}
-                onDelete={handleDelete}
-                onCancelSchedule={handleCancelSchedule}
+                canApprove={canApprove}
+                approving={approvingId === post.id}
+                onOpen={setViewing}
+                onEdit={(p) => navigate(`/create?edit=${p.id}&prompt=${encodeURIComponent(p.prompt_text ?? '')}`)}
+                onConfirm={(kind, p) => setConfirm({ kind, post: p })}
+                onApprove={approve}
+                onReject={setRejecting}
+                onReschedule={setRescheduling}
+                onSubmitForApproval={submitForApproval}
               />
             ))}
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
-              <p className="text-xs text-slate-400">
-                Page {page} of {totalPages} · {total} total
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Prev
-                </button>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
+          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} total={total} onPage={goToPage} />}
         </>
       )}
+
+      <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} onConfirm={runConfirmed} />
+      <RejectDialog post={rejecting} onClose={() => setRejecting(null)} onReject={reject} />
+      <RescheduleDialog post={rescheduling} onClose={() => setRescheduling(null)} onReschedule={reschedule} />
+      <PostDetailDialog post={viewing} onClose={() => setViewing(null)} />
+    </PageCard>
+  );
+}
+
+function Pagination({ page, totalPages, total, onPage }: { page: number; totalPages: number; total: number; onPage: (page: number) => void }) {
+  return (
+    <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100 flex-wrap gap-3">
+      <p className="text-xs text-zinc-400">
+        Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <Button variant="secondary" className="h-8 px-2 text-xs" disabled={page === 1} aria-label="Previous page" onClick={() => onPage(page - 1)}>
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </Button>
+        {pageList(page, totalPages).map((n, i) => n === '...' ? (
+          <span key={`gap-${i}`} className="px-1.5 text-xs text-zinc-300">…</span>
+        ) : (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onPage(n)}
+            className={cn('h-8 min-w-8 px-2 rounded-lg text-xs font-semibold transition-colors', n === page ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100')}
+          >
+            {n}
+          </button>
+        ))}
+        <Button variant="secondary" className="h-8 px-2 text-xs" disabled={page === totalPages} aria-label="Next page" onClick={() => onPage(page + 1)}>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
