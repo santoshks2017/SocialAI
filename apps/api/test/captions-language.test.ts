@@ -50,4 +50,18 @@ describe('POST /v1/creatives/hashtags', () => {
     delete process.env['GEMINI_API_KEY'];
     invalidateAiKeyCache();
   });
+
+  it('keeps Indian-script tags whole when Gemini answers with plain text', async (t) => {
+    process.env['GEMINI_API_KEY'] = 'test-key';
+    const { invalidateAiKeyCache } = await import('../src/lib/aiKeys.js');
+    invalidateAiKeyCache();
+    t.mock.method(axios, 'post', async () => ({ data: { candidates: [{ content: { parts: [{ text: 'Try these: #पुणे, #சென்னை and #Creta_2026' }] } }] } }));
+
+    const res = await fastify.inject({ method: 'POST', url: '/v1/creatives/hashtags', headers: headers(), payload: { caption: 'Creta offer', language: 'ta' } });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual((res.json() as { hashtags: string[] }).hashtags, ['#पुणे', '#சென்னை', '#Creta_2026']);
+    delete process.env['GEMINI_API_KEY'];
+    invalidateAiKeyCache();
+  });
 });

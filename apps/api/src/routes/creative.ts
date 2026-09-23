@@ -1152,7 +1152,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         const parsed = JSON.parse(result) as unknown
         if (Array.isArray(parsed)) hashtags = parsed.filter((h): h is string => typeof h === "string")
       } catch {
-        hashtags = result.match(/#[\p{L}\p{N}_]+/gu) ?? []
+        hashtags = result.match(/#[\p{L}\p{M}\p{N}_]+/gu) ?? []
       }
       const normalized = hashtags.map((h) => h.trim()).filter(Boolean).map((h) => (h.startsWith("#") ? h : `#${h}`))
       return { success: true, hashtags: normalized.slice(0, 15) }

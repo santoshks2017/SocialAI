@@ -5,7 +5,7 @@ const STORIES = ['You', 'Ravi', 'Priya', 'Ajay'];
 
 export function InstagramPostPreview({ dealerName, initials, logoUrl, caption, imageUrl, isGenerating }: PostPreviewProps) {
   const handle = instagramHandle(dealerName);
-  const tags = (caption.match(/#[\p{L}\p{N}_]+/gu) ?? []).slice(0, 4).join(' ');
+  const tags = (caption.match(/#[\p{L}\p{M}\p{N}_]+/gu) ?? []).slice(0, 4).join(' ');
   return (
     <div className="flex-1 overflow-y-auto bg-white">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#dbdbdb]">
