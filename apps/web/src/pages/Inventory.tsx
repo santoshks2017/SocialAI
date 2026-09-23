@@ -936,7 +936,7 @@ export default function InventoryPage() {
 
                 <div className="flex gap-3">
                   <Button variant="secondary" className="flex-1 text-sm" onClick={() => setUploadStep('drop')}>Back</Button>
-                  <Button className="flex-1 text-sm bg-blue-600 hover:bg-blue-700" onClick={handleValidate}>Validate</Button>
+                  <Button className="flex-1 text-sm bg-none bg-blue-600 hover:bg-blue-700" onClick={handleValidate}>Validate</Button>
                 </div>
               </div>
             )}
@@ -981,7 +981,7 @@ export default function InventoryPage() {
                 <div className="flex gap-3">
                   <Button variant="secondary" className="flex-1 text-sm" onClick={() => setUploadStep('mapping')}>Back</Button>
                   <Button
-                    className="flex-1 text-sm bg-blue-600 hover:bg-blue-700"
+                    className="flex-1 text-sm bg-none bg-blue-600 hover:bg-blue-700"
                     disabled={validationErrors.length > 0 || importing}
                     onClick={handleImport}
                   >

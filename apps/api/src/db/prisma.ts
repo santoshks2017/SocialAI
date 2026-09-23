@@ -21,6 +21,7 @@ import type {
   DealerStyle,
   UserSession,
   SocialConnection,
+  Notification,
 } from '../generated/client/index.js';
 
 // Prisma-compatible Firestore database adapter with strong typing
@@ -42,6 +43,7 @@ class FirestoreDb {
   inventoryItem = new FirestoreCollection<InventoryItem>('inventory_items', 'InventoryItem');
   dealerStyle = new FirestoreCollection<DealerStyle>('dealer_styles', 'DealerStyle');
   userSession = new FirestoreCollection<UserSession>('user_sessions', 'UserSession');
+  notification = new FirestoreCollection<Notification>('notifications', 'Notification');
   prompt = new FirestoreCollection<Prompt>('prompts', 'Prompt');
   template = new FirestoreCollection<Template>('templates', 'Template');
   mediaAsset = new FirestoreCollection<any>('media_assets');

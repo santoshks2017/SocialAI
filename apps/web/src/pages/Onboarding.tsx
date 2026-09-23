@@ -795,7 +795,7 @@ export default function Onboarding() {
 
                 <div className="pt-4 border-t border-slate-800/80 max-w-sm mx-auto">
                   <Button 
-                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-bold shadow-lg shadow-orange-500/10 text-sm py-2.5"
+                    className="w-full h-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-bold shadow-lg shadow-orange-500/10 text-sm py-2.5"
                     onClick={handleCompleteOnboarding}
                     disabled={loading}
                   >
