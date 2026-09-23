@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Palette, Sparkles, Check, 
-  RefreshCw, 
   ArrowRight, ArrowLeft, Lightbulb, CheckCircle2 
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
@@ -65,12 +64,8 @@ export default function Onboarding() {
   const [showroomType, setShowroomType] = useState('new'); // new, pre-owned, multi-brand
   const [selectedOem, setSelectedOem] = useState('');
 
-  // Step 2: Account Link
-  const [connectedPlatforms, setConnectedPlatforms] = useState<Record<string, { connected: boolean; loading: boolean }>>({
-    facebook: { connected: false, loading: false },
-    instagram: { connected: false, loading: false },
-    gmb: { connected: false, loading: false },
-  });
+  // Step 2: Account Link — real connection status; connecting happens on /accounts after setup
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
 
   // Step 3: Brand Identity
   const [primaryColor, setPrimaryColor] = useState('#1877F2');
@@ -82,6 +77,12 @@ export default function Onboarding() {
   const [aiStatusIdx, setAiStatusIdx] = useState(0);
   const [posts, setPosts] = useState<Array<{ id: number; title: string; caption: string }>>([]);
   const [selectedPostIdx, setSelectedPostIdx] = useState(0);
+
+  useEffect(() => {
+    api.get<{ accounts?: Array<{ platform: string }> }>('/platform-accounts')
+      .then((res) => setConnectedPlatforms((res.accounts ?? []).map((a) => (a.platform === 'google' ? 'gmb' : a.platform))))
+      .catch(() => setConnectedPlatforms([]));
+  }, []);
 
   // Load existing profile values if available
   useEffect(() => {
@@ -142,27 +143,6 @@ export default function Onboarding() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Simulate Social Connections
-  const handleConnectPlatform = (platform: string) => {
-    setConnectedPlatforms(prev => ({
-      ...prev,
-      [platform]: { ...prev[platform], loading: true }
-    }));
-
-    setTimeout(() => {
-      setConnectedPlatforms(prev => ({
-        ...prev,
-        [platform]: { connected: true, loading: false }
-      }));
-      const names: Record<string, string> = { facebook: 'Facebook Page', instagram: 'Instagram Business', gmb: 'Google My Business' };
-      addToast({
-        type: 'success',
-        title: 'Platform Connected',
-        message: `Successfully connected your ${names[platform]} account.`
-      });
-    }, 1500);
   };
 
   const handleBrandIdentitySubmit = async () => {
@@ -238,15 +218,17 @@ export default function Onboarding() {
     setLoading(true);
     try {
       const activePost = posts[selectedPostIdx];
+      const targets = ['facebook', 'instagram', 'gmb'].filter((p) => connectedPlatforms.includes(p));
       await api.post('/publisher', {
         promptText: activePost.title,
         captionText: activePost.caption,
-        platforms: Object.keys(connectedPlatforms).filter(k => connectedPlatforms[k].connected) || ['facebook']
+        // POST /publisher requires at least one platform; drafts can be retargeted before publishing.
+        platforms: targets.length ? targets : ['facebook', 'instagram'],
       });
-      addToast({ type: 'success', title: 'Post Saved', message: 'Your first post has been successfully scheduled!' });
+      addToast({ type: 'success', title: 'Draft Saved', message: 'Your first post was saved as a draft in Posts.' });
       setStep(5);
     } catch (err) {
-      addToast({ type: 'error', title: 'Failed to Save Post', message: 'Could not store generated post.' });
+      addToast({ type: 'error', title: 'Failed to Save Post', message: err instanceof Error && err.message ? err.message : 'Could not store generated post.' });
     } finally {
       setLoading(false);
     }
@@ -488,7 +470,7 @@ export default function Onboarding() {
                     <GlobeIcon className="w-5 h-5 text-orange-400" />
                     Connect your showroom accounts
                   </h2>
-                  <p className="text-slate-400 text-xs mt-1">Link your social media to allow scheduled publishing. (You can skip this step and link later).</p>
+                  <p className="text-slate-400 text-xs mt-1">You can connect your social accounts after setup from the Accounts page. Publishing needs at least one connected account.</p>
                 </div>
 
                 <div className="space-y-3">
@@ -497,7 +479,7 @@ export default function Onboarding() {
                     { id: 'instagram', name: 'Instagram Business', icon: <InstagramIcon className="w-5 h-5 text-pink-500" />, desc: 'Schedule reels, car photos, and local launch promotions' },
                     { id: 'gmb', name: 'Google My Business', icon: <GlobeIcon className="w-5 h-5 text-orange-500" />, desc: 'Automatically showcase vehicle updates on Google Maps' },
                   ].map((plat) => {
-                    const status = connectedPlatforms[plat.id];
+                    const connected = connectedPlatforms.includes(plat.id);
                     return (
                       <div key={plat.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-950/40 border border-slate-850 rounded-2xl gap-3 hover:border-slate-800 transition-colors">
                         <div className="flex items-start gap-3">
@@ -510,23 +492,14 @@ export default function Onboarding() {
                           </div>
                         </div>
                         <div className="w-full sm:w-auto shrink-0 flex justify-end">
-                          {status.connected ? (
+                          {connected ? (
                             <span className="flex items-center gap-1.5 text-xs text-teal-400 bg-teal-500/10 px-3 py-1.5 rounded-full border border-teal-500/20 font-semibold">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Connected
                             </span>
                           ) : (
-                            <Button 
-                              variant="secondary" 
-                              className="text-xs bg-slate-800 hover:bg-slate-700 text-white flex items-center gap-1.5 px-4"
-                              disabled={status.loading}
-                              onClick={() => handleConnectPlatform(plat.id)}
-                            >
-                              {status.loading ? (
-                                <RefreshCw className="w-3 h-3 animate-spin" />
-                              ) : (
-                                'Link'
-                              )}
-                            </Button>
+                            <span className="text-xs text-slate-400 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700 font-semibold">
+                              Connect after setup
+                            </span>
                           )}
                         </div>
                       </div>
@@ -538,22 +511,13 @@ export default function Onboarding() {
                   <Button variant="secondary" onClick={() => setStep(1)} className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800">
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back
                   </Button>
-                  <div className="flex gap-3">
-                    <Button 
-                      variant="secondary"
-                      className="bg-transparent text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800"
-                      onClick={() => setStep(3)}
-                    >
-                      Skip Step
-                    </Button>
-                    <Button 
-                      className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
-                      onClick={() => setStep(3)}
-                    >
-                      Continue
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Button 
+                    className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                    onClick={() => setStep(3)}
+                  >
+                    Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             )}
@@ -755,7 +719,7 @@ export default function Onboarding() {
 
                       <div className="flex items-center gap-2 text-[10px] text-slate-500 border-t border-slate-900 pt-3 mt-4">
                         <Lightbulb className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                        <span>This post will be saved as a draft for Facebook/Instagram scheduling.</span>
+                        <span>This post will be saved as a draft. You can review, schedule, or publish it from Posts.</span>
                       </div>
                     </div>
 
@@ -780,7 +744,7 @@ export default function Onboarding() {
                       onClick={handlePostSelection}
                       disabled={loading || aiLoading}
                     >
-                      {loading ? 'Creating...' : 'Schedule Selected Post'}
+                      {loading ? 'Saving...' : 'Save Selected Post as Draft'}
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   </div>
@@ -802,7 +766,7 @@ export default function Onboarding() {
                 <div className="space-y-2 max-w-md mx-auto">
                   <h2 className="text-2xl font-extrabold text-white">🎉 Dealership Onboarded!</h2>
                   <p className="text-slate-400 text-sm">
-                    {dealershipName} is completely set up on CarDekho Social AI. Your brand profile is ready and first post draft has been scheduled.
+                    {dealershipName} is completely set up on CarDekho Social AI. Your brand profile is ready.{connectedPlatforms.length === 0 && ' Connect your social accounts from the Accounts page to start publishing.'}
                   </p>
                 </div>
 

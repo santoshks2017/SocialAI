@@ -1,4 +1,5 @@
 import api from './api';
+import type { PublishResponse } from '../utils/publishResult';
 
 export interface Prompt {
   id: string;
@@ -139,14 +140,19 @@ export const postService = {
   update: (id: string, data: Partial<Post>) =>
     api.patch<{ item: Post }>(`/publisher/posts/${id}`, data),
   
+  // Permanently deletes the post (API answers 409 while it is publishing).
   delete: (id: string) =>
+    api.delete<{ success: boolean }>(`/publisher/posts/${id}`),
+
+  // Cancels a schedule; the post goes back to draft.
+  cancelSchedule: (id: string) =>
     api.delete<{ success: boolean }>(`/publisher/${id}`),
   
   publish: (id: string, platforms: string[]) =>
-    api.post<{ item: Post, job_ids: string[] }>('/publisher/publish', { post_id: id, platforms }),
+    api.post<PublishResponse>('/publisher/publish', { post_id: id, platforms }),
   
   schedule: (id: string, platforms: string[], scheduled_at: string) =>
-    api.post<{ item: Post, job_ids: string[] }>('/publisher/publish', { post_id: id, platforms, scheduled_at }),
+    api.post<PublishResponse>('/publisher/publish', { post_id: id, platforms, scheduled_at }),
 
   reschedule: (id: string, scheduled_at: string) =>
     api.patch<{ success: boolean; item: Post }>(`/publisher/posts/${id}/reschedule`, { scheduled_at }),
@@ -158,36 +164,41 @@ export const postService = {
     api.get<{ metrics: Post['metrics'] }>(`/publisher/posts/${id}/metrics`),
 };
 
+type InventoryItemInput = Partial<Omit<InventoryItem, 'id' | 'dealer_id' | 'created_at' | 'updated_at'>>;
+
 export const inventoryService = {
   list: (params?: {
     page?: number;
-    pageSize?: number;
-    make?: string;
-    model?: string;
+    limit?: number;
     condition?: string;
     status?: string;
+    search?: string;
   }) =>
-    api.get<{ items: InventoryItem[]; total: number }>('/inventory', params),
+    api.get<{ success: boolean; items: InventoryItem[]; pagination: { page: number; limit: number; total: number } }>('/inventory', params),
   
   get: (id: string) =>
-    api.get<{ item: InventoryItem }>(`/inventory/${id}`),
+    api.get<{ success: boolean; item: InventoryItem }>(`/inventory/${id}`),
   
-  create: (data: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>) =>
-    api.post<{ item: InventoryItem }>('/inventory', data),
+  create: (data: InventoryItemInput) =>
+    api.post<{ success: boolean; item: InventoryItem }>('/inventory', data),
   
-  update: (id: string, data: Partial<InventoryItem>) =>
-    api.patch<{ item: InventoryItem }>(`/inventory/${id}`, data),
+  update: (id: string, data: InventoryItemInput) =>
+    api.put<{ success: boolean; item: InventoryItem }>(`/inventory/${id}`, data),
   
   delete: (id: string) =>
     api.delete<{ success: boolean }>(`/inventory/${id}`),
+
+  setStatus: (id: string, status: InventoryItem['status']) =>
+    api.patch<{ success: boolean; item: InventoryItem }>(`/inventory/${id}/status`, { status }),
   
   markSold: (id: string) =>
-    api.patch<{ item: InventoryItem }>(`/inventory/${id}`, { status: 'sold' }),
+    api.patch<{ success: boolean; item: InventoryItem }>(`/inventory/${id}/status`, { status: 'sold' }),
   
+  // API accepts 1–500 ids per request.
   bulkMarkSold: (ids: string[]) =>
-    api.post<{ success: boolean }>('/inventory/bulk-sold', { ids }),
+    api.post<{ success: boolean; count: number }>('/inventory/bulk-sold', { ids }),
 
-  batch: (items: any[]) =>
+  batch: (items: InventoryItemInput[]) =>
     api.post<{ success: boolean; count: number }>('/inventory/batch', { items }),
   
   upload: async (file: File, mapping: Record<string, string>, mode: string) => {
@@ -199,24 +210,26 @@ export const inventoryService = {
   },
 };
 
+// Mirrors the API's InventoryItem row (snake_case).
 export interface InventoryItem {
   id: string;
-  dealerId: string;
+  dealer_id: string;
   make: string;
   model: string;
-  variant?: string;
+  variant: string | null;
   year: number;
   price: number;
   condition: 'new' | 'used';
-  color?: string;
-  fuelType?: string;
-  transmission?: string;
-  mileageKm?: number;
-  stockCount: number;
-  imageUrls: string[];
+  color: string | null;
+  fuel_type: string | null;
+  transmission: string | null;
+  mileage_km: number | null;
+  stock_count: number;
+  image_urls: string[];
   status: 'in_stock' | 'sold' | 'reserved';
   source: 'manual' | 'csv' | 'api';
-  createdAt: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface InventoryImportResult {

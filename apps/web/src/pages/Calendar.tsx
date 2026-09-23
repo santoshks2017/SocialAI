@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { postService } from '../services/creative';
 import type { Post } from '../services/creative';
+import { useToast } from '../components/ui/Toast';
+import { useAuth } from '../contexts/AuthContext';
+import { can, PERMISSIONS } from '../lib/permissions';
 import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Clock, Trash2 } from 'lucide-react';
 
 type PostStatus = 'published' | 'scheduled' | 'draft' | 'failed';
@@ -92,12 +95,13 @@ function PlatformBadge({ label }: { label: string }) {
 
 interface PostDetailModalProps {
   post: CalendarPost;
+  canPublish: boolean;
   onClose: () => void;
-  onCancel: (id: string) => void;
-  onReschedule: (id: string, newTime: string) => void;
+  onCancel: (id: string) => Promise<boolean>;
+  onReschedule: (id: string, newTime: string) => Promise<boolean>;
 }
 
-function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailModalProps) {
+function PostDetailModal({ post, canPublish, onClose, onCancel, onReschedule }: PostDetailModalProps) {
   const now = new Date();
   const minDateTime = now.toISOString().slice(0, 16);
   const toLocal = (d: Date) => {
@@ -113,8 +117,10 @@ function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailMo
     { label: 'Tomorrow 6 PM', value: (() => { const d = new Date(now); d.setDate(d.getDate() + 1); d.setHours(18, 0, 0, 0); return d; })() },
   ];
 
-  const canReschedule = post.status === 'scheduled' || post.status === 'draft';
-  const canCancel = post.status === 'scheduled' || post.status === 'draft';
+  // Rescheduling makes the post go live, which needs publish_post (the API returns 403 otherwise).
+  const canReschedule = canPublish && (post.status === 'scheduled' || post.status === 'draft');
+  // Cancelling returns a scheduled post to draft; drafts have no schedule to cancel.
+  const canCancel = post.status === 'scheduled';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -169,7 +175,7 @@ function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailMo
               disabled={loading || !newTime}
               onClick={async () => {
                 setLoading(true);
-                try { await onReschedule(post.id, new Date(newTime).toISOString()); onClose(); }
+                try { if (await onReschedule(post.id, new Date(newTime).toISOString())) onClose(); }
                 finally { setLoading(false); }
               }}
               className="w-full py-2 text-sm font-bold bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/10"
@@ -184,15 +190,15 @@ function PostDetailModal({ post, onClose, onCancel, onReschedule }: PostDetailMo
           <button
             disabled={loading}
             onClick={async () => {
-              if (!confirm('Cancel this scheduled post?')) return;
+              if (!confirm('Cancel this schedule? The post will move back to drafts.')) return;
               setLoading(true);
-              try { await onCancel(post.id); onClose(); }
+              try { if (await onCancel(post.id)) onClose(); }
               finally { setLoading(false); }
             }}
             className="w-full py-2 text-sm font-semibold text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50 rounded-xl transition-colors flex items-center justify-center gap-1.5"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            Cancel Post
+            Cancel Schedule
           </button>
         )}
 
@@ -319,6 +325,8 @@ function layoutColumnPosts(posts: CalendarPost[]): PositionedPost[] {
 
 export default function CalendarPage() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
+  const { user } = useAuth();
   const today = new Date();
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -381,17 +389,20 @@ export default function CalendarPage() {
     }
     postService.getCalendar(start.toISOString(), end.toISOString())
       .then((res) => setApiPosts((res as { data: Post[] }).data ?? []))
-      .catch(console.error);
+      .catch(() => addToast({ type: 'error', title: 'Could not load calendar', message: 'Please refresh to try again.' }));
   };
 
   useEffect(() => { fetchPosts(); }, [weekOffset, monthOffset, view]);
 
   const mappedPosts: CalendarPost[] = useMemo(() => {
-    return apiPosts.map((p) => {
-      const d = new Date(p.scheduled_at ?? p.created_at);
-      return {
+    return apiPosts.flatMap((p) => {
+      // Drafts have no scheduled_at; fall back to publish/creation time and skip rows with no usable date.
+      const raw = p.scheduled_at ?? p.published_at ?? p.created_at;
+      const d = raw ? new Date(raw) : null;
+      if (!d || Number.isNaN(d.getTime())) return [];
+      return [{
         id: p.id,
-        title: p.prompt_text ?? 'Untitled Post',
+        title: p.prompt_text || 'Untitled Post',
         platforms: (p.platforms ?? []).map((plat) =>
           plat === 'facebook' ? 'FB' : plat === 'instagram' ? 'IG' : 'GMB',
         ),
@@ -399,7 +410,7 @@ export default function CalendarPage() {
         status: p.status as PostStatus,
         _date: d,
         _raw: p,
-      };
+      }];
     });
   }, [apiPosts]);
 
@@ -412,13 +423,27 @@ export default function CalendarPage() {
   const totalPublished = mappedPosts.filter((p) => p.status === 'published').length;
 
   const handleCancel = async (id: string) => {
-    await postService.delete(id);
-    fetchPosts();
+    try {
+      await postService.cancelSchedule(id);
+      addToast({ type: 'success', title: 'Schedule cancelled', message: 'The post is back in your drafts.' });
+      fetchPosts();
+      return true;
+    } catch (err) {
+      addToast({ type: 'error', title: 'Cancel failed', message: err instanceof Error && err.message ? err.message : 'Could not cancel. Try again.' });
+      return false;
+    }
   };
 
   const handleReschedule = async (id: string, scheduled_at: string) => {
-    await postService.reschedule(id, scheduled_at);
-    fetchPosts();
+    try {
+      await postService.reschedule(id, scheduled_at);
+      addToast({ type: 'success', title: 'Rescheduled' });
+      fetchPosts();
+      return true;
+    } catch (err) {
+      addToast({ type: 'error', title: 'Reschedule failed', message: err instanceof Error && err.message ? err.message : 'Could not reschedule. Try again.' });
+      return false;
+    }
   };
 
   // Month grid calculations
@@ -682,6 +707,7 @@ export default function CalendarPage() {
       {selectedPost && (
         <PostDetailModal
           post={selectedPost}
+          canPublish={can(user, PERMISSIONS.PUBLISH_POST)}
           onClose={() => setSelectedPost(null)}
           onCancel={handleCancel}
           onReschedule={handleReschedule}

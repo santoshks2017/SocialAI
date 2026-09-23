@@ -3,7 +3,9 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { postService } from '../services/creative';
 import type { Post } from '../services/creative';
 import { useToast } from '../components/ui/Toast';
-import api from '../services/api';
+import { summarizePublishResult, publishErrorMessage } from '../utils/publishResult';
+import { useAuth } from '../contexts/AuthContext';
+import { can, PERMISSIONS } from '../lib/permissions';
 import {
   Plus, RefreshCw, Send, Trash2, Clock, CheckCircle2,
   AlertCircle, FileText, ChevronLeft, ChevronRight,
@@ -60,12 +62,13 @@ function timeLabel(post: Post): string {
 
 interface PostCardProps {
   post: Post;
+  canPublish: boolean;
   onPublishNow: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onCancelSchedule: (id: string) => Promise<void>;
 }
 
-function PostCard({ post, onPublishNow, onDelete, onCancelSchedule }: PostCardProps) {
+function PostCard({ post, canPublish, onPublishNow, onDelete, onCancelSchedule }: PostCardProps) {
   const [acting, setAct] = useState<string | null>(null);
   const navigate = useNavigate();
   const cfg = STATUS_CONFIG[post.status] ?? STATUS_CONFIG['draft']!;
@@ -121,14 +124,14 @@ function PostCard({ post, onPublishNow, onDelete, onCancelSchedule }: PostCardPr
       <div className="flex items-center gap-1 px-4 flex-shrink-0">
         {post.status === 'draft' && (
           <>
-            <button
+            {canPublish && <button
               onClick={() => act('publish', () => onPublishNow(post.id))}
               disabled={!!acting}
               className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors"
             >
               {acting === 'publish' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
               Publish
-            </button>
+            </button>}
             <button
               onClick={() => navigate(`/create?prompt=${encodeURIComponent(post.prompt_text ?? '')}`)}
               className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
@@ -161,7 +164,7 @@ function PostCard({ post, onPublishNow, onDelete, onCancelSchedule }: PostCardPr
           </a>
         )}
 
-        {post.status === 'failed' && (
+        {post.status === 'failed' && canPublish && (
           <button
             onClick={() => act('retry', () => onPublishNow(post.id))}
             disabled={!!acting}
@@ -222,6 +225,8 @@ export default function PostsPage() {
   const [loading, setLoading] = useState(false);
   const [tabCounts, setTabCounts] = useState<Partial<Record<StatusFilter, number>>>({});
   const { addToast } = useToast();
+  const { user } = useAuth();
+  const canPublish = can(user, PERMISSIONS.PUBLISH_POST);
 
   const fetch = useCallback(async (tab: StatusFilter, p: number) => {
     setLoading(true);
@@ -237,8 +242,8 @@ export default function PostsPage() {
     }
   }, []);
 
-  // Fetch tab counts separately on mount (one request per status, lightweight)
-  useEffect(() => {
+  // Tab counts: one lightweight request per status
+  const refreshCounts = useCallback(() => {
     const statuses: StatusFilter[] = ['draft', 'scheduled', 'published', 'failed'];
     statuses.forEach((s) => {
       postService.list({ status: s, page: 1, pageSize: 1 })
@@ -246,6 +251,8 @@ export default function PostsPage() {
         .catch(() => {});
     });
   }, []);
+
+  useEffect(() => { refreshCounts(); }, [refreshCounts]);
 
   useEffect(() => { fetch(activeTab, page); }, [activeTab, page, fetch]);
 
@@ -258,17 +265,21 @@ export default function PostsPage() {
     const post = posts.find((p) => p.id === id);
     if (!post) return;
     try {
-      await api.post('/publisher/publish', { post_id: id, platforms: post.platforms });
-      addToast({ type: 'success', title: 'Publishing!', message: 'Post is being published to selected platforms.' });
-      await fetch(activeTab, page);
-      setTabCounts((prev) => ({
-        ...prev,
-        draft: Math.max(0, (prev.draft ?? 0) - 1),
-        published: (prev.published ?? 0) + 1,
-      }));
-    } catch {
-      addToast({ type: 'error', title: 'Publish failed', message: 'Could not publish. Check platform connections.' });
+      const res = await postService.publish(id, post.platforms);
+      const outcome = summarizePublishResult(res, post.platforms);
+      if (!outcome.ok) {
+        addToast({ type: 'error', title: 'Publish failed', message: outcome.message ?? 'Could not publish.' });
+      } else if (outcome.message) {
+        addToast({ type: 'warning', title: 'Partly published', message: outcome.message });
+      } else {
+        addToast({ type: 'success', title: 'Publishing!', message: 'Post is being published to selected platforms.' });
+      }
+    } catch (err) {
+      addToast({ type: 'error', title: 'Publish failed', message: publishErrorMessage(err, 'Could not publish. Check platform connections.') });
     }
+    // Status changes on failure too (e.g. draft → failed), so always reload.
+    await fetch(activeTab, page);
+    refreshCounts();
   };
 
   const handleDelete = async (id: string) => {
@@ -278,20 +289,20 @@ export default function PostsPage() {
       addToast({ type: 'success', title: 'Deleted', message: 'Post deleted.' });
       setPosts((prev) => prev.filter((p) => p.id !== id));
       setTotal((t) => Math.max(0, t - 1));
-    } catch {
-      addToast({ type: 'error', title: 'Delete failed', message: 'Could not delete post. Try again.' });
+      refreshCounts();
+    } catch (err) {
+      addToast({ type: 'error', title: 'Delete failed', message: err instanceof Error && err.message ? err.message : 'Could not delete post. Try again.' });
     }
   };
 
   const handleCancelSchedule = async (id: string) => {
     try {
-      await postService.delete(id);
-      addToast({ type: 'success', title: 'Cancelled', message: 'Scheduled post cancelled.' });
-      setPosts((prev) => prev.filter((p) => p.id !== id));
-      setTotal((t) => Math.max(0, t - 1));
-      setTabCounts((prev) => ({ ...prev, scheduled: Math.max(0, (prev.scheduled ?? 0) - 1) }));
-    } catch {
-      addToast({ type: 'error', title: 'Cancel failed', message: 'Could not cancel. Try again.' });
+      await postService.cancelSchedule(id);
+      addToast({ type: 'success', title: 'Schedule cancelled', message: 'The post is back in your drafts.' });
+      await fetch(activeTab, page);
+      refreshCounts();
+    } catch (err) {
+      addToast({ type: 'error', title: 'Cancel failed', message: err instanceof Error && err.message ? err.message : 'Could not cancel. Try again.' });
     }
   };
 
@@ -353,6 +364,7 @@ export default function PostsPage() {
               <PostCard
                 key={post.id}
                 post={post}
+                canPublish={canPublish}
                 onPublishNow={handlePublishNow}
                 onDelete={handleDelete}
                 onCancelSchedule={handleCancelSchedule}

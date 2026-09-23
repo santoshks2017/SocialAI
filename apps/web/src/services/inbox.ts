@@ -95,7 +95,7 @@ export const inboxService = {
     api.patch<{ item: InboxMessage }>(`/inbox/${id}`, { tag }),
   
   sendReply: (id: string, replyText: string) =>
-    api.post<{ item: InboxMessage }>(`/inbox/${id}/reply`, { replyText }),
+    api.post<{ item: InboxMessage; delivered?: boolean }>(`/inbox/${id}/reply`, { replyText }),
   
   generateReply: (id: string, tone?: string) =>
     api.post<{ suggestedReply: string }>(`/inbox/${id}/suggest-reply`, { tone }),

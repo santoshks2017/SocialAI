@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Sparkles, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../services/api';
@@ -23,12 +23,33 @@ function FacebookIcon() {
   );
 }
 
+// Error codes the API/callback pages put in ?error= after a failed sign-in.
+// Unknown values get a generic message rather than echoing the URL.
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  oauth_failed: 'Sign-in could not be completed. Please try again.',
+  invalid_state: 'Your sign-in link expired. Please try again.',
+  invalid_token: 'We could not verify your sign-in. Please try again.',
+  token_exchange_failed: 'The sign-in provider did not complete the login. Please try again.',
+  no_email_returned: 'Your account did not share an email address. Allow email access and try again.',
+  email_unverified: 'Your Google email address is not verified. Verify it with Google, then try again.',
+  account_inactive: 'This account has been deactivated. Contact your administrator.',
+  server_config: 'This sign-in method is not configured yet. Please use another option.',
+  access_denied: 'Sign-in was cancelled.',
+  no_code: 'Sign-in was cancelled or did not complete.',
+};
+
+function oauthErrorMessage(code: string | null): string {
+  if (!code) return '';
+  return OAUTH_ERROR_MESSAGES[code] ?? 'Sign-in failed. Please try again.';
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { loginDemo } = useAuth();
   
   const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => oauthErrorMessage(searchParams.get('error')));
 
   const handleGoogleSignIn = () => {
     setLoading('google');
@@ -52,8 +73,10 @@ export default function LoginPage() {
       } else {
         navigate('/onboarding');
       }
-    } catch {
-      setError('Demo login failed. Please check your connection.');
+    } catch (err) {
+      setError(err instanceof Error && err.message && err.message !== 'Network error'
+        ? `Demo login failed: ${err.message}`
+        : 'Demo login failed. Please check your connection and try again.');
     } finally {
       setLoading(null);
     }

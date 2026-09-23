@@ -43,6 +43,11 @@ export function can(user: UserInfo | null, permission: Permission): boolean {
   return user.permissions?.[permission] === true;
 }
 
+// Platform-wide owner (admin panel). Dealer accounts can also carry role 'owner'.
+export function isGlobalOwner(user: UserInfo | null): boolean {
+  return !!user && user.role === 'owner' && !user.dealer_id;
+}
+
 export function isAtLeast(user: UserInfo | null, role: Role): boolean {
   if (!user) return false;
   const rank: Record<Role, number> = { owner: 3, admin: 2, user: 1 };

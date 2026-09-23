@@ -4,6 +4,9 @@ import { useDealerProfile } from '../contexts/DealerProfileContext';
 import { creativeService, postService } from '../services/creative';
 import type { AIGenerationResponse } from '../services/creative';
 import { useToast } from '../components/ui/Toast';
+import { summarizePublishResult, publishErrorMessage } from '../utils/publishResult';
+import { useAuth } from '../contexts/AuthContext';
+import { can, PERMISSIONS } from '../lib/permissions';
 import {
   ArrowLeft, RefreshCw, Check, ImagePlus, X,
   Calendar, Wand2, ChevronDown, Layout, Sparkles, ZoomIn, Video, Send, Download
@@ -31,7 +34,9 @@ export default function CreatePost() {
   const [selectedCaptionIdx, setSelectedCaptionIdx] = useState<number | null>(null);
   const [previewTab, setPreviewTab] = useState<'facebook' | 'instagram' | 'gmb'>('facebook');
   const [zoomImageIdx, setZoomImageIdx] = useState<number | null>(null);
-  const [published, setPublished] = useState(false);
+  const [published, setPublished] = useState<false | 'published' | 'scheduled' | 'draft'>(false);
+  const { user } = useAuth();
+  const canPublish = can(user, PERMISSIONS.PUBLISH_POST);
   const [isPublishing, setIsPublishing] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleTime, setScheduleTime] = useState(() => {
@@ -511,11 +516,18 @@ export default function CreatePost() {
         creativeUrls: (cre?.platform_urls as Record<string, string>) ?? {},
         platforms: selectedPlatforms,
       });
-      await postService.publish(res.item.id, selectedPlatforms);
-      setPublished(true);
-      addToast({ type: 'success', title: 'Success', message: 'Branded post published successfully!' });
-    } catch {
-      addToast({ type: 'error', title: 'Publish failed', message: 'Could not publish.' });
+      const publishRes = await postService.publish(res.item.id, selectedPlatforms);
+      const outcome = summarizePublishResult(publishRes, selectedPlatforms);
+      if (!outcome.ok) {
+        addToast({ type: 'error', title: 'Publish failed', message: `${outcome.message ?? 'Could not publish.'} You can retry from Posts.` });
+        return;
+      }
+      setPublished('published');
+      addToast(outcome.message
+        ? { type: 'warning', title: 'Partly published', message: outcome.message }
+        : { type: 'success', title: 'Publishing', message: 'Your post is being published.' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Publish failed', message: publishErrorMessage(err, 'Could not publish.') });
     } finally {
       setIsPublishing(false);
     }
@@ -534,12 +546,42 @@ export default function CreatePost() {
         creativeUrls: (cre?.platform_urls as Record<string, string>) ?? {},
         platforms: selectedPlatforms,
       });
-      await postService.schedule(res.item.id, selectedPlatforms, new Date(scheduleTime).toISOString());
+      const scheduleRes = await postService.schedule(res.item.id, selectedPlatforms, new Date(scheduleTime).toISOString());
+      const outcome = summarizePublishResult(scheduleRes, selectedPlatforms);
+      if (!outcome.ok) {
+        addToast({ type: 'error', title: 'Schedule failed', message: outcome.message ?? 'Could not schedule.' });
+        return;
+      }
       setShowScheduleModal(false);
-      setPublished(true);
-      addToast({ type: 'success', title: 'Scheduled', message: 'Post scheduled successfully!' });
-    } catch {
-      addToast({ type: 'error', title: 'Schedule failed', message: 'Could not schedule.' });
+      setPublished('scheduled');
+      addToast(outcome.message
+        ? { type: 'warning', title: 'Scheduled with warnings', message: outcome.message }
+        : { type: 'success', title: 'Scheduled', message: 'Post scheduled successfully!' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Schedule failed', message: publishErrorMessage(err, 'Could not schedule.') });
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  // Saves a draft without publishing (no publish_post needed); someone who can publish sends it from Posts.
+  const handleSaveForApproval = async () => {
+    if (!variants) return;
+    setIsPublishing(true);
+    try {
+      const cap = selectedCaptionIdx !== null ? variants.captions[selectedCaptionIdx] : null;
+      const cre = selectedCreativeIdx !== null ? variants.creatives[selectedCreativeIdx] : null;
+      await postService.create({
+        promptText: prompt,
+        captionText: caption,
+        captionHashtags: cap?.hashtags ?? [],
+        creativeUrls: (cre?.platform_urls as Record<string, string>) ?? {},
+        platforms: selectedPlatforms,
+      });
+      setPublished('draft');
+      addToast({ type: 'success', title: 'Saved for approval', message: 'The post is in your drafts, ready to be published from Posts.' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not save post', message: err instanceof Error && err.message ? err.message : 'Please try again.' });
     } finally {
       setIsPublishing(false);
     }
@@ -568,8 +610,8 @@ export default function CreatePost() {
           <div className="w-16 h-16 bg-emerald-50 border border-emerald-150 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8 text-emerald-600 animate-bounce" />
           </div>
-          <h3 className="text-xl font-black text-slate-900">Post Published successfully!</h3>
-          <p className="text-slate-500 text-sm mt-2">Branded post queued to: {selectedPlatforms.join(', ')}</p>
+          <h3 className="text-xl font-black text-slate-900">{published === 'scheduled' ? 'Post scheduled!' : published === 'draft' ? 'Saved for approval' : 'Post sent for publishing!'}</h3>
+          <p className="text-slate-500 text-sm mt-2">{published === 'scheduled' ? 'Scheduled for' : published === 'draft' ? 'Draft for' : 'Queued to'}: {selectedPlatforms.join(', ')}</p>
           <div className="flex gap-3 mt-8 justify-center">
             <button
               onClick={() => {
@@ -1451,31 +1493,39 @@ export default function CreatePost() {
 
           {/* Section: Buttons at the bottom */}
           <div className="pt-4 border-t border-slate-100 space-y-3">
-            <button
-              onClick={handlePublishNow}
-              disabled={isPublishing || !variants || selectedPlatforms.length === 0}
-              className="w-full py-3.5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-500/10 active:scale-98 transition-all"
-            >
-              {isPublishing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Publish everywhere
-            </button>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowScheduleModal(true)}
-                disabled={!variants}
-                className="flex-1 py-3 border border-slate-250 text-slate-700 bg-white hover:bg-slate-50 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Calendar className="w-4 h-4 text-slate-400" />
-                Schedule
-              </button>
+            {canPublish ? (
               <button
                 onClick={handlePublishNow}
-                disabled={!variants}
+                disabled={isPublishing || !variants || selectedPlatforms.length === 0}
+                className="w-full py-3.5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-500/10 active:scale-98 transition-all"
+              >
+                {isPublishing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Publish everywhere
+              </button>
+            ) : (
+              <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 leading-relaxed">
+                You don't have permission to publish. Save the post for approval and a team admin can publish it from Posts.
+              </p>
+            )}
+
+            <div className="flex items-center gap-3">
+              {canPublish && (
+                <button
+                  onClick={() => setShowScheduleModal(true)}
+                  disabled={!variants}
+                  className="flex-1 py-3 border border-slate-250 text-slate-700 bg-white hover:bg-slate-50 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  Schedule
+                </button>
+              )}
+              <button
+                onClick={handleSaveForApproval}
+                disabled={isPublishing || !variants || selectedPlatforms.length === 0}
                 className="flex-1 py-3 border border-slate-250 text-slate-700 bg-white hover:bg-slate-50 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Check className="w-4 h-4 text-emerald-500" />
-                Approval
+                Save for approval
               </button>
             </div>
           </div>
@@ -1691,23 +1741,34 @@ export default function CreatePost() {
         brief={prompt}
         model={detectedModel?.model_name || 'Creta'}
         initialHeading={elaboratedBrief?.headline || ''}
-        onExport={(dataUrl: string) => {
+        onExport={async (dataUrl: string) => {
           if (selectedCreativeIdx === null) return;
           const idx = selectedCreativeIdx;
+          // Store a hosted URL, not the data: URL — platforms must be able to fetch the image,
+          // and a base64 payload is too large for post records.
+          let url: string;
+          try {
+            const blob = await (await fetch(dataUrl)).blob();
+            const file = new File([blob], `canvas-studio-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+            url = (await creativeService.uploadImage(file)).url;
+          } catch (err) {
+            addToast({ type: 'error', title: 'Could not save studio edit', message: err instanceof Error && err.message ? err.message : 'Image upload failed. Please try again.' });
+            return;
+          }
           setVariants(prev => {
             if (!prev) return null;
             const next = { ...prev };
             next.creatives = [...next.creatives];
             next.creatives[idx] = {
               ...next.creatives[idx]!,
-              thumbnail_url: dataUrl,
-              platform_urls: { facebook: dataUrl, instagram: dataUrl, gmb: dataUrl }
+              thumbnail_url: url,
+              platform_urls: { facebook: url, instagram: url, gmb: url }
             };
             return next;
           });
           setAiImageUrls(prev => {
             const next = [...prev];
-            next[idx] = dataUrl;
+            next[idx] = url;
             return next;
           });
           addToast({ type: 'success', title: 'Studio Saved', message: 'Manual adjustments applied to your creative!' });

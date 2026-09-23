@@ -6,13 +6,27 @@ export const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)
 export class ApiError extends Error {
   status: number;
   data?: unknown;
+  code?: string;
 
-  constructor(message: string, status: number, data?: unknown) {
+  constructor(message: string, status: number, data?: unknown, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.data = data;
+    this.code = code;
   }
+}
+
+// 403 { error: { code: 'PLAN_GATED' } } — the dealer's plan doesn't include this feature.
+export class PlanGatedError extends ApiError {
+  constructor(message: string, status: number, data?: unknown) {
+    super(message, status, data, 'PLAN_GATED');
+    this.name = 'PlanGatedError';
+  }
+}
+
+export function isPlanGated(err: unknown): err is PlanGatedError {
+  return err instanceof ApiError && err.code === 'PLAN_GATED';
 }
 
 interface RequestOptions extends RequestInit {
@@ -102,10 +116,15 @@ async function request<T>(
         : (data.error && typeof data.error === 'string'
           ? data.error
           : (data.error?.message || 'An error occurred'));
+      const errorCode = typeof data.error?.code === 'string' ? data.error.code : undefined;
+      if (errorCode === 'PLAN_GATED') {
+        throw new PlanGatedError(errorMessage, response.status, data);
+      }
       throw new ApiError(
         errorMessage,
         response.status,
-        data
+        data,
+        errorCode
       );
     }
 
