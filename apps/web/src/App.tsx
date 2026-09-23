@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Car, Plus, MessageSquare, Bell,
+  Car, Plus, MessageSquare,
   Calendar, BarChart2, Package, Zap, Settings, Link2,
   ChevronRight, Send, RefreshCw, Check, Sparkles,
   LayoutDashboard, LogOut, Menu, X, LayoutList,
@@ -30,6 +30,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ConnectProfilesPage from './pages/ConnectProfilesPage';
 import type { UserInfo } from './lib/permissions';
+import { isGlobalOwner } from './lib/permissions';
 
 // ─── Grouped Sidebar Config ──────────────────────────────────────────────────
 interface NavItem {
@@ -185,7 +186,7 @@ function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => 
 
       {/* Bottom section */}
       <div className="px-3 py-3 space-y-0.5">
-        {user?.role === 'owner' && (
+        {isGlobalOwner(user) && (
           <NavLink
             to="/admin"
             onClick={onClose}
@@ -288,10 +289,6 @@ function MobileTopBar({ onMenuOpen }: { onMenuOpen: () => void }) {
         <span className="font-bold text-slate-900 text-sm">CarDekho <span className="text-orange-500">Social AI</span></span>
       </div>
       <div className="flex-1" />
-      <button className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors">
-        <Bell className="w-5 h-5 text-slate-600" />
-        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full" />
-      </button>
     </header>
   );
 }
@@ -340,7 +337,9 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
 }
 
 function SuggestedPostCard({ data }: { data: DashboardData | null }) {
-  const festival = data?.upcomingFestivals?.[0];
+  const [suggestionIdx, setSuggestionIdx] = useState(0);
+  const festivals = data?.upcomingFestivals ?? [];
+  const festival = festivals.length ? festivals[suggestionIdx % festivals.length] : undefined;
   const festivalName = festival ? (festival.name_en || (festival as any).name || '') : '';
   const title = festival && festivalName ? `${festivalName} Special Offer` : 'Weekend Test Drive Special';
   const caption = festival && festivalName
@@ -400,9 +399,15 @@ function SuggestedPostCard({ data }: { data: DashboardData | null }) {
             <NavLink to={createUrl} className="text-xs font-semibold text-slate-700 hover:text-slate-900 px-3 py-2 rounded-lg border border-slate-200 hover:border-slate-350 bg-white hover:bg-slate-50 transition-colors">
               Edit First
             </NavLink>
-            <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-750 px-2 py-2 transition-colors">
-              <RefreshCw className="w-3 h-3" />
-            </button>
+            {festivals.length > 1 && (
+              <button
+                onClick={() => setSuggestionIdx((i) => i + 1)}
+                title="Show another suggestion"
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-750 px-2 py-2 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -597,9 +602,6 @@ function ConnectedPanel() {
                   <p className="text-[10px] text-slate-500">{meta.label} · {timeAgo}</p>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title="Refresh token">
-                    <RefreshCw className="w-3 h-3" />
-                  </button>
                   <button onClick={() => handleDelete(acc.id)} className="p-1 text-slate-400 hover:text-red-650 transition-colors" title="Disconnect">
                     <X className="w-3 h-3" />
                   </button>
@@ -736,6 +738,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Client-side guard only; the API enforces owner access on /v1/admin too.
+function RequireGlobalOwner({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!isGlobalOwner(user)) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 // Inner component that has access to AuthContext
 function AppRoutes() {
   const { loginWithToken } = useAuth();
@@ -766,7 +775,7 @@ function AppRoutes() {
       <Route path="/accounts" element={<RequireAuth><AppLayout><AccountsPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectProfilesPage /></AppLayout></RequireAuth>} />
       <Route path="/billing" element={<RequireAuth><AppLayout><BillingPage /></AppLayout></RequireAuth>} />
-      <Route path="/admin" element={<RequireAuth><AppLayout><AdminDashboard /></AppLayout></RequireAuth>} />
+      <Route path="/admin" element={<RequireAuth><RequireGlobalOwner><AppLayout><AdminDashboard /></AppLayout></RequireGlobalOwner></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

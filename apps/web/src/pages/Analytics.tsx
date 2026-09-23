@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   TrendingUp, 
   Download, 
@@ -30,6 +31,24 @@ import analyticsService, {
   type PostAnalyticsItem
 } from '../services/analytics';
 import { inboxService } from '../services/inbox';
+import { useToast } from '../components/ui/Toast';
+
+function SampleDataBadge({ label = 'Sample data' }: { label?: string }) {
+  return (
+    <span className="bg-amber-50 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1">
+      <Sparkles className="w-3 h-3" /> {label}
+    </span>
+  );
+}
+
+function SampleDataNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 flex items-start gap-2">
+      <Sparkles className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+      <p className="leading-relaxed">{children}</p>
+    </div>
+  );
+}
 
 // Helper to format large numbers (e.g. 100K or 1.2L)
 function formatNumber(n: number) {
@@ -50,6 +69,8 @@ export default function AnalyticsPage() {
   const [responses, setResponses] = useState<ResponseMetrics | null>(null);
   const [timeseries, setTimeseries] = useState<TimeseriesDataPoint[]>([]);
   const [isMockData, setIsMockData] = useState(false);
+  const [isMockPosts, setIsMockPosts] = useState(false);
+  const { addToast } = useToast();
 
   // Posts State
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -109,6 +130,7 @@ export default function AnalyticsPage() {
       });
       if (res.success) {
         setPosts(res.data);
+        setIsMockPosts(!!res.useMockData);
       }
     } catch (err) {
       console.error('Failed to fetch analytics posts:', err);
@@ -260,6 +282,7 @@ export default function AnalyticsPage() {
       }
     } catch (err) {
       console.error('Failed to generate AI reply suggestion:', err);
+      addToast({ type: 'error', title: 'Could not suggest a reply', message: err instanceof Error ? err.message : undefined });
     } finally {
       setSuggestingReply(prev => ({ ...prev, [commentId]: false }));
     }
@@ -269,6 +292,10 @@ export default function AnalyticsPage() {
   const handleSendReply = async (commentId: string) => {
     const text = replyInputs[commentId];
     if (!text?.trim()) return;
+    if (isMockPosts) {
+      addToast({ type: 'info', title: 'Sample data', message: 'These comments are examples, so replies are not sent anywhere.' });
+      return;
+    }
 
     setSubmittingReply(prev => ({ ...prev, [commentId]: true }));
     try {
@@ -289,6 +316,7 @@ export default function AnalyticsPage() {
       }
     } catch (err) {
       console.error('Failed to send reply:', err);
+      addToast({ type: 'error', title: 'Reply not sent', message: err instanceof Error ? err.message : undefined });
     } finally {
       setSubmittingReply(prev => ({ ...prev, [commentId]: false }));
     }
@@ -319,10 +347,8 @@ export default function AnalyticsPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Performance Analytics</h1>
-            {isMockData && (
-              <span className="bg-amber-50 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Demo View
-              </span>
+            {((activeTab === 'overview' && isMockData) || (activeTab === 'posts' && isMockPosts) || activeTab === 'reviews' || activeTab === 'boosts') && (
+              <SampleDataBadge />
             )}
           </div>
           <p className="text-sm text-stone-500 mt-0.5">
@@ -379,6 +405,9 @@ export default function AnalyticsPage() {
       {/* ────────────────── OVERVIEW TAB ────────────────── */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {isMockData && !loadingOverview && (
+            <SampleDataNotice>You don't have enough published posts yet, so these figures are illustrative sample data, not your results.</SampleDataNotice>
+          )}
           {loadingOverview ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-pulse">
               {[1, 2, 3, 4].map(i => (
@@ -759,6 +788,9 @@ export default function AnalyticsPage() {
       {/* ────────────────── POSTS PERFORMANCE TAB ────────────────── */}
       {activeTab === 'posts' && (
         <div className="space-y-4">
+          {isMockPosts && !loadingPosts && (
+            <SampleDataNotice>These posts are sample data shown until you have enough published posts. They are not your posts.</SampleDataNotice>
+          )}
           {/* Table Toolbar */}
           <div className="flex items-center justify-between gap-3 flex-wrap bg-stone-50 border border-stone-200/80 rounded-xl p-3.5">
             <div className="flex items-center gap-2 w-full sm:w-auto flex-1 min-w-[200px]">
@@ -904,6 +936,9 @@ export default function AnalyticsPage() {
       {/* ────────────────── REVIEWS & GMB TAB ────────────────── */}
       {activeTab === 'reviews' && (
         <div className="space-y-6">
+          <SampleDataNotice>
+            Preview only — Google Business Profile ratings, local SEO actions and reviews are not synced yet, so everything on this tab is sample data. Reply to real reviews from the <Link to="/inbox" className="font-semibold underline">Inbox</Link>.
+          </SampleDataNotice>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* GMB Rating Aggregates */}
             <div className="bg-white rounded-xl border border-stone-200/80 p-5 shadow-sm flex flex-col justify-between">
@@ -976,7 +1011,7 @@ export default function AnalyticsPage() {
           <div className="bg-white rounded-xl border border-stone-200/80 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
               <h3 className="font-bold text-stone-800">Recent Customer Reviews (GMB)</h3>
-              <Badge variant="default" className="text-xs">Pending AI reply checks</Badge>
+              <Badge variant="default" className="text-xs">Sample reviews</Badge>
             </div>
             
             <div className="divide-y divide-stone-150">
@@ -1017,53 +1052,7 @@ export default function AnalyticsPage() {
                         <p className="text-stone-700 leading-relaxed font-medium">{rev.replyText}</p>
                       </div>
                     ) : (
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="secondary" 
-                          onClick={() => {
-                            // simulate suggest AI reply
-                            setReplyInputs(prev => ({
-                              ...prev,
-                              [rev.id]: `Hi ${rev.author}, thank you for visiting our showroom! We are glad you enjoyed the Nexon EV test drive. Our team is always ready to guide our customers. Hope to see you again soon!`
-                            }));
-                          }} 
-                          className="h-8 py-1 px-3 text-xs flex items-center gap-1"
-                        >
-                          <Sparkles className="w-3 h-3 text-orange-600" /> Pre-fill AI Reply
-                        </Button>
-                      </div>
-                    )}
-
-                    {replyInputs[rev.id] && !rev.replied && (
-                      <div className="mt-3 space-y-2">
-                        <textarea
-                          value={replyInputs[rev.id]}
-                          onChange={(e) => setReplyInputs(prev => ({ ...prev, [rev.id]: e.target.value }))}
-                          className="w-full text-xs border rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-orange-600 bg-stone-50 font-medium"
-                          rows={3}
-                        />
-                        <div className="flex gap-2 justify-end">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => setReplyInputs(prev => ({ ...prev, [rev.id]: '' }))} 
-                            className="h-8 py-1 px-3 text-xs"
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={() => {
-                              rev.replied = true;
-                              rev.replyText = replyInputs[rev.id];
-                              setReplyInputs(prev => ({ ...prev, [rev.id]: '' }));
-                              setSuccessToast('Google Review response posted!');
-                              setTimeout(() => setSuccessToast(null), 3000);
-                            }} 
-                            className="h-8 py-1 px-3 text-xs"
-                          >
-                            Publish Response
-                          </Button>
-                        </div>
-                      </div>
+                      <p className="text-xs text-stone-400 italic">Awaiting a response (sample review)</p>
                     )}
                   </div>
                 </div>
@@ -1076,12 +1065,15 @@ export default function AnalyticsPage() {
       {/* ────────────────── BOOST CAMPAIGNS TAB ────────────────── */}
       {activeTab === 'boosts' && (
         <div className="space-y-6">
+          <SampleDataNotice>
+            Preview only — ad account sync is not available yet, so the account and campaigns below are sample data. See your real campaigns on the <Link to="/boost" className="font-semibold underline">Boost</Link> page.
+          </SampleDataNotice>
           {/* Ad accounts status panel */}
           <div className="bg-gradient-to-r from-stone-900 to-stone-850 rounded-xl p-5 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-xs text-orange-500 font-bold uppercase tracking-wider">Connected Facebook Ad Account</p>
-              <h3 className="text-xl font-bold">CarDekho Showroom Plaza (ad_acc_9014382)</h3>
-              <p className="text-xs text-stone-400">Sync status: Active · Last checked 6 hours ago</p>
+              <p className="text-xs text-orange-500 font-bold uppercase tracking-wider">Sample Ad Account</p>
+              <h3 className="text-xl font-bold">Example Showroom (sample)</h3>
+              <p className="text-xs text-stone-400">Not connected · illustrative figures</p>
             </div>
             
             <div className="flex gap-3">
@@ -1099,7 +1091,7 @@ export default function AnalyticsPage() {
           {/* Boost campaigns table list */}
           <div className="bg-white rounded-xl border border-stone-200/80 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-stone-100">
-              <h3 className="font-bold text-stone-800">Boost Campaigns Summary</h3>
+              <h3 className="font-bold text-stone-800">Boost Campaigns Summary <span className="text-xs font-semibold text-amber-700">(sample)</span></h3>
             </div>
             
             <div className="overflow-x-auto">

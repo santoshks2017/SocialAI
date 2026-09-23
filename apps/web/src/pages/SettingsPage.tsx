@@ -20,8 +20,11 @@ import { CONFIGURABLE_PERMISSIONS, ROLE_LABELS, isAtLeast } from '../lib/permiss
 import type { Permission } from '../lib/permissions';
 import type { TeamMember } from '../services/users';
 import api from '../services/api';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { creativeService } from '../services/creative';
+import { billingService, type BillingStatus } from '../services/billing';
+
+const PLAN_LABELS: Record<string, string> = { starter: 'Starter', growth: 'Growth', enterprise: 'Enterprise' };
 
 const LANGUAGES = [
   { code: 'en', label: 'English', script: 'Latin' },
@@ -81,13 +84,16 @@ export default function SettingsPage() {
     }
   }, [searchParams, navigate]);
 
+  // Empty until GET /dealer/profile answers; Save stays disabled so blanks never overwrite the dealer.
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [selectedLangs, setSelectedLangs] = useState<string[]>(['en', 'hi']);
-  const [selectedRegion, setSelectedRegion] = useState('South India');
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(['Hyundai', 'Kia']);
-  const [dealerName, setDealerName] = useState('Cardeko Motors Pvt. Ltd.');
-  const [city, setCity] = useState('Bangalore');
-  const [phone, setPhone] = useState('+91 98765 43210');
-  const [whatsapp, setWhatsapp] = useState('+91 98765 43210');
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [dealerName, setDealerName] = useState('');
+  const [city, setCity] = useState('');
+  const [phone, setPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#1877F2');
   const [defaultRadius, setDefaultRadius] = useState(25);
   const [notifications, setNotifications] = useState<Set<string>>(() => {
@@ -396,8 +402,9 @@ export default function SettingsPage() {
       showroom_type?: string[];
     } }>('/dealer/profile').then((res) => {
       const p = res.profile;
-      setDealerName(p.name);
-      setCity(p.city);
+      if (!p) throw new Error('Dealer profile not found');
+      setDealerName(p.name ?? '');
+      setCity(p.city ?? '');
       if (p.contact_phone) setPhone(p.contact_phone);
       if (p.whatsapp_number) setWhatsapp(p.whatsapp_number);
       if (p.primary_color) setPrimaryColor(p.primary_color);
@@ -408,8 +415,14 @@ export default function SettingsPage() {
       if (p.font) setFont(p.font);
       if (p.address) setAddress(p.address);
       if (p.showroom_type?.length) setShowroomType(p.showroom_type[0]);
-    }).catch(console.error);
-  }, []);
+      setProfileLoaded(true);
+    }).catch(() => {
+      addToast({ type: 'error', title: 'Could not load your profile', message: 'Refresh the page before saving changes.' });
+    });
+    billingService.getStatus()
+      .then((res) => { if (res.success) setBilling(res); })
+      .catch(() => setBilling(null));
+  }, [addToast]);
 
   useEffect(() => {
     if (activeTab === 'team' && isAtLeast(user, 'admin')) {
@@ -536,6 +549,7 @@ export default function SettingsPage() {
   };
 
   const handleSave = () => {
+    if (!profileLoaded) return;
     api.put('/dealer/profile', {
       name: dealerName,
       city,
@@ -552,14 +566,14 @@ export default function SettingsPage() {
     })
       .then(() => {
         addToast({ type: 'success', title: 'Settings Saved', message: 'Your dealership profile has been updated successfully.' });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
       })
       .catch((err) => {
         addToast({ type: 'error', title: 'Error Saving Settings', message: 'Failed to update settings. Please try again.' });
         console.error(err);
       });
     localStorage.setItem('sg_notifications', JSON.stringify([...notifications]));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
   };
 
   const tabs: { id: Tab; label: string }[] = [
@@ -603,7 +617,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Dealership Name</label>
-                <input value={dealerName} onChange={(e) => setDealerName(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+                <input value={dealerName} onChange={(e) => setDealerName(e.target.value)} placeholder="e.g. Sharma Motors Pvt. Ltd." className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Showroom Type</label>
@@ -619,15 +633,15 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">City</label>
-                <input value={city} onChange={(e) => setCity(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+                <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Pune" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Contact Phone</label>
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">WhatsApp Number</label>
-                <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+                <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+91 XXXXX XXXXX" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
               </div>
             </div>
 
@@ -757,7 +771,7 @@ export default function SettingsPage() {
                 <Check className="w-4 h-4" /> Saved successfully
               </div>
             )}
-            <Button onClick={handleSave} className="text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 cursor-pointer">Save Changes</Button>
+            <Button onClick={handleSave} disabled={!profileLoaded} className="text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 cursor-pointer">Save Changes</Button>
           </div>
         </div>
       )}
@@ -797,6 +811,7 @@ export default function SettingsPage() {
                 onChange={(e) => setSelectedRegion(e.target.value)}
                 className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
               >
+                <option value="" className="bg-white">Select a region</option>
                 {REGIONS.map((r) => <option key={r} className="bg-white">{r}</option>)}
               </select>
             </div>
@@ -845,15 +860,32 @@ export default function SettingsPage() {
             <div>
               <h3 className="font-semibold text-slate-800 text-sm mb-2">Subscription Plan</h3>
               <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/[0.02] border border-orange-200/80 rounded-xl p-5 text-slate-805 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-base text-slate-800">Growth Plan</p>
-                    <p className="text-orange-900/80 text-xs mt-0.5">Unlimited posts · 3 active platforms · Boost campaigns</p>
-                  </div>
-                  <span className="bg-orange-100 border border-orange-200 text-orange-700 text-xs font-bold px-2.5 py-1 rounded-full">Active</span>
-                </div>
-                <p className="text-slate-500 text-xs mt-3">Renews on 15 October 2026</p>
-                <Button className="mt-3.5 bg-orange-500 hover:bg-orange-600 text-white border-none text-xs cursor-pointer shadow-sm shadow-orange-500/20">Upgrade to Enterprise</Button>
+                {billing ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-base text-slate-800">{PLAN_LABELS[billing.plan] ?? billing.plan} Plan</p>
+                        <p className="text-orange-900/80 text-xs mt-0.5">
+                          {billing.limits.postsLimit >= 999999 ? 'Unlimited posts' : `${billing.limits.postsUsed} of ${billing.limits.postsLimit} posts used this month`}
+                          {' · '}{billing.limits.platformsConnected} of {billing.limits.platformsLimit} platforms connected
+                        </p>
+                      </div>
+                      {billing.subscription?.status && (
+                        <span className="bg-orange-100 border border-orange-200 text-orange-700 text-xs font-bold px-2.5 py-1 rounded-full capitalize">{billing.subscription.status}</span>
+                      )}
+                    </div>
+                    {(billing.subscription?.currentPeriodEnd ?? billing.expiresAt) && (
+                      <p className="text-slate-500 text-xs mt-3">
+                        Renews on {new Date((billing.subscription?.currentPeriodEnd ?? billing.expiresAt)!).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-600">View your current plan, usage and upgrade options on the Billing page.</p>
+                )}
+                <Link to="/billing" className="inline-flex items-center mt-3.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium px-4 py-2 rounded-md shadow-sm shadow-orange-500/20 transition-colors">
+                  Manage plan
+                </Link>
               </div>
             </div>
           </div>
@@ -864,7 +896,7 @@ export default function SettingsPage() {
                 <Check className="w-4 h-4" /> Saved
               </div>
             )}
-            <Button onClick={handleSave} className="text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 cursor-pointer">Save Preferences</Button>
+            <Button onClick={handleSave} disabled={!profileLoaded} className="text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 cursor-pointer">Save Preferences</Button>
           </div>
         </div>
       )}

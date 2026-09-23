@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/ui/Toast';
-import { useAuth } from '../contexts/AuthContext';
 
 // ─── Brand SVG Icons ─────────────────────────────────────────────────────────
 
@@ -95,8 +94,12 @@ const PLATFORMS: PlatformDefinition[] = [
   },
 ];
 
-const SUPABASE_FUNCTIONS_BASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)
-  ?? 'https://wqbambewzapjsoabmlms.supabase.co';
+const FRIENDLY_OAUTH_ERRORS: Record<string, string> = {
+  server_config: 'OAuth is not configured on the server. Please ask your admin to set up API keys.',
+  token_exchange_failed: 'Failed to exchange tokens with the platform. Please try again.',
+  no_code: 'Authorization was cancelled.',
+  access_denied: 'You must grant all required permissions to connect your account.',
+};
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
@@ -105,26 +108,9 @@ export default function AccountsPage() {
   const [connecting, setConnecting] = useState<string | null>(null);
   const [useSandbox, setUseSandbox] = useState(false);
   const { addToast } = useToast();
-  const { user } = useAuth();
-  const dealerId = user?.dealer_id;
 
   const popupRef = useRef<Window | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // States for Page Selector Modal (Facebook Multi-page accounts)
-  const [pagesForSelection, setPagesForSelection] = useState<Array<{ id: string; name: string; access_token: string }>>([]);
-  const [selectedPage, setSelectedPage] = useState<{ id: string; name: string; access_token: string } | null>(null);
-  const [isConnectingPage, setIsConnectingPage] = useState(false);
-
-  // States for Instagram auto-discovery prompt
-  const [discoveredInstagram, setDiscoveredInstagram] = useState<{
-    id: string;
-    username: string;
-    facebookPageId: string;
-    facebookPageName: string;
-    accessToken: string;
-  } | null>(null);
-  const [isConnectingInstagram, setIsConnectingInstagram] = useState(false);
 
   // ─── Fetch connected accounts ───────────────────────────────────────────────
   const fetchAccounts = useCallback(async () => {
@@ -144,62 +130,31 @@ export default function AccountsPage() {
   }, [fetchAccounts]);
 
   // ─── Listen for OAuth callback messages from popup ──────────────────────────
+  // Only our own /oauth/callback page (same origin) may report results.
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Support messages from both current window origin and Supabase hosted function origin
-      if (event.origin !== window.location.origin && !event.origin.includes('supabase.co')) return;
+      if (event.origin !== window.location.origin) return;
 
-      const data = event.data;
-      if (!data) return;
+      const data = event.data as { type?: string; platform?: string; pageName?: string; error?: string } | null;
+      if (!data || (data.type !== 'oauth_success' && data.type !== 'oauth_error')) return;
 
-      // Handle legacy or direct format
-      const status = data.status || (data.type === 'oauth_success' ? 'success' : data.type === 'oauth_error' ? 'error' : null);
-      
-      if (status === 'success') {
-        const platform = data.platform as string;
-        const pageName = data.pageName as string | undefined;
-
+      if (data.type === 'oauth_success') {
         addToast({
           type: 'success',
           title: 'Account Connected!',
-          message: pageName
-            ? `Successfully connected ${pageName}`
-            : `Your ${platform} account has been linked successfully.`,
+          message: data.pageName
+            ? `Successfully connected ${data.pageName}`
+            : `Your ${data.platform ?? ''} account has been linked successfully.`,
         });
-
         setConnecting(null);
         fetchAccounts();
-
-        // Check if there's a discovered Instagram account linked
-        if (data.instagram_account) {
-          setDiscoveredInstagram({
-            id: data.instagram_account.id,
-            username: data.instagram_account.username,
-            facebookPageId: data.pageId || '',
-            facebookPageName: pageName || '',
-            accessToken: data.accessToken || data.access_token || '',
-          });
-        }
-      } else if (status === 'page_select') {
-        setPagesForSelection(data.pages || []);
-        setConnecting(null);
-      } else if (status === 'error') {
-        const errorMsg = data.error || data.message as string;
-        const platform = data.platform as string;
-
-        const friendlyMessages: Record<string, string> = {
-          server_config: 'OAuth is not configured on the server. Please ask your admin to set up API keys.',
-          token_exchange_failed: 'Failed to exchange tokens with the platform. Please try again.',
-          no_code: 'Authorization was cancelled.',
-          access_denied: 'You must grant all required permissions to connect your account.',
-        };
-
+      } else {
+        const errorMsg = data.error ?? '';
         addToast({
           type: 'error',
           title: 'Connection Failed',
-          message: friendlyMessages[errorMsg] ?? `Could not connect ${platform || 'platform'}: ${errorMsg}`,
+          message: FRIENDLY_OAUTH_ERRORS[errorMsg] ?? `Could not connect ${data.platform || 'platform'}${errorMsg ? `: ${errorMsg}` : ''}`,
         });
-
         setConnecting(null);
       }
     };
@@ -224,11 +179,12 @@ export default function AccountsPage() {
       fetchAccounts();
       window.history.replaceState({}, '', '/accounts');
     }
-    if (params.get('error')) {
+    const urlError = params.get('error');
+    if (urlError) {
       addToast({
         type: 'error',
         title: 'Connection Failed',
-        message: params.get('error') || 'OAuth failed. Please try again.',
+        message: FRIENDLY_OAUTH_ERRORS[urlError] ?? urlError,
       });
       window.history.replaceState({}, '', '/accounts');
     }
@@ -247,38 +203,12 @@ export default function AccountsPage() {
     setConnecting(platform.id);
 
     try {
-      let oauthUrl = '';
-
-      if (platform.id === 'facebook' || platform.id === 'instagram') {
-        // Try local Fastify endpoint first to use the newly configured Meta credentials from .env
-        try {
-          const queryParams = useSandbox && import.meta.env.DEV ? '?mock=true' : '';
-          const res = await api.get<{ success: boolean; redirect_url: string }>(
-            `/platforms/connect/${platform.connectPlatform}${queryParams}`
-          );
-          oauthUrl = res.redirect_url;
-        } catch {
-          // Fallback to Supabase Edge Function if local API is unreachable or fails
-          const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/functions/v1/social/facebook/auth-url`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ dealer_id: dealerId }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to generate Facebook authorization URL');
-          }
-
-          const data = await response.json();
-          oauthUrl = data.oauth_url;
-        }
-      } else {
-        // Google uses the standard Fastify endpoint
-        const res = await api.get<{ success: boolean; redirect_url: string }>(
-          `/platforms/connect/${platform.connectPlatform}`
-        );
-        oauthUrl = res.redirect_url;
-      }
+      // Dev-only sandbox skips the real Meta dialog (the API ignores ?mock in production).
+      const queryParams = useSandbox && import.meta.env.DEV && platform.id !== 'google' ? '?mock=true' : '';
+      const res = await api.get<{ success: boolean; redirect_url: string }>(
+        `/platforms/connect/${platform.connectPlatform}${queryParams}`
+      );
+      const oauthUrl = res.redirect_url;
 
       // Open OAuth in a popup window
       const popup = window.open(
@@ -320,105 +250,15 @@ export default function AccountsPage() {
           });
         }
       }, 1000);
-    } catch {
+    } catch (err) {
       addToast({
         type: 'error',
         title: 'Connection Error',
-        message: `Could not start ${platform.label} connection. Please check your network and try again.`,
+        message: err instanceof Error && err.message && err.message !== 'Network error'
+          ? err.message
+          : `Could not start ${platform.label} connection. Please check your network and try again.`,
       });
       setConnecting(null);
-    }
-  };
-
-  // ─── Page Selection Modal Action ──────────────────────────────────────────
-  const handleSelectPageSubmit = async () => {
-    if (!selectedPage || !dealerId) return;
-    setIsConnectingPage(true);
-    try {
-      const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/functions/v1/social/facebook/select-page`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dealer_id: dealerId,
-          platform: 'facebook',
-          page_id: selectedPage.id,
-          page_name: selectedPage.name,
-          page_access_token: selectedPage.access_token,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to connect selected page');
-      }
-
-      const resData = await response.json();
-      addToast({
-        type: 'success',
-        title: 'Facebook Page Connected!',
-        message: `Successfully connected ${selectedPage.name}`,
-      });
-
-      setPagesForSelection([]);
-      setSelectedPage(null);
-      fetchAccounts();
-
-      // Check if linked Instagram Business account is found (P0)
-      if (resData.instagram_account) {
-        setDiscoveredInstagram({
-          id: resData.instagram_account.id,
-          username: resData.instagram_account.username,
-          facebookPageId: selectedPage.id,
-          facebookPageName: selectedPage.name,
-          accessToken: selectedPage.access_token,
-        });
-      }
-    } catch {
-      addToast({
-        type: 'error',
-        title: 'Connection Failed',
-        message: 'Could not connect the selected Facebook Page.',
-      });
-    } finally {
-      setIsConnectingPage(false);
-    }
-  };
-
-  // ─── Instagram Auto-Discovery Connect Action ─────────────────────────────
-  const handleConnectInstagramConfirm = async () => {
-    if (!discoveredInstagram || !dealerId) return;
-    setIsConnectingInstagram(true);
-    try {
-      const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/functions/v1/social/facebook/select-page`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dealer_id: dealerId,
-          platform: 'instagram',
-          page_id: discoveredInstagram.id,
-          page_name: `@${discoveredInstagram.username}`,
-          page_access_token: discoveredInstagram.accessToken,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to connect Instagram Business');
-      }
-
-      addToast({
-        type: 'success',
-        title: 'Instagram Connected!',
-        message: `Successfully connected Instagram Business profile @${discoveredInstagram.username}`,
-      });
-      setDiscoveredInstagram(null);
-      fetchAccounts();
-    } catch {
-      addToast({
-        type: 'error',
-        title: 'Connection Failed',
-        message: 'Could not connect Instagram Business account.',
-      });
-    } finally {
-      setIsConnectingInstagram(false);
     }
   };
 
@@ -702,113 +542,6 @@ export default function AccountsPage() {
         <Shield className="w-3.5 h-3.5" />
         <span>Secure OAuth 2.0 — we never see or store your password</span>
       </div>
-
-      {/* Page Selector Modal */}
-      {pagesForSelection.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Select your dealership's Facebook Page</h3>
-              <p className="text-xs text-slate-500 mt-1">Select the Page you want to auto-publish posts to.</p>
-            </div>
-
-            <div className="max-h-60 overflow-y-auto space-y-2 py-1 pr-1">
-              {pagesForSelection.map((page) => {
-                const isSelected = selectedPage?.id === page.id;
-                return (
-                  <button
-                    key={page.id}
-                    onClick={() => setSelectedPage(page)}
-                    className={`w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
-                      isSelected
-                        ? 'border-orange-500 bg-orange-50/50 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-350 hover:bg-slate-50/50'
-                    }`}
-                  >
-                    <div>
-                      <p className={`text-sm font-bold ${isSelected ? 'text-orange-700' : 'text-slate-800'}`}>
-                        {page.name}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">ID: {page.id}</p>
-                    </div>
-                    {isSelected && (
-                      <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center shadow-md">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => {
-                  setPagesForSelection([]);
-                  setSelectedPage(null);
-                }}
-                className="flex-1 py-2.5 text-sm font-semibold text-slate-750 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSelectPageSubmit}
-                disabled={!selectedPage || isConnectingPage}
-                className="flex-1 py-2.5 text-sm font-bold bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-xl transition-colors shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isConnectingPage ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Connecting…
-                  </>
-                ) : (
-                  'Connect Page'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Instagram Discovery Modal */}
-      {discoveredInstagram && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4 text-center">
-            <div className="w-12 h-12 bg-pink-50 border border-pink-100 rounded-full flex items-center justify-center mx-auto text-pink-500">
-              <InstagramIcon className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Instagram Profile Found</h3>
-              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                We found the Instagram Business account <strong className="text-pink-600 font-bold">@{discoveredInstagram.username}</strong> linked to your Facebook Page. Connect it too?
-              </p>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setDiscoveredInstagram(null)}
-                className="flex-1 py-2.5 text-sm font-semibold text-slate-550 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                Skip
-              </button>
-              <button
-                onClick={handleConnectInstagramConfirm}
-                disabled={isConnectingInstagram}
-                className="flex-1 py-2.5 text-sm font-bold bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white rounded-xl transition-colors shadow-md shadow-pink-500/20 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isConnectingInstagram ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Connecting…
-                  </>
-                ) : (
-                  'Connect Instagram'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

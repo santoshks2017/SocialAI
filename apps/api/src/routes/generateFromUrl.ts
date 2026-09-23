@@ -5,10 +5,11 @@ import { recommendTemplate } from '@cardeko/template-engine';
 import { renderCreative } from '@cardeko/render-engine';
 import { generateCreativeContent } from '../services/aiService.js';
 import { prisma } from '../db/prisma.js';
+import { assertSafeFetchUrl, UnsafeUrlError } from '../lib/safeUrl.js';
+import { loadImageFromUrl } from '../lib/uploadPaths.js';
 
 interface GenerateFromUrlRequest {
   url?: string;
-  dealerId?: string;
   car?: string;
   offer?: string;
   festival?: string;
@@ -16,17 +17,29 @@ interface GenerateFromUrlRequest {
 }
 
 export default async function generateFromUrlRoutes(fastify: FastifyInstance) {
-  fastify.post('/generate-from-url', async (request, reply) => {
+  fastify.post('/generate-from-url', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const body = request.body as GenerateFromUrlRequest | undefined;
 
     // Validate inputs
-    if (!body || !body.url || !body.dealerId || !body.car || !body.offer || !body.festival || !body.city) {
+    if (!body || !body.url || !body.car || !body.offer || !body.festival || !body.city) {
       return reply.code(400).send({ 
-        error: 'Invalid request body. Expected { url, dealerId, car, offer, festival, city }' 
+        error: 'Invalid request body. Expected { url, car, offer, festival, city }' 
       });
     }
 
-    const { url, dealerId, car, offer, festival, city } = body;
+    const dealerId = request.user.dealer_id;
+    if (!dealerId) {
+      return reply.code(403).send({ error: 'Only dealer accounts can generate creatives' });
+    }
+
+    const { url, car, offer, festival, city } = body;
+
+    try {
+      await assertSafeFetchUrl(url);
+    } catch (err) {
+      if (err instanceof UnsafeUrlError) return reply.code(400).send({ error: err.message });
+      throw err;
+    }
 
     // Default stock image fallback
     const DEFAULT_STOCK_IMAGE = 'https://dummyimage.com/900x600/ccc/000.png&text=Stock+Car';
@@ -95,13 +108,23 @@ export default async function generateFromUrlRoutes(fastify: FastifyInstance) {
     const template = recommendTemplate({ festival });
 
     // STEP 6: Render creative
+    // Scraped image URLs come from an arbitrary page, so they are fetched through
+    // the SSRF guard and handed to the renderer as bytes.
+    let imageDataUri = '';
+    try {
+      const image = await loadImageFromUrl(selectedImage, { timeoutMs: 15000 });
+      imageDataUri = `data:${image.contentType ?? 'image/png'};base64,${image.buffer.toString('base64')}`;
+    } catch (err) {
+      fastify.log.warn(`[GenerateFromUrl] Could not load image ${selectedImage}: ${String(err)}`);
+    }
+
     let imageBase64 = '';
     try {
       fastify.log.info(`[GenerateFromUrl] Rendering creative`);
       const imageBuffer = await renderCreative({
         title: content.headline,
         offer: offer, // Using raw offer string per instructions
-        imageUrl: selectedImage
+        imageUrl: imageDataUri
       });
 
       // STEP 7: Convert to base64

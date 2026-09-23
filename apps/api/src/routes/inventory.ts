@@ -166,6 +166,59 @@ export default async function inventoryRoutes(fastify: FastifyInstance) {
     },
   )
 
+  fastify.get(
+    "/:id",
+    {
+      preHandler: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string
+      const { id } = request.params as { id: string }
+      const item = await prisma.inventoryItem.findFirst({
+        where: { id, dealer_id },
+      })
+      if (!item) {
+        return reply
+          .code(404)
+          .send({
+            error: { code: "NOT_FOUND", message: "Inventory item not found" },
+          })
+      }
+      return { success: true, item }
+    },
+  )
+
+  // POST /v1/inventory/bulk-sold — mark several of the dealer's items as sold
+  fastify.post(
+    "/bulk-sold",
+    {
+      preHandler: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id as string
+      const { ids } = (request.body ?? {}) as { ids?: unknown }
+      const validIds = Array.isArray(ids)
+        ? ids.filter((id): id is string => typeof id === "string" && id !== "")
+        : []
+      if (validIds.length === 0 || validIds.length !== (ids as unknown[]).length) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "ids must be a non-empty array of item ids" },
+        })
+      }
+      if (validIds.length > 500) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "At most 500 ids per request" },
+        })
+      }
+
+      const updated = await prisma.inventoryItem.updateMany({
+        where: { id: { in: validIds }, dealer_id },
+        data: { status: "sold" },
+      })
+      return { success: true, count: updated.count }
+    },
+  )
+
   fastify.post(
     "/",
     {

@@ -47,4 +47,6 @@ export { Tag, LeadTag, ComplaintTag, GeneralTag, SpamTag, TagGroup } from './Tag
 export type { TagProps, TagGroupProps } from './Tag';
 
 export { PlatformIcon, PlatformIconGroup } from './PlatformIcon';
+
+export { PlanGatedNotice } from './PlanGatedNotice';
 export type { PlatformIconProps } from './PlatformIcon';

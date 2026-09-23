@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Search, Send, AlertTriangle, Check, Star, Sparkles, TrendingUp, MessageSquare, ThumbsUp,
+  Search, Send, AlertTriangle, Check, Star, Sparkles, TrendingUp, MessageSquare,
   ChevronDown, ChevronUp, RefreshCw, CheckCheck, Mail, Sliders, X, Trash2, Edit3, Loader2, ArrowRight
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
+import { PlanGatedNotice } from '../components/ui/PlanGatedNotice';
 import { inboxService, leadService } from '../services/inbox';
+import { isPlanGated } from '../services/api';
 import type { AutoReplyRule, AutoReplyTemplate } from '../services/inbox';
 
 type Tag = 'lead' | 'complaint' | 'general' | 'spam';
@@ -61,6 +63,7 @@ function ReviewCard({
   onCreateLead,
   onGenerateReply,
   onGeneratePostDraft,
+  onMarkNotSpam,
   sent,
   leadCreated,
   generatingReply,
@@ -69,10 +72,11 @@ function ReviewCard({
   msg: Message;
   expanded: boolean;
   onToggle: () => void;
-  onSend: (id: string, text: string) => void;
+  onSend: (id: string, text: string) => Promise<void>;
   onCreateLead: (id: string) => void;
   onGenerateReply: (id: string, tone?: string) => void;
   onGeneratePostDraft: (id: string) => void;
+  onMarkNotSpam: (id: string) => void;
   sent: boolean;
   leadCreated: boolean;
   generatingReply: boolean;
@@ -80,6 +84,7 @@ function ReviewCard({
 }) {
   const [editingReply, setEditingReply] = useState(false);
   const [replyText, setReplyText] = useState(msg.suggestedReply);
+  const [sending, setSending] = useState(false);
   const ps = PLATFORM_STYLES[msg.platform];
 
   // Sync suggestion text when msg suggestedReply updates
@@ -241,14 +246,19 @@ function ReviewCard({
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex gap-2">
               <button
-                onClick={() => onSend(msg.id, replyText)}
-                className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition-colors ${
+                onClick={async () => {
+                  setSending(true);
+                  try { await onSend(msg.id, replyText); } finally { setSending(false); }
+                }}
+                disabled={sending || !replyText.trim()}
+                className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition-colors disabled:opacity-50 ${
                   msg.sentiment === 'negative'
                     ? 'bg-red-600 hover:bg-red-700 text-white'
                     : 'bg-teal-600 hover:bg-teal-700 text-white'
                 }`}
               >
-                <Check className="w-3.5 h-3.5" /> Approve &amp; Send
+                {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                {sending ? 'Sending…' : <>Approve &amp; Send</>}
               </button>
               <button
                 onClick={() => setEditingReply(true)}
@@ -283,7 +293,7 @@ function ReviewCard({
         <div className="mx-5 mb-5 text-center">
           <p className="text-sm text-stone-400 mb-2">Spam messages are hidden from responses.</p>
           <button
-            onClick={() => {/* mark not spam */}}
+            onClick={() => onMarkNotSpam(msg.id)}
             className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-3 py-1.5 transition-colors"
           >
             Mark as Not Spam
@@ -305,6 +315,7 @@ export default function InboxPage() {
   const [generatingReplyIds, setGeneratingReplyIds] = useState<Set<string>>(new Set());
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [seedingEmails, setSeedingEmails] = useState(false);
+  const [planGated, setPlanGated] = useState<string | null>(null);
   const { addToast } = useToast();
 
   // Settings & Configuration states
@@ -353,8 +364,14 @@ export default function InboxPage() {
         emailSubject: item.emailSubject,
       }));
       setMessages(mapped);
-    }).catch(() => {});
-  }, []);
+    }).catch((err) => {
+      if (isPlanGated(err)) {
+        setPlanGated(err.message);
+        return;
+      }
+      addToast({ type: 'error', title: 'Could not load inbox', message: err instanceof Error && err.message ? err.message : 'Please try again.' });
+    });
+  }, [addToast]);
 
   useEffect(() => {
     fetchMessages();
@@ -394,9 +411,18 @@ export default function InboxPage() {
     });
   };
 
-  const handleSend = (id: string, text: string) => {
-    inboxService.sendReply(id, text).catch(console.error);
-    setSentIds((prev) => new Set(prev).add(id));
+  const handleSend = async (id: string, text: string) => {
+    try {
+      const res = await inboxService.sendReply(id, text);
+      if (res.delivered === false) {
+        addToast({ type: 'warning', title: 'Reply saved, not delivered', message: 'Check that this platform is connected in Accounts, then try again.' });
+        return;
+      }
+      setSentIds((prev) => new Set(prev).add(id));
+      addToast({ type: 'success', title: 'Reply sent' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Reply not sent', message: err instanceof Error && err.message ? err.message : 'Please try again.' });
+    }
   };
 
   const handleGenerateReply = async (id: string, tone?: string) => {
@@ -422,6 +448,15 @@ export default function InboxPage() {
       addToast({ type: 'error', title: 'Failed', message: 'Please try again.' });
     } finally {
       setMarkingAllRead(false);
+    }
+  };
+
+  const handleMarkNotSpam = async (id: string) => {
+    try {
+      await inboxService.updateTag(id, 'general');
+      setMessages((prev) => prev.map((m) => m.id === id ? { ...m, tag: 'general' } : m));
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not update message', message: err instanceof Error && err.message ? err.message : 'Please try again.' });
     }
   };
 
@@ -611,6 +646,10 @@ export default function InboxPage() {
   const platformCounts: Record<string, number> = { google: 0, facebook: 0, instagram: 0, email: 0 };
   messages.forEach((m) => { platformCounts[m.platform] = (platformCounts[m.platform] ?? 0) + 1; });
 
+  if (planGated) {
+    return <PlanGatedNotice feature="Inbox" message={planGated} />;
+  }
+
   return (
     <div className="max-w-[1200px] mx-auto pb-12">
       {/* Top Bar with Auto Mode Switch */}
@@ -743,7 +782,7 @@ export default function InboxPage() {
             <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center shadow-sm">
               <MessageSquare className="w-10 h-10 text-stone-300 mx-auto mb-3" />
               <p className="text-stone-500 font-medium">No messages yet</p>
-              <p className="text-stone-400 text-sm mt-1 max-w-sm mx-auto">Connect your Facebook, Instagram, Google Business Profile, or seed mock emails to test the rules engine.</p>
+              <p className="text-stone-400 text-sm mt-1 max-w-sm mx-auto">Connect your Facebook, Instagram, or Google Business Profile on the Accounts page to start receiving messages here.</p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center shadow-sm">
@@ -763,6 +802,7 @@ export default function InboxPage() {
                   onCreateLead={handleCreateLead}
                   onGenerateReply={handleGenerateReply}
                   onGeneratePostDraft={handleGeneratePostDraft}
+                  onMarkNotSpam={handleMarkNotSpam}
                   sent={sentIds.has(msg.id)}
                   leadCreated={leadCreatedIds.has(msg.id)}
                   generatingReply={generatingReplyIds.has(msg.id)}
@@ -860,10 +900,10 @@ export default function InboxPage() {
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
-            <h3 className="font-bold text-stone-900 mb-3.5">Quick Actions</h3>
-            <div className="space-y-2">
+          {/* Dev-only: inject mock emails to exercise the rules engine */}
+          {import.meta.env.DEV && (
+            <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+              <h3 className="font-bold text-stone-900 mb-3.5">Developer Tools</h3>
               <button
                 onClick={handleSeedMockEmails}
                 disabled={seedingEmails}
@@ -874,23 +914,8 @@ export default function InboxPage() {
                 </div>
                 <span className="text-xs font-semibold text-stone-700">Seed Mock Emails</span>
               </button>
-
-              {[
-                { icon: ThumbsUp, label: 'Reply to positive reviews', color: 'text-teal-600 bg-teal-50' },
-                { icon: AlertTriangle, label: 'Flag resolved complaints', color: 'text-orange-600 bg-orange-50' },
-              ].map(({ icon: Icon, label, color }) => (
-                <button
-                  key={label}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 border border-transparent hover:border-stone-200 transition-colors text-left"
-                >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${color.split(' ')[1]}`}>
-                    <Icon className={`w-3.5 h-3.5 ${color.split(' ')[0]}`} />
-                  </div>
-                  <span className="text-xs font-semibold text-stone-700">{label}</span>
-                </button>
-              ))}
             </div>
-          </div>
+          )}
         </div>
       </div>
 

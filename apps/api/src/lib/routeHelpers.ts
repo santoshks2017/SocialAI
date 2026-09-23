@@ -6,15 +6,6 @@ export function getUser(request: FastifyRequest): JwtUser {
   return request.user as JwtUser;
 }
 
-/** Returns dealer_id, or 404 if the owner is acting without a specific dealer context. */
-export function getDealerId(request: FastifyRequest, reply: FastifyReply): string | null {
-  const user = getUser(request);
-  // Owner can supply ?dealer_id= to act on behalf of any dealer
-  const override = (request.query as Record<string, string>)['dealer_id'];
-  if (user.role === 'owner') return override ?? null;
-  return user.dealer_id;
-}
-
 /** Requires role to be one of the allowed roles, otherwise 403. */
 export function requireRole(reply: FastifyReply, user: JwtUser, ...roles: Role[]): boolean {
   if (!roles.includes(user.role)) {

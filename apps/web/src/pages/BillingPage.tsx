@@ -55,11 +55,9 @@ export default function BillingPage() {
         // If live Razorpay is not configured, the backend returns a mock URL to redirect.
         // We open it in a new window to simulate the payment or show user options.
         if (res.paymentLink.includes('billing/success') || res.subscriptionId.startsWith('mock_sub_')) {
-          addToast({
-            type: 'info',
-            title: 'Mock Mode Active',
-            message: 'You can simulate payment confirmation below in the sandbox panel.',
-          });
+          addToast(import.meta.env.DEV
+            ? { type: 'info', title: 'Mock Mode Active', message: 'You can simulate payment confirmation below in the sandbox panel.' }
+            : { type: 'warning', title: 'Payments unavailable', message: 'Online payment is not set up yet. Please contact support to change your plan.' });
         } else {
           // Live Razorpay payment redirect
           window.open(res.paymentLink, '_blank');
@@ -366,8 +364,8 @@ export default function BillingPage() {
         })}
       </div>
 
-      {/* Developer Sandbox Simulation Panel */}
-      {createdSubscriptionId && (
+      {/* Developer Sandbox Simulation Panel (local dev only) */}
+      {import.meta.env.DEV && createdSubscriptionId && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex gap-3">
             <Sliders className="w-8 h-8 text-yellow-600 shrink-0 mt-0.5 animate-pulse" />

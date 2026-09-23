@@ -15,7 +15,7 @@ export default function OAuthCallbackPage() {
     const code = searchParams.get('code');
     window.history.replaceState(window.history.state, '', window.location.pathname);
 
-    // Build the message to send to the opener (AccountsPage / AccountConnectionWizard popup flow)
+    // Build the message to send to the opener (AccountsPage popup flow)
     const message = success
       ? { type: 'oauth_success', platform, pageName, code }
       : { type: 'oauth_error', error, platform };

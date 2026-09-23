@@ -18,6 +18,13 @@ declare module 'fastify' {
   }
 }
 
+// Refresh tokens and signed OAuth states share the signing key, so only tokens
+// typed 'access' (or legacy tokens issued before the claim existed) authenticate.
+export function isAccessToken(payload: unknown): boolean {
+  const typ = (payload as { typ?: unknown } | null)?.typ;
+  return typ === undefined || typ === 'access';
+}
+
 export async function registerJwt(fastify: FastifyInstance) {
   const secret = process.env['JWT_SECRET'];
   if (!secret) throw new Error('JWT_SECRET env var is required');
@@ -54,6 +61,9 @@ export async function registerJwt(fastify: FastifyInstance) {
     try {
       await request.jwtVerify();
     } catch {
+      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' } });
+    }
+    if (!isAccessToken(request.user)) {
       return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' } });
     }
   });

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
+import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 
 interface AnalyticsQuery {
   range?: string;
@@ -8,9 +9,11 @@ interface AnalyticsQuery {
 }
 
 export default async function analyticsRoutes(fastify: FastifyInstance) {
+  const canViewReports = requirePermissionHook(PERMISSIONS.VIEW_REPORTS);
+
   // GET /v1/analytics/overview
   fastify.get('/overview', {
-    preHandler: [fastify.authenticate],
+    preHandler: [fastify.authenticate, canViewReports],
   }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string }).dealer_id;
     const { range = '30d' } = request.query as AnalyticsQuery;
@@ -269,7 +272,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
 
   // GET /v1/analytics/posts
   fastify.get('/posts', {
-    preHandler: [fastify.authenticate],
+    preHandler: [fastify.authenticate, canViewReports],
   }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string }).dealer_id;
     const { range = '30d', platform = 'all', sortBy = 'date' } = request.query as AnalyticsQuery;

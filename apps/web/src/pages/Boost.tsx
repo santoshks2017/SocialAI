@@ -1,9 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Zap, TrendingUp, Pause, Square, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { useToast } from '../components/ui/Toast';
+import { PlanGatedNotice } from '../components/ui/PlanGatedNotice';
 import { boostService } from '../services/boost';
+import type { TargetingSpec } from '../services/boost';
 import { postService } from '../services/creative';
+import { isPlanGated } from '../services/api';
 import { useDealerProfile } from '../contexts/DealerProfileContext';
+
+type Gender = NonNullable<TargetingSpec['gender']>;
+const GENDER_OPTIONS: Array<{ value: Gender; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+];
 
 type CampaignStatus = 'active' | 'paused' | 'completed' | 'draft';
 
@@ -41,6 +53,7 @@ interface LaunchData {
   radius: number;
   ageMin: number;
   ageMax: number;
+  gender: Gender;
 }
 
 interface BoostModalProps {
@@ -60,9 +73,14 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
   const [radius, setRadius] = useState(25);
   const [ageMin, setAgeMin] = useState(25);
   const [ageMax, setAgeMax] = useState(55);
+  const [gender, setGender] = useState<Gender>('all');
+  const [postsLoaded, setPostsLoaded] = useState(false);
 
   useEffect(() => {
-    postService.list({ pageSize: 20 }).then((res) => setPosts(res.data)).catch(console.error);
+    postService.list({ pageSize: 20 })
+      .then((res) => setPosts(res.data))
+      .catch(console.error)
+      .finally(() => setPostsLoaded(true));
   }, []);
 
   const effectiveBudget = customBudget ? parseInt(customBudget) : dailyBudget;
@@ -98,7 +116,7 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
             <>
               <h4 className="font-semibold text-gray-800">Select a Post to Boost</h4>
               {posts.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-6">Loading posts...</p>
+                <p className="text-sm text-gray-400 text-center py-6">{postsLoaded ? 'No posts yet. Create a post first.' : 'Loading posts...'}</p>
               )}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {posts.map((p) => (
@@ -213,8 +231,15 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
                   <div>
                     <label className="text-xs font-medium text-gray-600 mb-1 block">Gender</label>
                     <div className="flex gap-2">
-                      {['All', 'Male', 'Female'].map((g) => (
-                        <button key={g} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:border-blue-300 text-gray-600">{g}</button>
+                      {GENDER_OPTIONS.map((g) => (
+                        <button
+                          key={g.value}
+                          type="button"
+                          onClick={() => setGender(g.value)}
+                          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${gender === g.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300 text-gray-600'}`}
+                        >
+                          {g.label}
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -241,7 +266,7 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
                     <span className="text-gray-500">Est. reach</span>
                     <span className="font-medium text-right">~{estimatedReach.toLocaleString('en-IN')} people</span>
                     <span className="text-gray-500">Audience</span>
-                    <span className="font-medium text-right">Smart (25–55, {radius} km)</span>
+                    <span className="font-medium text-right">{ageMin}–{ageMax}, {radius} km{gender !== 'all' ? `, ${gender}` : ''}</span>
                   </div>
                 </div>
               </div>
@@ -259,7 +284,7 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
             ? <Button className="flex-1 text-sm" onClick={() => setStep((s) => s + 1)} disabled={step === 1 && !selectedPostId}>Continue</Button>
             : <Button
                 className="flex-1 text-sm flex items-center gap-1.5 justify-center"
-                onClick={() => onLaunch({ postId: selectedPostId, postTitle: selectedPostTitle, dailyBudget: effectiveBudget, durationDays: duration, radius, ageMin, ageMax })}
+                onClick={() => onLaunch({ postId: selectedPostId, postTitle: selectedPostTitle, dailyBudget: effectiveBudget, durationDays: duration, radius, ageMin, ageMax, gender })}
               >
                 <Zap className="w-4 h-4" /> Launch Boost
               </Button>
@@ -272,6 +297,9 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
 
 export default function BoostPage() {
   const { profile: dealerProfile } = useDealerProfile();
+  const { addToast } = useToast();
+  const navigate = useNavigate();
+  const [planGated, setPlanGated] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [showBoostModal, setShowBoostModal] = useState(false);
   const [launched, setLaunched] = useState(false);
@@ -300,8 +328,14 @@ export default function BoostPage() {
         };
       });
       setCampaigns(mapped);
-    }).catch(console.error);
-  }, []);
+    }).catch((err) => {
+      if (isPlanGated(err)) {
+        setPlanGated(err.message);
+        return;
+      }
+      addToast({ type: 'error', title: 'Could not load campaigns', message: err instanceof Error && err.message ? err.message : 'Please try again.' });
+    });
+  }, [addToast]);
 
   const activeCampaigns = campaigns.filter((c) => c.status === 'active' || c.status === 'paused');
   const completedCampaigns = campaigns.filter((c) => c.status === 'completed');
@@ -310,21 +344,32 @@ export default function BoostPage() {
   const totalReachThisMonth = campaigns.reduce((sum, c) => sum + c.reach, 0);
   const totalClicksThisMonth = campaigns.reduce((sum, c) => sum + c.clicks, 0);
 
-  const togglePause = (id: string) => {
+  const setCampaignStatus = (id: string, status: CampaignStatus, daysLeft?: number) =>
+    setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status, ...(daysLeft !== undefined ? { daysLeft } : {}) } : c));
+
+  const togglePause = async (id: string) => {
     const campaign = campaigns.find((c) => c.id === id);
     if (!campaign) return;
-    if (campaign.status === 'active') {
-      boostService.pause(id).catch(console.error);
-      setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: 'paused' } : c));
-    } else {
-      boostService.resume(id).catch(console.error);
-      setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: 'active' } : c));
+    const pausing = campaign.status === 'active';
+    setCampaignStatus(id, pausing ? 'paused' : 'active');
+    try {
+      await (pausing ? boostService.pause(id) : boostService.resume(id));
+    } catch (err) {
+      setCampaignStatus(id, campaign.status);
+      addToast({ type: 'error', title: pausing ? 'Could not pause campaign' : 'Could not resume campaign', message: err instanceof Error ? err.message : undefined });
     }
   };
 
-  const stopCampaign = (id: string) => {
-    boostService.stop(id).catch(console.error);
-    setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: 'completed', daysLeft: 0 } : c));
+  const stopCampaign = async (id: string) => {
+    const campaign = campaigns.find((c) => c.id === id);
+    if (!campaign) return;
+    setCampaignStatus(id, 'completed', 0);
+    try {
+      await boostService.stop(id);
+    } catch (err) {
+      setCampaignStatus(id, campaign.status, campaign.daysLeft);
+      addToast({ type: 'error', title: 'Could not stop campaign', message: err instanceof Error ? err.message : undefined });
+    }
   };
 
   const handleLaunch = async (data: LaunchData) => {
@@ -338,7 +383,7 @@ export default function BoostPage() {
           location: { city: dealerProfile?.city ?? 'India', radius: data.radius },
           ageMin: data.ageMin,
           ageMax: data.ageMax,
-          gender: 'all',
+          gender: data.gender,
         },
       });
       const item = res.item;
@@ -359,12 +404,21 @@ export default function BoostPage() {
         status: item.status,
         platform: 'Facebook + Instagram',
       }, ...prev]);
+      setLaunched(true);
+      setTimeout(() => setLaunched(false), 4000);
     } catch (err) {
-      console.error(err);
+      addToast({
+        type: 'error',
+        title: 'Boost not launched',
+        message: err instanceof Error && err.message ? err.message : 'Please try again.',
+        ...(isPlanGated(err) ? { action: { label: 'View plans', onClick: () => navigate('/billing') } } : {}),
+      });
     }
-    setLaunched(true);
-    setTimeout(() => setLaunched(false), 4000);
   };
+
+  if (planGated) {
+    return <PlanGatedNotice feature="Boost" message={planGated} />;
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -384,8 +438,8 @@ export default function BoostPage() {
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
           <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-lg">✓</div>
           <div>
-            <p className="font-semibold text-green-800">Boost campaign launched!</p>
-            <p className="text-sm text-green-700">Your campaign is now live on Meta. Check back in a few hours for metrics.</p>
+            <p className="font-semibold text-green-800">Boost campaign created</p>
+            <p className="text-sm text-green-700">Metrics will appear here once they are reported.</p>
           </div>
         </div>
       )}
@@ -456,7 +510,7 @@ export default function BoostPage() {
                     { label: 'Reach', value: c.reach.toLocaleString('en-IN') },
                     { label: 'Clicks', value: c.clicks.toLocaleString('en-IN') },
                     { label: 'CTR', value: c.ctr },
-                    { label: 'CPC', value: `₹${Math.round(c.spent / c.clicks)}` },
+                    { label: 'CPC', value: c.clicks > 0 ? `₹${Math.round(c.spent / c.clicks)}` : '—' },
                   ].map((m) => (
                     <div key={m.label} className="text-center bg-gray-50 rounded-lg p-2">
                       <p className="text-sm font-bold text-gray-900">{m.value}</p>

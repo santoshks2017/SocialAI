@@ -20,11 +20,13 @@ export default function AuthCallbackPage({ onLogin }: AuthCallbackPageProps) {
     exchangeStarted.current = true;
 
     const code = searchParams.get('code');
+    const oauthError = searchParams.get('error');
     // Drop the code from the address bar and this history entry straight away.
     window.history.replaceState(window.history.state, '', window.location.pathname);
 
     if (!code) {
-      navigate('/login?error=oauth_failed', { replace: true });
+      // Pass the API's error code through so the login page can explain it.
+      navigate(`/login?error=${encodeURIComponent(oauthError || 'oauth_failed')}`, { replace: true });
       return;
     }
 
@@ -42,6 +44,23 @@ export default function AuthCallbackPage({ onLogin }: AuthCallbackPageProps) {
         // Store tokens first so API calls can work
         localStorage.setItem('access_token', token);
         if (refresh) localStorage.setItem('refresh_token', refresh);
+
+        // The platform owner has no dealership to onboard; send them to the admin panel
+        if (decoded.role === 'owner' && !decoded.dealer_id) {
+          const ownerInfo: UserInfo = {
+            id: decoded.dealer_user_id,
+            name: 'Platform Owner',
+            role: 'owner',
+            dealer_id: null,
+            permissions: decoded.permissions as UserInfo['permissions'],
+            onboarding_completed: true,
+            onboarding_step: 4,
+          };
+          localStorage.setItem('user_info', JSON.stringify(ownerInfo));
+          onLogin(token, refresh, ownerInfo);
+          navigate('/admin', { replace: true });
+          return;
+        }
 
         // Fetch user info + dealer profile to check onboarding
         Promise.all([

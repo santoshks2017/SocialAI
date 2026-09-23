@@ -1,9 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, Search, Filter, MoreHorizontal, PlusSquare, CheckSquare, Pencil, Trash2, Zap, X } from 'lucide-react';
+import { Upload, Search, Filter, PlusSquare, CheckSquare, Pencil, Trash2, Zap, X } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
+import { PlanGatedNotice } from '../components/ui/PlanGatedNotice';
 import { inventoryService } from '../services/creative';
+import type { InventoryItem } from '../services/creative';
+import { isPlanGated } from '../services/api';
 
 type VehicleStatus = 'in_stock' | 'sold' | 'reserved';
 type Condition = 'new' | 'used';
@@ -50,6 +53,29 @@ const GRADIENTS = [
 function makeGradient(make: string) {
   const idx = make.charCodeAt(0) % GRADIENTS.length;
   return GRADIENTS[idx] ?? GRADIENTS[0]!;
+}
+
+function toVehicle(item: InventoryItem): Vehicle {
+  return {
+    id: item.id,
+    make: item.make,
+    model: item.model,
+    variant: item.variant ?? '',
+    year: item.year,
+    price: item.price,
+    condition: item.condition,
+    color: item.color ?? '',
+    fuel_type: item.fuel_type ?? '',
+    stock_count: item.stock_count,
+    status: item.status,
+    image_url: makeGradient(item.make),
+  };
+}
+
+const PAGE_SIZE = 50;
+
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 const FUEL_TYPES = ['Petrol', 'Diesel', 'Electric', 'CNG', 'Hybrid'];
@@ -117,7 +143,13 @@ function parseCsv(text: string): { headers: string[]; rows: string[][] } {
 export default function InventoryPage() {
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [planGated, setPlanGated] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const latestRequest = useRef(0);
   const [filterCondition, setFilterCondition] = useState<'all' | Condition>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | VehicleStatus>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -315,66 +347,62 @@ export default function InventoryPage() {
     setUploadStep('confirm');
   };
 
+  const fetchVehicles = useCallback(async () => {
+    const requestId = ++latestRequest.current;
+    setLoading(true);
+    try {
+      const res = await inventoryService.list({
+        page,
+        limit: PAGE_SIZE,
+        search: debouncedSearch || undefined,
+        condition: filterCondition === 'all' ? undefined : filterCondition,
+        status: filterStatus === 'all' ? undefined : filterStatus,
+      });
+      if (requestId !== latestRequest.current) return;
+      setVehicles(res.items.map(toVehicle));
+      setTotal(res.pagination?.total ?? res.items.length);
+    } catch (err) {
+      if (requestId !== latestRequest.current) return;
+      if (isPlanGated(err)) {
+        setPlanGated(err.message);
+        return;
+      }
+      addToast({ type: 'error', title: 'Could not load inventory', message: errorMessage(err, 'Please try again.') });
+    } finally {
+      if (requestId === latestRequest.current) setLoading(false);
+    }
+  }, [page, debouncedSearch, filterCondition, filterStatus, addToast]);
+
+  useEffect(() => { fetchVehicles(); }, [fetchVehicles]);
+
+  // Filters change the result set, so start again from the first page.
+  const resetPaging = () => { setPage(1); setSelected(new Set()); };
+
+  useEffect(() => {
+    const next = search.trim();
+    if (next === debouncedSearch) return;
+    const t = setTimeout(() => { setDebouncedSearch(next); resetPaging(); }, 300);
+    return () => clearTimeout(t);
+  }, [search, debouncedSearch]);
+
   const handleImport = async () => {
     setImporting(true);
     try {
       const res = await inventoryService.batch(parsedItems);
       if (res.success) {
         addToast({ type: 'success', title: 'Import Complete', message: `Successfully imported ${res.count} vehicles!` });
-        // Reload vehicles
-        const listRes = await inventoryService.list({ pageSize: 100 });
-        const mapped = listRes.items.map((item) => ({
-          id: item.id,
-          make: item.make,
-          model: item.model,
-          variant: item.variant ?? '',
-          year: item.year,
-          price: item.price,
-          condition: item.condition,
-          color: item.color ?? '',
-          fuel_type: item.fuelType ?? '',
-          stock_count: item.stockCount,
-          status: item.status,
-          image_url: makeGradient(item.make),
-        }));
-        setVehicles(mapped);
         setShowUploadModal(false);
+        await fetchVehicles();
       }
-    } catch (err: any) {
-      console.error(err);
-      addToast({ type: 'error', title: 'Import Failed', message: err.response?.data?.error?.message || 'Failed to import inventory batch' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Import Failed', message: errorMessage(err, 'Failed to import inventory batch') });
     } finally {
       setImporting(false);
     }
   };
 
-  useEffect(() => {
-    inventoryService.list({ pageSize: 100 }).then((res) => {
-      const mapped: Vehicle[] = res.items.map((item) => ({
-        id: item.id,
-        make: item.make,
-        model: item.model,
-        variant: item.variant ?? '',
-        year: item.year,
-        price: item.price,
-        condition: item.condition,
-        color: item.color ?? '',
-        fuel_type: item.fuelType ?? '',
-        stock_count: item.stockCount,
-        status: item.status,
-        image_url: makeGradient(item.make),
-      }));
-      setVehicles(mapped);
-    }).catch(console.error);
-  }, []);
-
-  const filtered = vehicles.filter((v) => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || `${v.make} ${v.model} ${v.variant}`.toLowerCase().includes(q);
-    const matchCond = filterCondition === 'all' || v.condition === filterCondition;
-    const matchStat = filterStatus === 'all' || v.status === filterStatus;
-    return matchSearch && matchCond && matchStat;
-  });
+  const filtered = vehicles;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -384,14 +412,26 @@ export default function InventoryPage() {
     });
   };
 
-  const markSold = (id: string) => {
-    inventoryService.markSold(id).catch(console.error);
+  const markSold = async (id: string) => {
+    const prevStatus = vehicles.find((v) => v.id === id)?.status;
     setVehicles((prev) => prev.map((v) => v.id === id ? { ...v, status: 'sold' } : v));
+    try {
+      await inventoryService.markSold(id);
+    } catch (err) {
+      if (prevStatus) setVehicles((prev) => prev.map((v) => v.id === id ? { ...v, status: prevStatus } : v));
+      addToast({ type: 'error', title: 'Could not mark as sold', message: errorMessage(err, 'Please try again.') });
+    }
   };
 
-  const deleteVehicle = (id: string) => {
-    inventoryService.delete(id).catch(console.error);
-    setVehicles((prev) => prev.filter((v) => v.id !== id));
+  const deleteVehicle = async (id: string) => {
+    if (!confirm('Delete this vehicle? This cannot be undone.')) return;
+    try {
+      await inventoryService.delete(id);
+      setVehicles((prev) => prev.filter((v) => v.id !== id));
+      setTotal((t) => Math.max(0, t - 1));
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not delete vehicle', message: errorMessage(err, 'Please try again.') });
+    }
   };
 
   const openAdd = () => {
@@ -416,36 +456,26 @@ export default function InventoryPage() {
       const payload = {
         make: vehicleForm.make,
         model: vehicleForm.model,
-        variant: vehicleForm.variant || undefined,
+        variant: vehicleForm.variant || null,
         year: vehicleForm.year,
         price: vehicleForm.price,
         condition: vehicleForm.condition,
-        color: vehicleForm.color || undefined,
-        fuelType: vehicleForm.fuel_type || undefined,
-        stockCount: vehicleForm.stock_count,
-        imageUrls: [],
-        status: 'in_stock' as const,
-        source: 'manual' as const,
+        color: vehicleForm.color || null,
+        fuel_type: vehicleForm.fuel_type || null,
+        stock_count: vehicleForm.stock_count,
       };
       if (editingVehicle) {
-        await inventoryService.update(editingVehicle.id, payload);
-        setVehicles((prev) => prev.map((v) => v.id === editingVehicle.id
-          ? { ...v, ...vehicleForm, image_url: makeGradient(vehicleForm.make) }
-          : v));
+        const res = await inventoryService.update(editingVehicle.id, payload);
+        const updated = res.item ? toVehicle(res.item) : { ...editingVehicle, ...vehicleForm, image_url: makeGradient(vehicleForm.make) };
+        setVehicles((prev) => prev.map((v) => v.id === editingVehicle.id ? updated : v));
       } else {
-        const res = await inventoryService.create({ dealerId: '', ...payload });
-        const item = res.item;
-        setVehicles((prev) => [...prev, {
-          id: item.id, make: item.make, model: item.model, variant: item.variant ?? '',
-          year: item.year, price: item.price, condition: item.condition,
-          color: item.color ?? '', fuel_type: item.fuelType ?? '',
-          stock_count: item.stockCount, status: item.status,
-          image_url: makeGradient(item.make),
-        }]);
+        const res = await inventoryService.create({ ...payload, image_urls: [], status: 'in_stock', source: 'manual' });
+        setVehicles((prev) => [toVehicle(res.item), ...prev]);
+        setTotal((t) => t + 1);
       }
       setShowVehicleModal(false);
     } catch (err) {
-      console.error(err);
+      addToast({ type: 'error', title: editingVehicle ? 'Could not update vehicle' : 'Could not add vehicle', message: errorMessage(err, 'Please try again.') });
     } finally {
       setVehicleSaving(false);
     }
@@ -453,18 +483,29 @@ export default function InventoryPage() {
 
   const bulkMarkSold = async () => {
     const ids = [...selected];
-    await Promise.allSettled(ids.map((id) => inventoryService.markSold(id)));
-    setVehicles((prev) => prev.map((v) => selected.has(v.id) ? { ...v, status: 'sold' } : v));
-    setSelected(new Set());
-    addToast({ type: 'success', title: `${ids.length} vehicle${ids.length > 1 ? 's' : ''} marked as sold` });
+    try {
+      const res = await inventoryService.bulkMarkSold(ids);
+      const count = res.count ?? ids.length;
+      setSelected(new Set());
+      addToast({ type: 'success', title: `${count} vehicle${count !== 1 ? 's' : ''} marked as sold` });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Could not mark vehicles as sold', message: errorMessage(err, 'Please try again.') });
+    }
+    await fetchVehicles();
   };
 
   const bulkDelete = async () => {
     const ids = [...selected];
-    await Promise.allSettled(ids.map((id) => inventoryService.delete(id)));
-    setVehicles((prev) => prev.filter((v) => !selected.has(v.id)));
+    if (!confirm(`Delete ${ids.length} vehicle${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    const results = await Promise.allSettled(ids.map((id) => inventoryService.delete(id)));
+    const failed = results.filter((r) => r.status === 'rejected').length;
     setSelected(new Set());
-    addToast({ type: 'success', title: `${ids.length} vehicle${ids.length > 1 ? 's' : ''} deleted` });
+    if (failed === 0) {
+      addToast({ type: 'success', title: `${ids.length} vehicle${ids.length > 1 ? 's' : ''} deleted` });
+    } else {
+      addToast({ type: 'error', title: `${failed} of ${ids.length} vehicles could not be deleted`, message: 'Please try again.' });
+    }
+    await fetchVehicles();
   };
 
   const bulkGeneratePost = () => {
@@ -473,10 +514,11 @@ export default function InventoryPage() {
     setSelected(new Set());
   };
 
-  const inStock = vehicles.filter((v) => v.status === 'in_stock').length;
-  const sold = vehicles.filter((v) => v.status === 'sold').length;
-  const newCount = vehicles.filter((v) => v.condition === 'new').length;
-  const usedCount = vehicles.filter((v) => v.condition === 'used').length;
+  const filtersActive = !!debouncedSearch || filterCondition !== 'all' || filterStatus !== 'all';
+
+  if (planGated) {
+    return <PlanGatedNotice feature="Inventory" message={planGated} />;
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
@@ -484,7 +526,7 @@ export default function InventoryPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Inventory</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{inStock} in stock · {sold} sold · {newCount} new · {usedCount} used</p>
+          <p className="text-sm text-gray-500 mt-0.5">{total} vehicle{total !== 1 ? 's' : ''}{filtersActive ? ' matching filters' : ''}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" className="text-sm flex items-center gap-1.5" onClick={() => { setShowUploadModal(true); setUploadStep('drop'); }}>
@@ -512,7 +554,7 @@ export default function InventoryPage() {
           {(['all', 'new', 'used'] as const).map((c) => (
             <button
               key={c}
-              onClick={() => setFilterCondition(c)}
+              onClick={() => { setFilterCondition(c); resetPaging(); }}
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${filterCondition === c ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
             >
               {c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)}
@@ -523,7 +565,7 @@ export default function InventoryPage() {
           {(['all', 'in_stock', 'reserved', 'sold'] as const).map((s) => (
             <button
               key={s}
-              onClick={() => setFilterStatus(s)}
+              onClick={() => { setFilterStatus(s); resetPaging(); }}
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${filterStatus === s ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
             >
               {s === 'all' ? 'All Status' : STATUS_LABELS[s]}
@@ -619,9 +661,6 @@ export default function InventoryPage() {
                       <button title="Delete" onClick={() => deleteVehicle(v.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -629,9 +668,15 @@ export default function InventoryPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-16 text-center text-gray-400">
-                    <div className="text-4xl mb-2">🚗</div>
-                    <p className="font-medium text-gray-500">No vehicles found</p>
-                    <p className="text-sm mt-1">Try adjusting filters or import a CSV</p>
+                    {loading ? (
+                      <p className="font-medium text-gray-500">Loading inventory…</p>
+                    ) : (
+                      <>
+                        <div className="text-4xl mb-2">🚗</div>
+                        <p className="font-medium text-gray-500">No vehicles found</p>
+                        <p className="text-sm mt-1">Try adjusting filters or import a CSV</p>
+                      </>
+                    )}
                   </td>
                 </tr>
               )}
@@ -639,12 +684,26 @@ export default function InventoryPage() {
           </table>
         </div>
         <div className="px-4 py-3 border-t flex items-center justify-between text-xs text-gray-500">
-          <span>Showing {filtered.length} of {vehicles.length} vehicles</span>
-          <div className="flex gap-1">
-            <button className="px-2 py-1 rounded border hover:bg-gray-50">Prev</button>
-            <button className="px-2 py-1 rounded border bg-blue-600 text-white">1</button>
-            <button className="px-2 py-1 rounded border hover:bg-gray-50">Next</button>
-          </div>
+          <span>Showing {vehicles.length} of {total} vehicles</span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+                className="px-2 py-1 rounded border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Prev
+              </button>
+              <span className="px-2">Page {page} of {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || loading}
+                className="px-2 py-1 rounded border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

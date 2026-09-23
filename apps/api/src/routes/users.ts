@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
-import { CONFIGURABLE_PERMISSIONS, resolvePermissions, ROLES } from '../lib/permissions.js';
-import { getUser, requireRole, requirePermission } from '../lib/routeHelpers.js';
+import { CONFIGURABLE_PERMISSIONS, isGlobalOwner, resolvePermissions, ROLES } from '../lib/permissions.js';
+import { getUser, requirePermission } from '../lib/routeHelpers.js';
 import type { DealerUser } from '../generated/client/index.js';
 
 function mapUser(u: DealerUser) {
@@ -34,8 +34,8 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const user = getUser(request);
     if (!requirePermission(reply, user, 'manage_users')) return;
 
-    // Owner can list users across any dealer via ?dealer_id=
-    const targetDealerId = user.role === ROLES.OWNER
+    // The platform owner can list users across any dealer via ?dealer_id=
+    const targetDealerId = isGlobalOwner(user)
       ? ((request.query as Record<string, string>)['dealer_id'] ?? null)
       : user.dealer_id;
 
@@ -57,7 +57,7 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const user = getUser(request);
     if (!requirePermission(reply, user, 'manage_users')) return;
 
-    const dealer_id = user.role === ROLES.OWNER
+    const dealer_id = isGlobalOwner(user)
       ? ((request.body as Record<string, string>)['dealerId'] ?? null)
       : user.dealer_id;
 
@@ -113,7 +113,7 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const filtered = Object.fromEntries(Object.entries(body.permissions).filter(([k]) => validKeys.includes(k as never)));
 
     const target = await prisma.dealerUser.findFirst({
-      where: { id, ...(user.role !== ROLES.OWNER ? { dealer_id: user.dealer_id! } : {}) },
+      where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
     });
     if (!target) return reply.code(404).send({ error: 'User not found' });
     if (target.role !== ROLES.USER) return reply.code(400).send({ error: 'Permissions can only be customised for "user" role accounts' });
@@ -130,16 +130,16 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const { role } = request.body as { role: string };
 
-    // Only owner can set owner role; admin can only toggle admin/user
-    if (role === ROLES.OWNER && user.role !== ROLES.OWNER) {
+    // Only the platform owner can set the owner role; dealer admins can only toggle admin/user
+    if (role === ROLES.OWNER && !isGlobalOwner(user)) {
       return reply.code(403).send({ error: 'Only the owner can assign the owner role' });
     }
-    if (![ROLES.ADMIN, ROLES.USER].includes(role as typeof ROLES.ADMIN) && user.role !== ROLES.OWNER) {
+    if (![ROLES.OWNER, ROLES.ADMIN, ROLES.USER].includes(role as typeof ROLES.ADMIN)) {
       return reply.code(400).send({ error: 'Invalid role' });
     }
 
     const target = await prisma.dealerUser.findFirst({
-      where: { id, ...(user.role !== ROLES.OWNER ? { dealer_id: user.dealer_id! } : {}) },
+      where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
     });
     if (!target) return reply.code(404).send({ error: 'User not found' });
 
@@ -156,7 +156,7 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const { isActive } = request.body as { isActive: boolean };
 
     const target = await prisma.dealerUser.findFirst({
-      where: { id, ...(user.role !== ROLES.OWNER ? { dealer_id: user.dealer_id! } : {}) },
+      where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
     });
     if (!target) return reply.code(404).send({ error: 'User not found' });
 
@@ -173,7 +173,7 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     if (id === user.dealer_user_id) return reply.code(400).send({ error: 'Cannot remove yourself' });
 
     const target = await prisma.dealerUser.findFirst({
-      where: { id, ...(user.role !== ROLES.OWNER ? { dealer_id: user.dealer_id! } : {}) },
+      where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
     });
     if (!target) return reply.code(404).send({ error: 'User not found' });
 
@@ -191,7 +191,9 @@ export default async function usersRoutes(fastify: FastifyInstance) {
   // GET /v1/users/dealers — list all dealer orgs (owner only)
   fastify.get('/dealers', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const user = getUser(request);
-    if (!requireRole(reply, user, 'owner')) return;
+    if (!isGlobalOwner(user)) {
+      return reply.code(403).send({ error: { code: 'FORBIDDEN', message: 'Global owner access required' } });
+    }
 
     const dealers = await prisma.dealer.findMany({
       orderBy: { created_at: 'desc' },

@@ -1,4 +1,4 @@
-export { api, ApiError } from './api';
+export { api, ApiError, PlanGatedError, isPlanGated } from './api';
 export { authService, dealerService, platformService } from './auth';
 export { creativeService, postService, inventoryService } from './creative';
 export type { Prompt, CaptionVariant, AIGenerationResponse, Post, InventoryItem, InventoryImportResult } from './creative';

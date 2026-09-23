@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
+import { isGlobalOwner } from '../lib/permissions.js';
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   // Middleware/preHandler to verify the user is a global owner
   const requireGlobalOwner = async (request: any, reply: any) => {
-    if (request.user?.role !== 'owner') {
+    if (!isGlobalOwner(request.user)) {
       return reply.code(403).send({
         error: { code: 'FORBIDDEN', message: 'Global owner access required' },
       });
@@ -111,6 +112,23 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // PATCH /v1/admin/dealers/:id/plan — set a dealer's plan by hand (no online payments yet)
+  fastify.patch('/dealers/:id/plan', { preHandler: [fastify.authenticate, requireGlobalOwner] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { plan } = (request.body ?? {}) as { plan?: string };
+    if (!plan || !['starter', 'growth', 'enterprise'].includes(plan)) {
+      return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'plan must be starter, growth or enterprise' } });
+    }
+
+    const dealer = await prisma.dealer.findUnique({ where: { id } });
+    if (!dealer) {
+      return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Dealer not found' } });
+    }
+
+    await prisma.dealer.update({ where: { id }, data: { plan, plan_expires_at: null } });
+    return { success: true, plan };
+  });
+
   // POST /v1/admin/dealers/:id/impersonate — Impersonate a dealer admin
   fastify.post('/dealers/:id/impersonate', { preHandler: [fastify.authenticate, requireGlobalOwner] }, async (request, reply) => {
     const { id: dealerId } = request.params as { id: string };
@@ -158,8 +176,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       impersonatedBy: request.user.dealer_user_id, // Mark that this is an impersonation session
     };
 
-    const token = fastify.jwt.sign(jwtPayload, { expiresIn: '2h' }); // Short duration for impersonation
-    const refreshToken = fastify.jwt.sign(jwtPayload, { expiresIn: '1d' });
+    const token = fastify.jwt.sign({ ...jwtPayload, typ: 'access' }, { expiresIn: '2h' }); // Short duration for impersonation
+    const refreshToken = fastify.jwt.sign({ ...jwtPayload, typ: 'refresh' }, { expiresIn: '1d' });
 
     return {
       success: true,

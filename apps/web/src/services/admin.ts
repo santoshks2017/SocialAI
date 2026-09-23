@@ -44,4 +44,7 @@ export const adminService = {
   
   impersonateDealer: (dealerId: string) => 
     api.post<ImpersonateResponse>(`/admin/dealers/${dealerId}/impersonate`),
+
+  setDealerPlan: (dealerId: string, plan: string) =>
+    api.patch<{ success: boolean; plan: string }>(`/admin/dealers/${dealerId}/plan`, { plan }),
 };

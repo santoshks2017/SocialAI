@@ -21,6 +21,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
+  const [planSavingId, setPlanSavingId] = useState<string | null>(null);
 
   const fetchAdminData = async () => {
     setLoading(true);
@@ -50,6 +51,23 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchAdminData();
   }, []);
+
+  const handleSetPlan = async (dealer: AdminDealer, plan: string) => {
+    setPlanSavingId(dealer.id);
+    try {
+      await adminService.setDealerPlan(dealer.id, plan);
+      setDealers((prev) => prev.map((d) => d.id === dealer.id ? { ...d, plan, expiresAt: null } : d));
+      addToast({ type: 'success', title: 'Plan updated', message: `${dealer.name} is now on ${plan}.` });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Plan not updated',
+        message: err instanceof Error && err.message ? err.message : 'Could not change the plan.',
+      });
+    } finally {
+      setPlanSavingId(null);
+    }
+  };
 
   const handleImpersonate = async (dealer: AdminDealer) => {
     setImpersonatingId(dealer.id);
@@ -236,13 +254,21 @@ export default function AdminDashboard() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1 items-start">
-                      <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-wider border ${
-                        d.plan === 'starter' ? 'bg-slate-100 text-slate-600 border-slate-200' :
-                        d.plan === 'growth' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                        'bg-purple-50 text-purple-600 border-purple-100'
-                      }`}>
-                        {d.plan}
-                      </span>
+                      <select
+                        value={d.plan}
+                        disabled={planSavingId === d.id}
+                        onChange={(e) => handleSetPlan(d, e.target.value)}
+                        aria-label={`Plan for ${d.name}`}
+                        className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] tracking-wider border cursor-pointer disabled:opacity-50 ${
+                          d.plan === 'starter' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                          d.plan === 'growth' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                          'bg-purple-50 text-purple-600 border-purple-100'
+                        }`}
+                      >
+                        <option value="starter">Starter</option>
+                        <option value="growth">Growth</option>
+                        <option value="enterprise">Enterprise</option>
+                      </select>
                       {d.expiresAt && (
                         <span className="text-[9px] text-slate-400">
                           Expires: {new Date(d.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}

@@ -34,11 +34,43 @@ export async function publishToFacebook(
 
 // ─── Instagram (two-step) ─────────────────────────────────────────────────────
 
+// Waits between container status checks; ~30s in total.
+export const IG_CONTAINER_POLL_DELAYS_MS = [1000, 2000, 3000, 4000, 5000, 5000, 5000, 5000];
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Instagram processes the uploaded image asynchronously; media_publish fails until the
+// container reaches FINISHED.
+export async function waitForInstagramContainer(
+  creationId: string,
+  accessToken: string,
+  pollDelaysMs: readonly number[] = IG_CONTAINER_POLL_DELAYS_MS,
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await axios.get<{ status_code?: string; status?: string }>(
+      `${META_GRAPH_BASE}/${creationId}`,
+      { params: { fields: 'status_code,status', access_token: accessToken } },
+    );
+    const statusCode = res.data.status_code;
+    if (statusCode === 'FINISHED') return;
+    if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+      const detail = res.data.status ? `: ${res.data.status}` : '';
+      throw new Error(`Instagram could not process the media (${statusCode}${detail})`);
+    }
+    const delay = pollDelaysMs[attempt];
+    if (delay === undefined) {
+      throw new Error(`Instagram media was still processing (${statusCode ?? 'unknown'}) after ${attempt + 1} checks; try again later`);
+    }
+    await sleep(delay);
+  }
+}
+
 export async function publishToInstagram(
   igUserId: string,
   accessToken: string,
   imageUrl: string,
   caption: string,
+  pollDelaysMs: readonly number[] = IG_CONTAINER_POLL_DELAYS_MS,
 ): Promise<MetaPublishResult> {
   if (accessToken.startsWith('mock_') || igUserId.startsWith('mock_')) {
     const mockId = `mock_ig_post_${Date.now()}`;
@@ -53,6 +85,8 @@ export async function publishToInstagram(
     { image_url: imageUrl, caption, access_token: accessToken },
   );
   const creationId = containerRes.data.id;
+
+  await waitForInstagramContainer(creationId, accessToken, pollDelaysMs);
 
   // Step 2 — publish the container
   const publishRes = await axios.post<{ id: string }>(

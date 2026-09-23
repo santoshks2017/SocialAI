@@ -175,17 +175,18 @@ async function sendReplyToPlatform(
 }
 
 export default async function inboxRoutes(fastify: FastifyInstance) {
+  // Meta calls the webhook routes directly; every other route needs a session and
+  // a plan that includes the inbox. Matched on the route, not the raw URL, so a
+  // query string or path segment containing "/webhook" cannot skip the checks.
+  const webhookRoutes = new Set([`${fastify.prefix}/webhook/meta`])
   fastify.addHook('preHandler', async (request, reply) => {
-    if (request.url.includes('/webhook')) return
+    if (webhookRoutes.has(request.routeOptions.url ?? '')) return
 
-    try {
-      await request.jwtVerify()
-    } catch (err) {
-      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } })
-    }
+    await fastify.authenticate(request, reply)
+    if (reply.sent) return reply
 
     const planGateHook = fastify.checkPlanLimit('inbox')
-    await planGateHook(request, reply)
+    return planGateHook(request, reply)
   })
 
   // GET /v1/inbox — list messages
@@ -301,13 +302,14 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
         where: { dealer_id, platform: message.platform, is_connected: true },
       })
 
-      if (connection) {
-        await sendReplyToPlatform(message, replyText, {
-          platform: connection.platform,
-          access_token: connection.access_token,
-          platform_account_id: connection.platform_account_id,
-        })
-      }
+      // The reply is saved either way; `delivered` tells the client whether the customer got it
+      const delivered = connection
+        ? await sendReplyToPlatform(message, replyText, {
+            platform: connection.platform,
+            access_token: connection.access_token,
+            platform_account_id: connection.platform_account_id,
+          })
+        : false
 
       const repliedAt = new Date()
       await prisma.inboxMessage.update({
@@ -318,7 +320,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
       const updated = await prisma.inboxMessage.findFirst({
         where: { id, dealer_id },
       })
-      return { item: mapMessage(updated!) }
+      return { item: mapMessage(updated!), delivered }
     },
   )
 
@@ -374,7 +376,8 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   // POST /v1/inbox/webhook/meta — receive Meta webhook events
   fastify.post("/webhook/meta", async (request, reply) => {
     const signature = request.headers['x-hub-signature-256'] as string;
-    const secret = process.env['META_APP_SECRET'] || process.env['META_WEBHOOK_VERIFY_TOKEN'];
+    // Meta signs webhook payloads with the app secret.
+    const secret = process.env['META_APP_SECRET'];
     let isValid = false;
     if (process.env['NODE_ENV'] !== 'production' && (!signature || !secret)) {
       fastify.log.info('Bypassing Meta webhook signature verification in local development.');
@@ -474,8 +477,9 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
       "hub.challenge": challenge,
     } = request.query as Record<string, string>
     const VERIFY_TOKEN =
-      process.env["META_WEBHOOK_VERIFY_TOKEN"] ?? "cardeko_webhook_secret"
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      process.env["META_WEBHOOK_VERIFY_TOKEN"] ??
+      (process.env["NODE_ENV"] === "production" ? undefined : "cardeko_webhook_secret")
+    if (mode === "subscribe" && VERIFY_TOKEN && token === VERIFY_TOKEN) {
       return reply.code(200).send(challenge)
     }
     return reply.code(403).send({ error: "Forbidden" })

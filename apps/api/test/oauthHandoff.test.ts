@@ -6,6 +6,7 @@ import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions } from '../src/lib/permissions.js';
 import type { JwtUser } from '../src/lib/permissions.js';
+import { signOAuthState } from '../src/lib/oauthState.js';
 import {
   HANDOFF_CODE_TTL_SECONDS,
   issueHandoffCode,
@@ -96,7 +97,8 @@ describe('OAuth sign-in redirects carry a code, not tokens', () => {
       throw new Error(`unexpected fetch ${url}`);
     });
 
-    const callback = await fastify.inject({ method: 'GET', url: '/v1/auth/google/callback?code=google-code' });
+    const state = signOAuthState(fastify, 'google_signin');
+    const callback = await fastify.inject({ method: 'GET', url: `/v1/auth/google/callback?code=google-code&state=${state}` });
     const target = redirectTarget(callback);
     assert.equal(target.pathname, '/auth/callback');
     assert.deepEqual([...target.searchParams.keys()], ['code']);
@@ -131,7 +133,7 @@ describe('OAuth sign-in redirects carry a code, not tokens', () => {
   });
 
   it('GET /v1/platforms/callback/meta in sign-in mode', async () => {
-    const state = Buffer.from(JSON.stringify({ dealer_id: null, platform: 'facebook', signin: true })).toString('base64url');
+    const state = signOAuthState(fastify, 'platform_oauth', { dealer_id: null, platform: 'facebook', signin: true });
     const callback = await fastify.inject({ method: 'GET', url: `/v1/platforms/callback/meta?code=mock_signin&state=${state}` });
     const target = redirectTarget(callback);
     assert.equal(target.pathname, '/auth/callback');
@@ -141,6 +143,25 @@ describe('OAuth sign-in redirects carry a code, not tokens', () => {
     const redeemed = await exchange(target.searchParams.get('code'));
     assert.equal(redeemed.statusCode, 200);
     assert.ok(fastify.jwt.verify<JwtUser>(redeemed.json().token).dealer_id);
+  });
+
+  it('sign-in callbacks reject a missing, static or forged state before any token exchange', async (t) => {
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('no provider call expected');
+    });
+    const forged = Buffer.from(JSON.stringify({ dealer_id: null, platform: 'facebook', signin: true })).toString('base64url');
+    const cases = [
+      ['/v1/auth/google/callback?code=c', 'invalid_state'],
+      ['/v1/auth/google/callback?code=c&state=signin', 'invalid_state'],
+      [`/v1/auth/google/callback?code=c&state=${signOAuthState(fastify, 'facebook_signin')}`, 'invalid_state'],
+      [`/v1/platforms/callback/meta?code=mock_signin&state=${forged}`, 'Invalid state parameter'],
+    ] as const;
+    for (const [url, error] of cases) {
+      const target = redirectTarget(await fastify.inject({ method: 'GET', url }));
+      assert.equal(target.searchParams.get('error'), error, url);
+      assert.equal(target.searchParams.get('code'), null, url);
+    }
+    assert.equal(fetchMock.mock.callCount(), 0);
   });
 
   it('rejects a missing or unknown code', async () => {

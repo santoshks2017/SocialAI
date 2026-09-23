@@ -5,7 +5,8 @@ import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import staticPlugin from '@fastify/static';
 
-import { registerJwt } from './plugins/jwt.js';
+import { registerJwt, isAccessToken } from './plugins/jwt.js';
+import type { JwtUser } from './lib/permissions.js';
 import { registerActivityLog } from './plugins/activityLog.js';
 import { registerPlanGate } from './plugins/planGate.js';
 import { createOriginChecker } from './lib/corsOrigins.js';
@@ -38,7 +39,9 @@ import adminRoutes from './routes/admin.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 import { getFrontendUrl } from './lib/frontendUrl.js';
 
-const fastify = Fastify({ logger: true });
+// Cloud Run's front end proxies every request, so the socket address is its own
+// (169.254.169.126); trustProxy makes req.ip the client from X-Forwarded-For.
+const fastify = Fastify({ logger: true, trustProxy: true });
 
 if (process.env['NODE_ENV'] === 'production' && !process.env['FRONTEND_URL']?.trim()) {
   fastify.log.warn(`FRONTEND_URL is not set; OAuth redirects will use ${getFrontendUrl()}`);
@@ -48,16 +51,30 @@ const isAllowedOrigin = createOriginChecker(getFrontendUrl());
 await fastify.register(cors, {
   origin: (origin, cb) => {
     if (!origin || isAllowedOrigin(origin)) return cb(null, true);
-    cb(new Error(`Origin ${origin} not allowed by CORS`), false);
+    // 403, not the default 500: a foreign origin is a client error, not a server fault
+    cb(Object.assign(new Error(`Origin ${origin} not allowed by CORS`), { statusCode: 403 }), false);
   },
   methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
   credentials: true,
 });
 
+// Signed-in requests are limited per user, anonymous ones per client IP, so users
+// don't share a bucket. fastify.jwt is registered below but exists by request time.
 await fastify.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute',
-  keyGenerator: (req) => req.ip,
+  keyGenerator: (req) => {
+    const auth = req.headers.authorization;
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const payload = fastify.jwt.verify<JwtUser>(auth.slice(7));
+        if (isAccessToken(payload) && payload.dealer_user_id) return `user:${payload.dealer_user_id}`;
+      } catch {
+        // invalid or expired: fall through to the IP bucket
+      }
+    }
+    return `ip:${req.ip}`;
+  },
 });
 
 await fastify.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } }); // 50 MB (images + videos)

@@ -3,10 +3,13 @@ import { prisma } from '../db/prisma.js';
 import axios from 'axios';
 import { validateRazorpaySignature } from '../lib/webhookSecurity.js';
 import { getFrontendUrl } from '../lib/frontendUrl.js';
+import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 
 export default async function billingRoutes(fastify: FastifyInstance) {
+  const canViewBilling = requirePermissionHook(PERMISSIONS.VIEW_BILLING);
+
   // GET /v1/billing/status — Get subscription status & limits
-  fastify.get('/status', { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get('/status', { preHandler: [fastify.authenticate, canViewBilling] }, async (request) => {
     const dealerId = request.user.dealer_id;
     if (!dealerId) {
       return { success: false, error: 'Not authenticated with a dealer' };
@@ -81,7 +84,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
   });
 
   // POST /v1/billing/subscribe — Initiate subscription
-  fastify.post('/subscribe', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post('/subscribe', { preHandler: [fastify.authenticate, canViewBilling] }, async (request, reply) => {
     const dealerId = request.user.dealer_id;
     if (!dealerId) {
       return reply.code(400).send({ error: 'Not authenticated with a dealer' });

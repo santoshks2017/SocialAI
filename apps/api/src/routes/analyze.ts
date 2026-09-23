@@ -11,7 +11,7 @@ interface AnalyzeRequestBody {
 
 export default async function analyzeRoutes(fastify: FastifyInstance) {
   // POST /v1/analyze
-  fastify.post('/analyze', async (request, reply) => {
+  fastify.post('/analyze', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const body = request.body as AnalyzeRequestBody | undefined;
 
     if (!body || !body.data) {
@@ -26,12 +26,17 @@ export default async function analyzeRoutes(fastify: FastifyInstance) {
       });
     }
 
+    const dealerId = request.user.dealer_id;
+    if (!dealerId) {
+      return reply.code(403).send({ error: 'Only dealer accounts can analyze patterns' });
+    }
+
     try {
       const result = extractPatterns({ images, text });
       
       const savedRecord = await prisma.dealerStyle.create({
         data: {
-          dealerId: 'test-dealer',
+          dealerId,
           festivals: result.detectedFestivals,
           imageCount: result.imageCount,
           hasPhone: result.hasPhone,

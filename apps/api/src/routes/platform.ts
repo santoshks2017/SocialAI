@@ -4,6 +4,7 @@ import axios from 'axios';
 import { exchangeForLongLivedToken, getPageAccessToken } from '../services/meta.js';
 import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { issueHandoffCode, type SessionHandoff } from '../lib/oauthHandoff.js';
+import { signOAuthState, verifyOAuthState } from '../lib/oauthState.js';
 
 const META_APP_ID     = process.env['META_APP_ID']     ?? '';
 const META_APP_SECRET = process.env['META_APP_SECRET'] ?? '';
@@ -18,6 +19,19 @@ const FRONTEND_URL      = getFrontendUrl();
 const META_CALLBACK_URI   = `${API_BASE_URL}/v1/platforms/callback/meta`;
 const GOOGLE_CALLBACK_URI = `${API_BASE_URL}/v1/platforms/callback/google`;
 
+// Page and OAuth tokens never leave the server.
+function publicConnection(conn: Record<string, any>) {
+  const { access_token: _a, refresh_token: _r, ...rest } = conn;
+  return rest;
+}
+
+type PlatformState = { dealer_id: string | null; platform?: string; signin?: boolean };
+
+// Twitter and YouTube are mock integrations that store fake tokens.
+function mockPlatformsDisabled(): boolean {
+  return process.env['NODE_ENV'] === 'production';
+}
+
 export default async function platformRoutes(fastify: FastifyInstance) {
   // GET /v1/platforms  — list all connections for dealer
   fastify.get('/', {
@@ -26,7 +40,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     const connections = await prisma.platformConnection.findMany({
       where: { dealer_id: request.user.dealer_id! },
     });
-    return { success: true, platforms: connections };
+    return { success: true, platforms: connections.map(publicConnection) };
   });
 
   // GET /v1/platforms/connect/:platform  — return OAuth URL as JSON
@@ -39,46 +53,32 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     const isSignin = signin === '1';
     const isMock = mock === 'true';
 
+    if ((platform === 'twitter' || platform === 'youtube') && mockPlatformsDisabled()) {
+      return reply.code(501).send({ error: { code: 'NOT_AVAILABLE', message: `${platform} connections are not available yet` } });
+    }
+
     // For linking mode (not signin), require authentication
     let dealer_id: string | null = null;
     if (!isSignin) {
-      try {
-        if (process.env['NODE_ENV'] !== 'production' && !request.headers.authorization) {
-          let dealer = await prisma.dealer.findFirst();
-          if (!dealer) {
-            dealer = await prisma.dealer.create({ data: { name: 'Local Dev Dealer', city: 'Mumbai', phone: '9876543210' } });
-          }
-          dealer_id = dealer.id;
-          const { resolvePermissions } = await import('../lib/permissions.js');
-          request.user = {
-            dealer_user_id: 'dev_user_id',
-            dealer_id: dealer.id,
-            role: 'admin',
-            phone: '9876543210',
-            permissions: resolvePermissions('admin')
-          };
-        } else {
-          await request.jwtVerify();
-          dealer_id = request.user.dealer_id ?? null;
-        }
-        
-        // Enforce plan limits for platforms
+      await fastify.authenticate(request, reply);
+      if (reply.sent) return reply;
+      dealer_id = request.user.dealer_id ?? null;
+
+      // Enforce plan limits for platforms. Reconnecting one the dealer already has (e.g. an
+      // expired token) adds nothing; Facebook and Instagram share one Meta connect flow.
+      const samePlatforms = platform === 'facebook' || platform === 'instagram' ? ['facebook', 'instagram'] : [platform];
+      const existing = dealer_id
+        ? await prisma.platformConnection.findFirst({ where: { dealer_id, platform: { in: samePlatforms } } })
+        : null;
+      if (!existing) {
         const planGateHook = fastify.checkPlanLimit('platforms');
         await planGateHook(request, reply);
-        if (reply.sent) return;
-      } catch (err: any) {
-        if (reply.sent) return;
-        return reply.code(err.statusCode || 401).send({
-          error: {
-            code: err.code || 'UNAUTHORIZED',
-            message: err.message || 'Authentication required to link platforms',
-          },
-        });
+        if (reply.sent) return reply;
       }
     }
 
     if (platform === 'facebook' || platform === 'instagram') {
-      const state = Buffer.from(JSON.stringify({ dealer_id, platform, signin: isSignin })).toString('base64url');
+      const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform, signin: isSignin });
       if (isMock && process.env['NODE_ENV'] !== 'production') {
         const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/meta?code=mock_facebook_code&state=${state}`;
         return { success: true, redirect_url: callbackUrl };
@@ -111,7 +111,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       if (!GOOGLE_CLIENT_ID) {
         return reply.code(500).send({ error: { code: 'CONFIG_ERROR', message: 'GOOGLE_CLIENT_ID not configured' } });
       }
-      const state = Buffer.from(JSON.stringify({ dealer_id, signin: isSignin })).toString('base64url');
+      const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform, signin: isSignin });
       const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
       url.searchParams.set('redirect_uri', GOOGLE_CALLBACK_URI);
@@ -128,7 +128,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       if (!dealer_id) {
         return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
       }
-      const state = Buffer.from(JSON.stringify({ dealer_id })).toString('base64url');
+      const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform });
       // Mock: immediately redirect to our own callback (no real Twitter OAuth round-trip)
       const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/twitter?code=mock_twitter_code&state=${state}`;
       return { success: true, redirect_url: callbackUrl };
@@ -139,7 +139,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       if (!dealer_id) {
         return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
       }
-      const state = Buffer.from(JSON.stringify({ dealer_id })).toString('base64url');
+      const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform });
       const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/youtube?code=mock_youtube_code&state=${state}`;
       return { success: true, redirect_url: callbackUrl };
     }
@@ -160,14 +160,16 @@ export default async function platformRoutes(fastify: FastifyInstance) {
 
     const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
 
+    if (mockPlatformsDisabled()) {
+      return reply.code(501).send({ error: { code: 'NOT_AVAILABLE', message: 'twitter connections are not available yet' } });
+    }
+
     if (oauthError || !code || !state) {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'Twitter login cancelled')}&platform=twitter`);
     }
 
-    let stateData: { dealer_id: string | null };
-    try {
-      stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-    } catch {
+    const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
+    if (!stateData || stateData.platform !== 'twitter') {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=twitter`);
     }
 
@@ -223,14 +225,16 @@ export default async function platformRoutes(fastify: FastifyInstance) {
 
     const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
 
+    if (mockPlatformsDisabled()) {
+      return reply.code(501).send({ error: { code: 'NOT_AVAILABLE', message: 'youtube connections are not available yet' } });
+    }
+
     if (oauthError || !code || !state) {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'YouTube login cancelled')}&platform=youtube`);
     }
 
-    let stateData: { dealer_id: string | null };
-    try {
-      stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-    } catch {
+    const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
+    if (!stateData || stateData.platform !== 'youtube') {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=youtube`);
     }
 
@@ -292,10 +296,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(error_description ?? msg)}&platform=facebook`);
     }
 
-    let stateData: { dealer_id: string | null; platform?: string; signin?: boolean };
-    try {
-      stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-    } catch {
+    const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
+    if (!stateData || (stateData.platform !== 'facebook' && stateData.platform !== 'instagram')) {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state parameter')}&platform=facebook`);
     }
 
@@ -399,8 +401,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
           phone: userPhone,
           permissions,
         };
-        accessTokenForJwt = fastify.jwt.sign(jwtPayload, { expiresIn: '30d' });
-        refreshTokenForJwt = fastify.jwt.sign(jwtPayload, { expiresIn: '90d' });
+        accessTokenForJwt = fastify.jwt.sign({ ...jwtPayload, typ: 'access' }, { expiresIn: '30d' });
+        refreshTokenForJwt = fastify.jwt.sign({ ...jwtPayload, typ: 'refresh' }, { expiresIn: '90d' });
       }
 
       if (!dealerId) {
@@ -593,10 +595,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'Google login cancelled')}&platform=google`);
     }
 
-    let stateData: { dealer_id: string | null; signin?: boolean };
-    try {
-      stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
-    } catch {
+    const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
+    if (!stateData || stateData.platform !== 'gmb') {
       return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=google`);
     }
 
@@ -687,8 +687,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
           phone: gPhone,
           permissions,
         };
-        jwtToken = fastify.jwt.sign(jwtPayload, { expiresIn: '30d' });
-        jwtRefresh = fastify.jwt.sign(jwtPayload, { expiresIn: '90d' });
+        jwtToken = fastify.jwt.sign({ ...jwtPayload, typ: 'access' }, { expiresIn: '30d' });
+        jwtRefresh = fastify.jwt.sign({ ...jwtPayload, typ: 'refresh' }, { expiresIn: '90d' });
       }
 
       if (!dealerId) {

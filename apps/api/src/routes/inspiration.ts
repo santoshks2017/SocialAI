@@ -1,18 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
+import { safeFetchBuffer } from '../lib/safeUrl.js';
 
 // Simple URL scraper: fetches page HTML and extracts visible text snippets as a
 // best-effort post cache (works for publicly accessible pages, no Graph API needed).
 async function scrapePublicPagePosts(url: string): Promise<string[]> {
   try {
-    const res = await fetch(url, {
+    // handle_url is user-supplied, so fetch it through the SSRF guard
+    const res = await safeFetchBuffer(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; CarDekhoSocialAIBot/1.0; +http://localhost)',
       },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
+      maxBytes: 5 * 1024 * 1024,
     });
-    if (!res.ok) return [];
-    const html = await res.text();
+    const html = res.buffer.toString('utf8');
 
     // Extract meaningful text blocks from common social page containers.
     // This captures caption-like text between tags by stripping HTML.
