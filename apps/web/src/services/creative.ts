@@ -41,6 +41,9 @@ export interface Post {
   caption_text?: string;
   caption_hashtags: string[];
   creative_urls?: Record<string, string>;
+  media_type?: 'image' | 'video';
+  video_url?: string | null;
+  thumbnail_url?: string | null;
   platforms: string[];
   status: PostStatus;
   scheduled_at?: string;
@@ -123,6 +126,17 @@ export const creativeService = {
   },
 };
 
+// PATCH /publisher/posts/:id takes camelCase fields (the API maps them to the stored snake_case).
+export interface PostUpdate {
+  promptText?: string;
+  captionText?: string;
+  captionHashtags?: string[];
+  creativeUrls?: Record<string, string>;
+  platforms?: string[];
+  videoUrl?: string;
+  thumbnailUrl?: string;
+}
+
 export const postService = {
   list: (params?: { page?: number; pageSize?: number; status?: string }) =>
     api.get<{ data: Post[]; total: number; page: number; pageSize: number }>('/publisher/posts', params),
@@ -136,10 +150,13 @@ export const postService = {
     captionText?: string;
     captionHashtags?: string[];
     creativeUrls?: Record<string, string>;
+    mediaType?: 'image' | 'video';
+    videoUrl?: string;
+    thumbnailUrl?: string;
   }) =>
     api.post<{ item: Post }>('/publisher', data),
-  
-  update: (id: string, data: Partial<Post>) =>
+
+  update: (id: string, data: PostUpdate) =>
     api.patch<{ item: Post }>(`/publisher/posts/${id}`, data),
   
   // Permanently deletes the post (API answers 409 while it is publishing).
