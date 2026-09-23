@@ -40,7 +40,9 @@ import {
   generateGeminiCaptions,
   isGeminiTextAvailable,
   elaboratePromptBrief,
+  geminiTransformCaption,
 } from "../services/geminiService.js"
+import { LANGUAGE_NAMES, normalizeLanguage } from "../lib/languages.js"
 import { getBrandLogoSvg } from "../services/brandLogoService.js"
 import { generateGeminiVideo, generateReelCaptionAndMetadata, type VideoOverlayBeat } from "../services/geminiVideo.js"
 import { loadDealerLogo, loadImageFromUrl, readOriginalUpload } from "../lib/uploadPaths.js"
@@ -161,6 +163,11 @@ async function generateCaptionsAI(
 }
 
 async function transformCaptionAI(caption: string, instruction: string): Promise<string> {
+  if (await isGeminiTextAvailable()) {
+    try { return await geminiTransformCaption(caption, instruction) } catch (err) {
+      console.error("Gemini transform failed, falling back to Groq:", err)
+    }
+  }
   if (isGroqAvailable()) {
     try { return await groqTransformCaption(caption, instruction) } catch (err) {
       console.error("Groq transform failed, falling back to OpenRouter:", err)
@@ -1132,22 +1139,25 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
   // POST /v1/creatives/hashtags
   fastify.post("/hashtags", { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { caption, brand, city } = request.body as { caption: string; brand?: string; city?: string }
+    const { caption, brand, city, language } = request.body as { caption: string; brand?: string; city?: string; language?: string }
     if (!caption?.trim()) {
       return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "caption is required" } })
     }
+    const lang = normalizeLanguage(language)
     const context = [brand && `Brand: ${brand}`, city && `City: ${city}`].filter(Boolean).join(", ")
-    const instruction = `Generate 15 highly relevant hashtags for this Indian automobile dealer caption.${context ? ` Context: ${context}.` : ""} Include: city hashtags, brand hashtags, model hashtags (if mentioned), and engagement hashtags. Return ONLY a JSON array of hashtag strings, e.g. ["#tag1","#tag2"]. No other text.`
+    const languageHint = lang === "en" ? "" : ` Include 3–4 hashtags written in ${LANGUAGE_NAMES[lang]}.`
+    const instruction = `Generate 15 highly relevant hashtags for this Indian automobile dealer caption.${context ? ` Context: ${context}.` : ""} Include: city hashtags, brand hashtags, model hashtags (if mentioned), and engagement hashtags.${languageHint} Return ONLY a JSON array of hashtag strings, e.g. ["#tag1","#tag2"]. No other text.`
     try {
-      const result = await transformCaptionAI(caption, instruction)
+      const result = (await transformCaptionAI(caption, instruction)).replace(/^```(?:json)?\s*|\s*```$/g, "")
       let hashtags: string[] = []
       try {
         const parsed = JSON.parse(result) as unknown
-        if (Array.isArray(parsed)) hashtags = (parsed as string[]).filter((h) => typeof h === 'string')
+        if (Array.isArray(parsed)) hashtags = parsed.filter((h): h is string => typeof h === "string")
       } catch {
-        hashtags = result.match(/#\w+/g) ?? []
+        hashtags = result.match(/#[\p{L}\p{N}_]+/gu) ?? []
       }
-      return { success: true, hashtags }
+      const normalized = hashtags.map((h) => h.trim()).filter(Boolean).map((h) => (h.startsWith("#") ? h : `#${h}`))
+      return { success: true, hashtags: normalized.slice(0, 15) }
     } catch (err) {
       fastify.log.error(err, "Hashtag generation failed")
       return reply.code(500).send({ error: { code: "AI_ERROR", message: "Hashtag generation failed. Please try again." } })
@@ -1177,7 +1187,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id as string;
-      const { prompt } = request.body as { prompt: string };
+      const { prompt, language } = request.body as { prompt: string; language?: string };
 
       if (!prompt?.trim()) {
         return reply.code(400).send({
@@ -1202,7 +1212,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const brief = await elaboratePromptBrief(prompt, matchedModel);
+        const brief = await elaboratePromptBrief(prompt, matchedModel, normalizeLanguage(language));
 
         return {
           success: true,

@@ -3,6 +3,7 @@ import type { DealerContext, InventoryContext, GeneratedCaptions } from "./opena
 import { buildEnrichedSystemPrompt } from "../data/indianAutoPatterns.js";
 import { getFrontendUrl } from "../lib/frontendUrl.js";
 import { getGeminiApiKey, hasGeminiKey } from "../lib/aiKeys.js";
+import { briefCaptionInstructions } from "../lib/languages.js";
 
 export interface GeminiCreativeOptionOutput {
   headline: string;
@@ -710,11 +711,14 @@ function getHardcodedElaboratedBrief(
 
 export async function elaboratePromptBrief(
   userPrompt: string,
-  matchedModel?: { brand: string; model_name: string } | null
+  matchedModel?: { brand: string; model_name: string } | null,
+  language = 'en'
 ): Promise<ElaboratedPromptBrief> {
   const apiKey = await getGeminiApiKey();
 
-  const systemInstructions = `You are a premium automotive advertising director. 
+  const [caption1, caption2, caption3] = briefCaptionInstructions(language);
+
+  const systemInstructions = `You are a premium automotive advertising director.
 Analyze the user's campaign concept and output a detailed structure that outlines 3 distinct creative options and 3 distinct caption/hashtag copy options for a social media banner.
 You must return only a JSON object matching this schema:
 {
@@ -727,9 +731,9 @@ You must return only a JSON object matching this schema:
   "background_details_option3": "Highly-detailed Imagen prompt describing ONLY the empty background scene for Option 3 (another visually distinct background).",
   "lighting_mood": "Short phrase describing the lighting and mood (e.g. warm sunset glow, cool neon reflections)",
   "headline": "A short, punchy marketing headline to overlay on the poster (max 6-8 words)",
-  "caption": "Primary Option 1: engaging Hinglish (conversational mix of Hindi and English) social media post caption.",
-  "caption_option2": "Option 2: professional English social media post caption.",
-  "caption_option3": "Option 3: bold, high-energy marketing social media post caption.",
+  "caption": "${caption1}",
+  "caption_option2": "${caption2}",
+  "caption_option3": "${caption3}",
   "hashtags": ["Option 1 list of 4-6 hashtags"],
   "hashtags_option2": ["Option 2 list of 4-6 hashtags"],
   "hashtags_option3": ["Option 3 list of 4-6 hashtags"]
@@ -848,4 +852,19 @@ Generate the detailed layers and copy now.`;
   // 3. Hardcoded Fallback
   console.warn("All elaborate APIs failed, falling back to local defaults.");
   return getHardcodedElaboratedBrief(userPrompt, matchedModel);
+}
+
+// Rewrites or derives text from a caption (rephrase, translate, hashtags) with Gemini.
+export async function geminiTransformCaption(caption: string, instruction: string): Promise<string> {
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) throw new Error('Gemini API key is not configured.');
+  const model = process.env['GEMINI_TEXT_MODEL'] || 'gemini-2.5-flash';
+  const res = await axios.post(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    { contents: [{ parts: [{ text: `${instruction}\n\nCaption:\n${caption}` }] }] },
+    { headers: { 'x-goog-api-key': apiKey }, timeout: 20000 },
+  );
+  const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof text !== 'string' || !text.trim()) throw new Error('Gemini returned no text');
+  return text.trim();
 }
