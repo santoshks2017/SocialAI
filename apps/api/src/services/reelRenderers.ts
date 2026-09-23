@@ -103,14 +103,36 @@ export function veoError(err: unknown): ReelRenderError {
   return new ReelRenderError('VEO_GENERATION_FAILED', 'AI video generation failed.');
 }
 
-async function referenceImage(imageUrl: string): Promise<VideoImageInput> {
+/**
+ * The dealer's photo as the video model's reference: upright (EXIF orientation applied), transparent
+ * areas on white, at most 1280 px, JPEG. Null (message logged) when it can't be decoded — e.g. a HEIC
+ * this sharp build can't read — so the reel carries on as text-to-video.
+ */
+export async function prepareReferenceImage(buffer: Buffer): Promise<VideoImageInput | null> {
   try {
-    const { buffer } = await loadImageFromUrl(imageUrl, { timeoutMs: 20_000 });
-    const data = await sharp(buffer).resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    const data = await sharp(buffer)
+      .rotate()
+      .flatten({ background: '#ffffff' })
+      .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
     return { data, mimeType: 'image/jpeg' };
-  } catch {
-    throw new ReelRenderError('IMAGE_LOAD_FAILED', 'Could not read the attached photo.');
+  } catch (err) {
+    console.warn(`[reels] Could not decode the reference photo; continuing without it: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
   }
+}
+
+/** Loads and prepares the attached photo; undefined when it can't be read, so the reel still renders. */
+export async function referenceImage(imageUrl: string): Promise<VideoImageInput | undefined> {
+  let buffer: Buffer;
+  try {
+    ({ buffer } = await loadImageFromUrl(imageUrl, { timeoutMs: 20_000 }));
+  } catch (err) {
+    console.warn(`[reels] Could not load the reference photo; continuing without it: ${err instanceof Error ? err.message : String(err)}`);
+    return undefined;
+  }
+  return (await prepareReferenceImage(buffer)) ?? undefined;
 }
 
 export async function renderVeoReel(input: ReelRenderInput): Promise<RenderedReel> {
