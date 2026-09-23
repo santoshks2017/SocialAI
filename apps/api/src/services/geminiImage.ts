@@ -1,14 +1,15 @@
 import axios from "axios";
 import sharp from "sharp";
+import { getGeminiApiKey, hasGeminiKey } from "../lib/aiKeys.js";
 
 /**
  * Generates an image using Google AI Studio (Gemini / Imagen 3 model).
  * Returns a Buffer of the generated image.
  */
 export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffer, modelName?: string): Promise<Buffer> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getGeminiApiKey();
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is not set. Please configure it in your .env file.");
+    throw new Error("Gemini API key is not configured. Save one in Admin → APIs & models or set GEMINI_API_KEY on the server.");
   }
 
   const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
@@ -116,7 +117,7 @@ export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffe
 /**
  * Checks if Google AI Studio Image generation is available.
  */
-export function isGeminiImageAvailable(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+export async function isGeminiImageAvailable(): Promise<boolean> {
+  return hasGeminiKey();
 }
 

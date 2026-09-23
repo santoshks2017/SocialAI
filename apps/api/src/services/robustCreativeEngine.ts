@@ -333,7 +333,7 @@ export async function runRobustCreativeEngine(input: RobustGenerateRequest): Pro
       let backgroundBuffer: Buffer | null = null;
 
       if (bgPrompt) {
-        if (isGeminiImageAvailable()) {
+        if (await isGeminiImageAvailable()) {
           try {
             backgroundBuffer = await generateGeminiImage(bgPrompt);
           } catch (err) {

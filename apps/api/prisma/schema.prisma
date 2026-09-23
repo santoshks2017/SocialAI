@@ -411,3 +411,28 @@ model Notification {
 
   @@index([user_id, created_at])
 }
+
+model ApiConnection {
+  id             String    @id @default(uuid())
+  name           String
+  provider       String    // 'google-gemini'
+  notes          String?
+  enabled        Boolean   @default(true)
+  has_key        Boolean   @default(false)
+  key_last4      String?
+  key_updated_at DateTime?
+  key_updated_by String?   // DealerUser.id of the platform owner who last saved or removed the key
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+}
+
+// Encrypted keys, kept apart from ApiConnection so listing connections never reads a key.
+model ApiConnectionSecret {
+  id            String   @id @default(uuid())
+  connection_id String   @unique
+  ciphertext    String
+  iv            String
+  tag           String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+}

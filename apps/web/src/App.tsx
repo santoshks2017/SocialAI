@@ -27,6 +27,7 @@ import PostsPage from './pages/PostsPage';
 import Onboarding from './pages/Onboarding';
 import BillingPage from './pages/BillingPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import ApiConnectionsPage from './pages/admin/ApiConnectionsPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ConnectProfilesPage from './pages/ConnectProfilesPage';
@@ -460,6 +461,7 @@ function AppRoutes() {
       <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectProfilesPage /></AppLayout></RequireAuth>} />
       <Route path="/billing" element={<RequireAuth><AppLayout><BillingPage /></AppLayout></RequireAuth>} />
       <Route path="/admin" element={<RequireAuth><RequireGlobalOwner><AppLayout><AdminDashboard /></AppLayout></RequireGlobalOwner></RequireAuth>} />
+      <Route path="/admin/apis" element={<RequireAuth><RequireGlobalOwner><AppLayout><ApiConnectionsPage /></AppLayout></RequireGlobalOwner></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

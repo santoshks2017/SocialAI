@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Settings, ShieldCheck, X } from 'lucide-react';
+import { KeyRound, LogOut, Plus, Settings, ShieldCheck, X } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { isGlobalOwner } from '../../lib/permissions';
@@ -109,8 +109,11 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
         {owner && (
           <div className="space-y-0.5">
             <p className={SECTION_LABEL}>Admin</p>
-            <NavLink to="/admin" onClick={onClose} className={itemClass}>
+            <NavLink to="/admin" end onClick={onClose} className={itemClass}>
               {({ isActive }) => (<><ShieldCheck className={iconClass(isActive)} />Console</>)}
+            </NavLink>
+            <NavLink to="/admin/apis" onClick={onClose} className={itemClass}>
+              {({ isActive }) => (<><KeyRound className={iconClass(isActive)} />APIs &amp; models</>)}
             </NavLink>
           </div>
         )}

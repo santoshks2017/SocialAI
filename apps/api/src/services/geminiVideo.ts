@@ -7,6 +7,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { uploadFile } from '../lib/storage.js';
 import { UPLOADS_ROOT } from '../routes/upload.js';
+import { getGeminiApiKey } from '../lib/aiKeys.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -237,7 +238,7 @@ export async function generateReelOverlays(params: {
   dealerName?: string | undefined;
   city?: string | undefined;
 }): Promise<VideoOverlayBeat[]> {
-  const apiKey = process.env['GEMINI_API_KEY'] || '';
+  const apiKey = (await getGeminiApiKey()) ?? '';
   const { overlays } = await batchVideoCreativeData({
     rawPrompt: params.prompt,
     ...(params.brand !== undefined && { brand: params.brand }),
@@ -334,9 +335,9 @@ export async function compositeVideoOverlays(
  * 4. Returns both cleanVideoUrl and videoUrl (with overlays).
  */
 export async function generateGeminiVideo(params: GenerateVideoParams): Promise<VideoGenerationResult> {
-  const apiKey = process.env['GEMINI_API_KEY'];
+  const apiKey = await getGeminiApiKey();
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is not configured.');
+    throw new Error('Gemini API key is not configured. Save one in Admin → APIs & models or set GEMINI_API_KEY on the server.');
   }
 
   const model = process.env['GEMINI_VIDEO_MODEL'] || 'gemini-omni-1.1-flash';
@@ -590,7 +591,7 @@ export async function generateReelCaptionAndMetadata(params: {
   dealerName?: string | undefined;
   city?: string | undefined;
 }): Promise<ReelMetadataResult> {
-  const apiKey = process.env['GEMINI_API_KEY'];
+  const apiKey = await getGeminiApiKey();
   const textModel = process.env['GEMINI_TEXT_MODEL'] || 'gemini-2.5-flash';
 
   const dealer = params.dealerName || 'Authorized Dealership';
