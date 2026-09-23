@@ -1,7 +1,7 @@
 import { describe, it, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import axios, { AxiosError, AxiosHeaders } from 'axios';
-import { buildOmniRequest, buildVeoRequest, fetchOmniVideo, fetchVeoVideo, googleFileId, keepKeyOnGoogleHost } from '../src/services/geminiVideo.js';
+import { buildOmniRequest, buildVeoRequest, fetchOmniVideo, fetchVeoVideo, googleFileId, keepKeyOnGoogleHost, renderDeadlineMs } from '../src/services/geminiVideo.js';
 import { veoError } from '../src/services/reelRenderers.js';
 import { GOOGLE_AI_BASE } from '../src/lib/googleAi.js';
 
@@ -151,5 +151,13 @@ describe('Files API URIs', () => {
     keepKeyOnGoogleHost(sameHost);
     assert.equal(sameHost.headers['x-goog-api-key'], KEY);
     assert.throws(() => keepKeyOnGoogleHost({ protocol: 'http:', hostname: 'generativelanguage.googleapis.com', headers: {} }), /HTTPS/);
+  });
+});
+
+describe('renderDeadlineMs', () => {
+  it('defaults to 230 s and ignores unusable values', () => {
+    assert.equal(renderDeadlineMs({}), 230_000);
+    assert.equal(renderDeadlineMs({ VIDEO_RENDER_DEADLINE_MS: '90000' }), 90_000);
+    for (const bad of ['', '0', '-5', 'soon']) assert.equal(renderDeadlineMs({ VIDEO_RENDER_DEADLINE_MS: bad }), 230_000, bad);
   });
 });
