@@ -41,6 +41,8 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
 
   // POST /v1/notifications/read-all
   fastify.post('/read-all', async (request) => {
+    // An admin viewing as this user must not clear the user's unread notifications.
+    if (request.user.impersonatedBy) return { success: true, count: 0 };
     const { count } = await prisma.notification.updateMany({
       where: { user_id: request.user.dealer_user_id, is_read: false },
       data: { is_read: true },
@@ -57,7 +59,7 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
     if (!notification) {
       return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Notification not found' } });
     }
-    if (!notification.is_read) {
+    if (!notification.is_read && !request.user.impersonatedBy) {
       await prisma.notification.update({ where: { id }, data: { is_read: true } });
     }
     return { success: true };

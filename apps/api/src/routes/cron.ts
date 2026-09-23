@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
-import { isSuccessfulResult, publishPost } from '../lib/publishDirect.js';
+import { isSuccessfulResult, platformLabel, publishPost } from '../lib/publishDirect.js';
 import type { PlatformPublishResult } from '../lib/publishDirect.js';
+import { notifyPublishOutcome } from '../lib/postNotifications.js';
 import { transitionPost } from '../lib/publishClaim.js';
 
 const BATCH_SIZE = 20; // posts per invocation, to keep each request short
@@ -47,7 +48,16 @@ async function recoverStuckPosts(now: Date): Promise<string[]> {
         ? { status: 'published', publish_results: publishResults, published_at: post.published_at ?? now }
         : { status: 'failed', publish_results: publishResults },
     );
-    if (marked) recovered.push(post.id);
+    if (marked) {
+      recovered.push(post.id);
+      const platforms = post.platforms ?? [];
+      await notifyPublishOutcome({
+        post,
+        status: anySucceeded ? 'published' : 'failed',
+        publishedOn: platforms.filter((p) => isSuccessfulResult(publishResults[p])).map(platformLabel),
+        failedOn: platforms.filter((p) => !isSuccessfulResult(publishResults[p])).map(platformLabel),
+      });
+    }
   }
   return recovered;
 }

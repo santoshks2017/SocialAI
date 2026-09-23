@@ -10,6 +10,7 @@ import type { JwtUser } from './lib/permissions.js';
 import { registerActivityLog } from './plugins/activityLog.js';
 import { registerPlanGate } from './plugins/planGate.js';
 import { createOriginChecker } from './lib/corsOrigins.js';
+import { redactApprovalToken } from './lib/logRedaction.js';
 import { startWorkers } from './workers/index.js';
 
 import authRoutes from './routes/auth.js';
@@ -18,6 +19,7 @@ import platformRoutes from './routes/platform.js';
 import creativeRoutes from './routes/creative.js';
 import robustCreativeRoutes from './routes/robustCreative.js';
 import publisherRoutes from './routes/publisher.js';
+import approvalRoutes from './routes/approvals.js';
 import inventoryRoutes from './routes/inventory.js';
 import inboxRoutes from './routes/inbox.js';
 import boostRoutes from './routes/boost.js';
@@ -43,7 +45,22 @@ import { getFrontendUrl } from './lib/frontendUrl.js';
 
 // Cloud Run's front end proxies every request, so the socket address is its own
 // (169.254.169.126); trustProxy makes req.ip the client from X-Forwarded-For.
-const fastify = Fastify({ logger: true, trustProxy: true });
+// The req serializer mirrors Fastify's default, but keeps the raw approval-link token
+// (a bearer credential in the URL) out of the logs.
+const fastify = Fastify({
+  logger: {
+    serializers: {
+      req: (req) => ({
+        method: req.method,
+        url: redactApprovalToken(req.url),
+        host: req.host,
+        remoteAddress: req.ip,
+        ...(req.socket?.remotePort !== undefined ? { remotePort: req.socket.remotePort } : {}),
+      }),
+    },
+  },
+  trustProxy: true,
+});
 
 if (process.env['NODE_ENV'] === 'production' && !process.env['FRONTEND_URL']?.trim()) {
   fastify.log.warn(`FRONTEND_URL is not set; OAuth redirects will use ${getFrontendUrl()}`);
@@ -117,6 +134,7 @@ fastify.register(platformRoutes,  { prefix: '/v1/platforms' });
 fastify.register(creativeRoutes,  { prefix: '/v1/creatives' });
 fastify.register(robustCreativeRoutes, { prefix: '/v1/creatives' });
 fastify.register(publisherRoutes, { prefix: '/v1/publisher' });
+fastify.register(approvalRoutes,  { prefix: '/v1/publisher' });
 fastify.register(inventoryRoutes, { prefix: '/v1/inventory' });
 fastify.register(inboxRoutes,     { prefix: '/v1/inbox' });
 fastify.register(boostRoutes,     { prefix: '/v1/boost' });

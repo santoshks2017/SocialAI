@@ -145,6 +145,9 @@ model Post {
   requires_approval      Boolean  @default(false)
   approved_by            String?  // DealerUser.id
   approved_at            DateTime?
+  created_by             String?  // DealerUser.id of the author; null on posts created before Stage B
+  approver_note          String?  // the approver's comment when approving, or the reason when rejecting
+  approval_decision      String?  // 'approved' | 'rejected': the last approval decision
   scheduled_at           DateTime?
   published_at           DateTime?
   publish_results        Json?
@@ -408,6 +411,7 @@ model Notification {
   link       String?
   is_read    Boolean  @default(false)
   created_at DateTime @default(now())
+  expires_at DateTime? // Firestore TTL policy on notifications.expires_at deletes the row after this time
 
   @@index([user_id, created_at])
 }
@@ -435,4 +439,21 @@ model ApiConnectionSecret {
   tag           String
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+}
+
+// Single-use link that lets someone approve or reject a post without signing in
+// (/approve/:token). Only the SHA-256 of the token is stored.
+model ApprovalToken {
+  id         String    @id @default(uuid())
+  dealer_id  String
+  post_id    String
+  token_hash String    @unique
+  created_by String?   // DealerUser.id who asked for approval
+  expires_at DateTime
+  used_at    DateTime?
+  decision   String?   // 'approve' | 'reject'; null when a newer link replaced this one
+  comment    String?
+  created_at DateTime  @default(now())
+
+  @@index([post_id])
 }

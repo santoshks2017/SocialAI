@@ -1,5 +1,6 @@
 import api from './api';
 import type { PublishResponse } from '../utils/publishResult';
+import type { PostStatus } from '../utils/posts';
 
 export interface Prompt {
   id: string;
@@ -41,14 +42,15 @@ export interface Post {
   caption_hashtags: string[];
   creative_urls?: Record<string, string>;
   platforms: string[];
-  status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
+  status: PostStatus;
   scheduled_at?: string;
   published_at?: string;
-  metrics?: {
-    reach?: number;
-    likes?: number;
-    comments?: number;
-  };
+  created_by?: string | null;
+  approver_note?: string | null;
+  approval_decision?: 'approved' | 'rejected' | null;
+  approved_by?: string | null;
+  publish_results?: Record<string, unknown> | null;
+  metrics?: { reach?: number; likes?: number; comments?: number };
   created_at: string;
 }
 
@@ -162,6 +164,14 @@ export const postService = {
   
   getMetrics: (id: string) =>
     api.get<{ metrics: Post['metrics'] }>(`/publisher/posts/${id}/metrics`),
+
+  counts: () => api.get<{ counts: Partial<Record<PostStatus, number>>; total: number }>('/publisher/posts/counts'),
+  activity: (days: number) =>
+    api.get<{ days: number; posts: Array<{ created_at: string; status: string }> }>('/publisher/posts/activity', { days }),
+  submitForApproval: (id: string, platforms?: string[]) =>
+    api.post<{ item: Post; approvalUrl: string; whatsappShare: string }>(`/publisher/posts/${id}/submit-for-approval`, platforms ? { platforms } : {}),
+  approve: (id: string) => api.post<{ item: Post }>(`/publisher/posts/${id}/approve`),
+  reject: (id: string, reason: string) => api.post<{ item: Post }>(`/publisher/posts/${id}/reject`, { reason }),
 };
 
 type InventoryItemInput = Partial<Omit<InventoryItem, 'id' | 'dealer_id' | 'created_at' | 'updated_at'>>;

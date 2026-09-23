@@ -137,3 +137,56 @@ describe('GET/POST /v1/notifications', () => {
     assert.equal(res.statusCode, 401);
   });
 });
+
+describe('notify() safeguards', () => {
+  it('skips userIds that are inactive or belong to another dealership', async () => {
+    const { dealerId, users } = await newDealerWithUsers(1, 1);
+    const other = await newDealerWithUsers(1);
+
+    const created = await notify({
+      dealerId, type: 'approval_requested', title: 'Approval requested',
+      userIds: [users[0]!.id, users[1]!.id, other.users[0]!.id, users[0]!.id],
+    });
+
+    assert.equal(created, 1);
+    const rows = await prisma.notification.findMany({ where: { dealer_id: dealerId } });
+    assert.deepEqual(rows.map((r) => r.user_id), [users[0]!.id]);
+    assert.equal(await prisma.notification.count({ where: { user_id: other.users[0]!.id } }), 0);
+  });
+
+  it('refuses links that are not app-relative paths', async () => {
+    const { dealerId } = await newDealerWithUsers(1);
+    for (const link of ['https://evil.example/x', '//evil.example', 'posts', '/posts?x=1 2', '/\\evil.example']) {
+      await assert.rejects(notify({ dealerId, type: 'post_failed', title: 'x', link }), /app-relative/, link);
+    }
+    assert.equal(await prisma.notification.count({ where: { dealer_id: dealerId } }), 0);
+  });
+
+  it('stamps each row with a 90-day expiry for the TTL policy', async () => {
+    const { dealerId } = await newDealerWithUsers(1);
+    const ninetyDays = 90 * 24 * 60 * 60 * 1000;
+    const before = Date.now();
+    await notify({ dealerId, type: 'post_published', title: 'Post published', link: '/posts?status=published' });
+    const [row] = await prisma.notification.findMany({ where: { dealer_id: dealerId } });
+    const expires = new Date(row!.expires_at!).getTime();
+    assert.ok(expires >= before + ninetyDays && expires <= Date.now() + ninetyDays);
+  });
+});
+
+describe('notifications during impersonation', () => {
+  it('leaves read state untouched while an admin is viewing as the user', async () => {
+    const { dealerId, users } = await newDealerWithUsers(1);
+    const n = await prisma.notification.create({ data: { dealer_id: dealerId, user_id: users[0]!.id, type: 'inbox_message', title: 'Hi' } });
+    const payload: JwtUser = {
+      dealer_user_id: users[0]!.id, dealer_id: dealerId, role: 'admin', phone: '+910000000000',
+      permissions: resolvePermissions('admin'), impersonatedBy: 'owner-1', typ: 'access',
+    };
+    const headers = bearer(fastify.jwt.sign(payload));
+
+    const one = await fastify.inject({ method: 'POST', url: `/v1/notifications/${n.id}/read`, headers });
+    assert.equal(one.statusCode, 200);
+    const all = await fastify.inject({ method: 'POST', url: '/v1/notifications/read-all', headers });
+    assert.equal((all.json() as { count: number }).count, 0);
+    assert.equal((await prisma.notification.findUnique({ where: { id: n.id } }))?.is_read, false);
+  });
+});

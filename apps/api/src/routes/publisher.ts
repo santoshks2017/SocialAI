@@ -4,6 +4,7 @@ import { publishQueue, isQueueAvailable } from "../queues/index.js"
 import type { PublishJobData } from "../queues/index.js"
 import { buildPublishData, platformLabel, publishPost } from "../lib/publishDirect.js"
 import { deletePostIf, transitionPost } from "../lib/publishClaim.js"
+import { spendApprovalLinks } from "../lib/approvals.js"
 import { PERMISSIONS } from "../lib/permissions.js"
 import { getUser, requirePermission } from "../lib/routeHelpers.js"
 
@@ -14,6 +15,16 @@ const PUBLISH_IN_PROGRESS = {
   error: {
     code: "PUBLISH_IN_PROGRESS",
     message: "This post is being published right now. Try again once it finishes.",
+  },
+}
+
+// Approval statuses change only through the approval routes (routes/approvals.ts).
+const APPROVAL_STATUSES = new Set(["pending_approval", "approved"])
+
+const AWAITING_APPROVAL = {
+  error: {
+    code: "AWAITING_APPROVAL",
+    message: "Approve or reject this post before publishing it.",
   },
 }
 
@@ -64,6 +75,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           ...(body.creativeUrls ? { creative_urls: body.creativeUrls } : {}),
           platforms: body.platforms,
           status: "draft",
+          created_by: request.user.dealer_user_id ?? null,
         },
       })
 
@@ -114,6 +126,41 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
     },
   )
 
+  // GET /v1/publisher/posts/counts — posts per status, for the Posts tabs and the dashboard pipeline
+  fastify.get("/posts/counts", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = request.user.dealer_id!
+    const groups = (await prisma.post.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+      where: { dealer_id },
+    })) as Array<{ status: string | null; _count: { _all: number } }>
+    const counts: Record<string, number> = {}
+    for (const group of groups) {
+      const status = group.status ?? "draft"
+      counts[status] = (counts[status] ?? 0) + group._count._all
+    }
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0)
+    return { success: true, counts, total }
+  })
+
+  // GET /v1/publisher/posts/activity?days=30 — when recent posts were created and their status,
+  // for the dashboard chart. The browser buckets by local day, so one extra day is included.
+  fastify.get("/posts/activity", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = request.user.dealer_id!
+    const { days: daysParam } = request.query as { days?: string }
+    const days = Math.max(1, Math.min(90, parseInt(daysParam ?? "30", 10) || 30))
+    const since = new Date(Date.now() - (days + 1) * 24 * 60 * 60 * 1000)
+    const posts = await prisma.post.findMany({
+      where: { dealer_id, created_at: { gte: since } },
+      orderBy: { created_at: "asc" },
+    })
+    return {
+      success: true,
+      days,
+      posts: posts.map((p) => ({ created_at: new Date(p.created_at).toISOString(), status: p.status })),
+    }
+  })
+
   // GET /v1/publisher/posts/:id — fetch a single post
   fastify.get(
     "/posts/:id",
@@ -151,12 +198,35 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         scheduled_at: string
       }>
 
+      if (body.status !== undefined && APPROVAL_STATUSES.has(body.status)) {
+        return reply.code(400).send({
+          error: { code: "INVALID_STATUS", message: "Use the approval actions to send, approve or reject a post." },
+        })
+      }
+
       if (
         body.status !== undefined &&
         PUBLISH_STATUSES.has(body.status) &&
         !requirePermission(reply, getUser(request), PERMISSIONS.PUBLISH_POST)
       )
         return reply
+
+      const existing = await prisma.post.findFirst({ where: { id, dealer_id } })
+      if (!existing)
+        return reply
+          .code(404)
+          .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
+
+      // A post awaiting or holding approval loses it on a content edit: the approver signed off
+      // on specific content, so a change sends it back to drafts unless this same request also
+      // sets another status.
+      const wasInApproval = existing.status === "pending_approval" || existing.status === "approved"
+      const isContentEdit =
+        body.promptText !== undefined ||
+        body.captionText !== undefined ||
+        body.captionHashtags !== undefined ||
+        body.creativeUrls !== undefined ||
+        body.platforms !== undefined
 
       const updateData: Record<string, unknown> = {}
       if (body.promptText !== undefined)
@@ -174,6 +244,14 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           ? new Date(body.scheduled_at)
           : null
 
+      if (wasInApproval && isContentEdit && body.status === undefined) {
+        updateData.status = "draft"
+        updateData.approval_decision = null
+        updateData.approver_note = null
+        updateData.approved_by = null
+        updateData.approved_at = null
+      }
+
       const updated = await prisma.post.updateMany({
         where: { id, dealer_id },
         data: updateData,
@@ -184,6 +262,14 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
 
       const post = await prisma.post.findFirst({ where: { id, dealer_id } })
+
+      // Any open approval link is for the content as it was reviewed; once the post has left
+      // pending_approval/approved — by this edit or an explicit status change — it must not
+      // still be actionable.
+      if (wasInApproval && post && post.status !== "pending_approval" && post.status !== "approved") {
+        await spendApprovalLinks(id)
+      }
+
       return { success: true, item: post }
     },
   )
@@ -205,6 +291,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: { code: "ALREADY_PUBLISHED", message: "Cannot reschedule a published post" } })
       }
       if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
+      if (post.status === "pending_approval") return reply.code(409).send(AWAITING_APPROVAL)
       // Remove any existing delayed BullMQ jobs for this post
       await removeQueuedJobs(id)
       const updated = await prisma.post.update({
@@ -275,6 +362,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           .code(404)
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
       if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
+      if (post.status === "pending_approval") return reply.code(409).send(AWAITING_APPROVAL)
 
       // Load platform connections for this dealer
       const connections = await prisma.platformConnection.findMany({
@@ -322,7 +410,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       // Claim the post so a concurrent request or cron run can't publish it twice.
       const claimed = await transitionPost(
         post_id,
-        (p) => p.dealer_id === dealer_id && p.status !== "publishing",
+        (p) => p.dealer_id === dealer_id && p.status !== "publishing" && p.status !== "pending_approval",
         { status: "publishing", platforms },
       )
       if (!claimed) return reply.code(409).send(PUBLISH_IN_PROGRESS)
@@ -499,10 +587,13 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         }
       }
 
+      const wasInApproval = post.status === "pending_approval" || post.status === "approved"
+
       await prisma.post.update({
         where: { id: postId },
         data: { status: "draft", scheduled_at: null },
       })
+      if (wasInApproval) await spendApprovalLinks(postId)
       return { success: true }
     },
   )

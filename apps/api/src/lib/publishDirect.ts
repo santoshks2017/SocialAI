@@ -4,6 +4,7 @@ import { prisma } from '../db/prisma.js';
 import { publishToFacebook, publishToInstagram } from '../services/meta.js';
 import { publishToGmb } from '../services/gmb.js';
 import { getFreshGoogleAccessToken } from './googleToken.js';
+import { notifyPublishOutcome } from './postNotifications.js';
 import { transitionPost } from './publishClaim.js';
 
 export interface PublishDirectData {
@@ -183,6 +184,18 @@ export async function publishPost(
       publish_results: publishResults as Prisma.InputJsonObject,
       ...(status === 'published' ? { published_at: now } : {}),
     },
+  });
+
+  await notifyPublishOutcome({
+    post: {
+      id: post.id,
+      dealer_id: post.dealer_id,
+      prompt_text: existing?.prompt_text ?? '',
+      created_by: existing?.created_by ?? null,
+    },
+    status,
+    publishedOn: results.filter((r) => r.success).map((r) => platformLabel(r.platform)),
+    failedOn: results.filter((r) => !r.success).map((r) => platformLabel(r.platform)),
   });
 
   return { status, results };
