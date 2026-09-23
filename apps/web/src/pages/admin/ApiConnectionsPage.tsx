@@ -6,7 +6,7 @@ import { ApiError } from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
 import { formatRelativeTime } from '../../utils/helpers';
-import { choiceFromStored, storedFromChoice } from '../../utils/aiModels';
+import { choiceFromStored, keyTestToast, storedFromChoice } from '../../utils/aiModels';
 
 const CARD = 'bg-white rounded-xl border border-zinc-200 shadow-sm';
 const CARD_HEADER = 'px-5 py-4 border-b border-zinc-100';
@@ -145,11 +145,7 @@ export default function ApiConnectionsPage() {
   });
 
   const testKey = (id: string) => run('test', 'Key test failed', async () => {
-    const result = await apiConnectionService.test(id);
-    const message = result.source === 'env' ? `${result.detail} (Tested the server's GEMINI_API_KEY.)` : result.detail;
-    addToast(result.ok
-      ? { type: 'success', title: 'Key works', message }
-      : { type: 'error', title: 'Key test failed', message });
+    addToast(keyTestToast(await apiConnectionService.test(id)));
   });
 
   const removeKey = (id: string) => {
@@ -431,6 +427,7 @@ function ModelsSection({
       <div>
         <h3 className="text-sm font-semibold text-zinc-900">Models</h3>
         <p className="text-[12px] text-zinc-500 mt-0.5">Used for captions, AI images and reels. Leave on default to always get the latest.</p>
+        <p className="text-[12px] text-zinc-500 mt-1">These models are used when this connection’s key is in use (or, with the server key, when it’s the first enabled connection). Save your changes before pressing Test.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
         <ModelSelect
