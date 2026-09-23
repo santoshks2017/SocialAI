@@ -29,6 +29,7 @@ import {
 } from "../services/cloudflareAI.js"
 import { generateOpenRouterImage, isOpenRouterImageAvailable } from "../services/openrouterImage.js"
 import { generateGeminiImage, isGeminiImageAvailable } from "../services/geminiImage.js"
+import { getGeminiApiKey } from "../lib/aiKeys.js"
 import { removeBackground } from "../services/backgroundRemoval.js"
 import {
   compositeLayered,
@@ -91,7 +92,7 @@ async function generateCaptionsAI(
   postType?: string,
 ): Promise<GeneratedCaptions> {
   // 1. Try Gemini direct (primary)
-  if (isGeminiTextAvailable()) {
+  if (await isGeminiTextAvailable()) {
     try {
       return await generateGeminiCaptions(prompt, dealerContext, inventoryContext, inspirationPosts, postType, languageMode)
     } catch (err) {
@@ -494,7 +495,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           `Photorealistic, cinematic lighting, 4K quality, no text overlay, ` +
           `clean background, showroom or open road setting.`
 
-        if (isGeminiImageAvailable()) {
+        if (await isGeminiImageAvailable()) {
           try {
             imageBuffer = await generateGeminiImage(imagePrompt)
           } catch (err) {
@@ -611,7 +612,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           `Cinematic lighting, photorealistic, 4K, no cars, no text, clean scene, ` +
           `showroom or scenic outdoor road setting.`
 
-        if (isGeminiImageAvailable()) {
+        if (await isGeminiImageAvailable()) {
           try {
             backgroundBuffer = await generateGeminiImage(bgPrompt)
           } catch (err) {
@@ -709,12 +710,12 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Dealer not found" } })
       }
 
-      const apiKey = process.env.GEMINI_API_KEY
+      const apiKey = await getGeminiApiKey()
       if (!apiKey) {
         return reply.code(400).send({
           error: {
             code: "MISSING_API_KEY",
-            message: "Gemini API key is not configured on the server. Please set GEMINI_API_KEY in the environment.",
+            message: "Gemini API key is not configured. Save one in Admin → APIs & models or set GEMINI_API_KEY on the server.",
           },
         })
       }
@@ -827,7 +828,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
             let isGradient = false
 
             if (bgPrompt) {
-              if (isGeminiImageAvailable()) {
+              if (await isGeminiImageAvailable()) {
                 try {
                   backgroundBuffer = await generateGeminiImage(bgPrompt)
                 } catch (err) {
@@ -966,7 +967,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
           try {
             let buf: Buffer | null = null
-            if (isGeminiImageAvailable()) {
+            if (await isGeminiImageAvailable()) {
               try {
                 buf = await generateGeminiImage(prompt)
               } catch (err) {
@@ -1023,7 +1024,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           })
       }
 
-      if (!isGeminiImageAvailable() && !isCloudflareAvailable() && !isOpenRouterImageAvailable()) {
+      if (!(await isGeminiImageAvailable()) && !isCloudflareAvailable() && !isOpenRouterImageAvailable()) {
         return reply
           .code(503)
           .send({
@@ -1036,7 +1037,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
       try {
         let imageBuffer: Buffer | null = null;
-        if (isGeminiImageAvailable()) {
+        if (await isGeminiImageAvailable()) {
           try {
             imageBuffer = await generateGeminiImage(prompt)
           } catch (err) {
@@ -1344,7 +1345,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           let backgroundBuffer: Buffer | null = null;
           let isBlended = false;
 
-          if (isGeminiImageAvailable()) {
+          if (await isGeminiImageAvailable()) {
             try {
               // Call Gemini Image model with both bgPrompt and carImgBuf
               backgroundBuffer = await generateGeminiImage(bgPrompt, carImgBuf, body.model_name);
@@ -1417,7 +1418,8 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
           const describeInstructions = "Analyze this automotive advertisement image. Describe the style, scene setting, lighting, colors, and background theme in detail. Do not mention any overlay text or logos. Provide only a single highly-detailed prompt (100-150 words) that can be used by an AI image generator to create a similar background scene, leaving empty space in the bottom-middle for a vehicle placement.";
           
-          const describeUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          const describeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+          const describeKey = await getGeminiApiKey();
           const describePayload = {
             contents: [
               {
@@ -1435,7 +1437,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           };
 
           const describeRes = await axios.post(describeUrl, describePayload, {
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "x-goog-api-key": describeKey ?? "" },
             timeout: 30000
           });
 

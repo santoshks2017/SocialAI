@@ -2,6 +2,7 @@ import axios from "axios";
 import type { DealerContext, InventoryContext, GeneratedCaptions } from "./openai.js";
 import { buildEnrichedSystemPrompt } from "../data/indianAutoPatterns.js";
 import { getFrontendUrl } from "../lib/frontendUrl.js";
+import { getGeminiApiKey, hasGeminiKey } from "../lib/aiKeys.js";
 
 export interface GeminiCreativeOptionOutput {
   headline: string;
@@ -435,7 +436,7 @@ export async function runCreativePromptEngine(
   userPrompt: string,
   images: GeminiImageInput[] = []
 ): Promise<ExpandedPromptBrief> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getGeminiApiKey();
 
   const promptText = `You are a senior AI systems architect and creative director specializing in generative AI pipelines for premium automotive advertising.
 Analyze the user's campaign brief: "${userPrompt}"
@@ -508,7 +509,7 @@ export async function generateGeminiCreativeContent(
   userPrompt: string,
   images: GeminiImageInput[] = []
 ): Promise<{ brief: ExpandedPromptBrief; options: GeminiCreativeOptionOutput[] }> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getGeminiApiKey();
 
   // Step 1: Run Creative Prompt Engine
   const brief = await runCreativePromptEngine(userPrompt, images);
@@ -583,8 +584,8 @@ The background_prompt MUST NOT ask for any text, headlines, dealer names, phone 
   return { brief, options: getHardcodedDefaults(userPrompt).options };
 }
 
-export function isGeminiTextAvailable(): boolean {
-  return !!(process.env.GEMINI_API_KEY);
+export async function isGeminiTextAvailable(): Promise<boolean> {
+  return hasGeminiKey();
 }
 
 export async function generateGeminiCaptions(
@@ -595,8 +596,8 @@ export async function generateGeminiCaptions(
   postType?: string,
   languageMode: 'en' | 'hi' | 'hinglish' | 'bilingual' = 'en',
 ): Promise<GeneratedCaptions> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) throw new Error('Gemini API key is not configured. Save one in Admin → APIs & models or set GEMINI_API_KEY on the server.');
   const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
 
   const systemPrompt = buildEnrichedSystemPrompt(dealer.city, dealer.brands ?? [], postType, languageMode);
@@ -711,7 +712,7 @@ export async function elaboratePromptBrief(
   userPrompt: string,
   matchedModel?: { brand: string; model_name: string } | null
 ): Promise<ElaboratedPromptBrief> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getGeminiApiKey();
 
   const systemInstructions = `You are a premium automotive advertising director. 
 Analyze the user's campaign concept and output a detailed structure that outlines 3 distinct creative options and 3 distinct caption/hashtag copy options for a social media banner.

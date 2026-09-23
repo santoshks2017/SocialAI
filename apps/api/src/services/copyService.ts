@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getFrontendUrl } from '../lib/frontendUrl.js';
+import { getGeminiApiKey } from '../lib/aiKeys.js';
 
 export interface CopyOutput {
   headlines: string[];       // length 3
@@ -17,7 +18,7 @@ export async function generateCopy(params: {
   intentType: string;
   languageMode?: string;
 }): Promise<CopyOutput> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getGeminiApiKey();
   const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
   const language = params.languageMode || 'hinglish';
   
