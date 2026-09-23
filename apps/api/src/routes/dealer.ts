@@ -195,7 +195,7 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       followerTrend: [] as Array<{ platform: string; current: number; delta: number | null }>,
       reviewSummary: {
         avgRating: null as number | null,
-        responseRate: messages.length > 0 ? Math.round((replied / messages.length) * 100) : 0,
+        responseRate: messages.length > 0 ? Math.round((replied / messages.length) * 100) : null,
         totalReviews: messages.filter((m) => m.message_type === 'review').length,
       },
     };

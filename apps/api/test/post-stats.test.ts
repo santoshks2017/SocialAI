@@ -55,6 +55,18 @@ describe('GET /v1/publisher/posts/activity', () => {
     const res = await fastify.inject({ method: 'GET', url: '/v1/publisher/posts/activity?days=500', headers: d.headers });
     assert.equal((res.json() as { days: number }).days, 90);
   });
+
+  it("excludes another dealership's posts", async () => {
+    const d = await dealerWithAdmin();
+    const other = await dealerWithAdmin();
+    await post(d.dealerId, 'published', new Date(Date.now() - 1 * DAY));
+    await post(other.dealerId, 'published', new Date(Date.now() - 1 * DAY));
+
+    const res = await fastify.inject({ method: 'GET', url: '/v1/publisher/posts/activity?days=30', headers: d.headers });
+
+    const body = res.json() as { posts: Array<{ status: string }> };
+    assert.equal(body.posts.length, 1);
+  });
 });
 
 describe('GET /v1/dealer/analytics', () => {
@@ -80,5 +92,29 @@ describe('GET /v1/dealer/analytics', () => {
       followerTrend: [],
       reviewSummary: { avgRating: null, responseRate: 50, totalReviews: 2 },
     });
+  });
+
+  it('reports no response rate when the dealership has no inbox messages', async () => {
+    const d = await dealerWithAdmin();
+
+    const res = await fastify.inject({ method: 'GET', url: '/v1/dealer/analytics', headers: d.headers });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual((res.json() as { reviewSummary: unknown }).reviewSummary, { avgRating: null, responseRate: null, totalReviews: 0 });
+  });
+
+  it("excludes another dealership's inbox messages", async () => {
+    const d = await dealerWithAdmin();
+    const other = await dealerWithAdmin();
+    await prisma.inboxMessage.create({
+      data: {
+        dealer_id: other.dealerId, platform: 'gmb', message_type: 'review', platform_message_id: `m-${randomUUID()}`,
+        customer_name: 'Rohit', message_text: 'Great service', received_at: new Date(), replied_at: new Date(),
+      },
+    });
+
+    const res = await fastify.inject({ method: 'GET', url: '/v1/dealer/analytics', headers: d.headers });
+
+    assert.deepEqual((res.json() as { reviewSummary: unknown }).reviewSummary, { avgRating: null, responseRate: null, totalReviews: 0 });
   });
 });
