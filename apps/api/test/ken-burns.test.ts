@@ -37,6 +37,9 @@ describe('buildKenBurnsArgs', () => {
     assert.match(graph, /xfade=transition=fade:duration=0\.6:offset=4\.8\[x1\]/);
     assert.match(graph, /xfade=transition=fade:duration=0\.6:offset=9\.6\[vout\]/);
     assert.deepEqual(mapsOf(args), ['-map', '[vout]', '-map', '3:a']);
+    const pixFmtIdx = args.indexOf('-pix_fmt');
+    assert.ok(pixFmtIdx > 0, 'should have -pix_fmt');
+    assert.equal(args[pixFmtIdx + 1], 'yuv420p');
     assert.equal(args[args.indexOf('-t', args.indexOf('-filter_complex')) + 1], '15');
     assert.equal(args.at(-1), 'out.mp4');
   });
@@ -45,6 +48,9 @@ describe('buildKenBurnsArgs', () => {
     const args = buildKenBurnsArgs({ imagePaths: ['a.jpg'], outputPath: 'o.mp4', width: 1080, height: 1080, durationSeconds: 10 });
     assert.doesNotMatch(graphOf(args), /xfade/);
     assert.deepEqual(mapsOf(args), ['-map', '[v0]', '-map', '1:a']);
+    const pixFmtIdx = args.indexOf('-pix_fmt');
+    assert.ok(pixFmtIdx > 0, 'should have -pix_fmt');
+    assert.equal(args[pixFmtIdx + 1], 'yuv420p');
   });
 
   it('knows the reel sizes', () => {
@@ -67,8 +73,9 @@ describe('renderKenBurns with ffmpeg', { skip: !hasFfmpeg }, () => {
 
       await renderKenBurns({ imagePaths: [a, b], outputPath: out, width: 180, height: 320, durationSeconds: 2, fps: 10 });
 
-      const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:format=duration', '-of', 'json', out]).toString()) as { streams: Array<{ width: number; height: number }>; format: { duration: string } };
+      const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,pix_fmt:format=duration', '-of', 'json', out]).toString()) as { streams: Array<{ width: number; height: number; pix_fmt: string }>; format: { duration: string } };
       assert.deepEqual([probe.streams[0]!.width, probe.streams[0]!.height], [180, 320]);
+      assert.equal(probe.streams[0]!.pix_fmt, 'yuv420p', 'video should be rendered in yuv420p');
       assert.ok(Math.abs(Number(probe.format.duration) - 2) < 0.35, `duration ${probe.format.duration}`);
       const thumb = path.join(dir, 'thumb.jpg');
       await extractThumbnail(out, thumb);
