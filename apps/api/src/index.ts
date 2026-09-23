@@ -136,7 +136,7 @@ fastify.register(adminRoutes,           { prefix: '/v1/admin' });
 
 fastify.get('/v1/health', async () => ({
   status: 'ok',
-  service: 'Cardeko Social AI - API',
+  service: 'CarDekho Social AI - API',
   env: process.env['NODE_ENV'] ?? 'development',
 }));
 

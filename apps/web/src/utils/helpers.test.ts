@@ -74,7 +74,7 @@ describe('Frontend Helpers (apps/web/src/utils/helpers.ts)', () => {
 
   describe('truncate', () => {
     it('truncates strings exceeding specified length with ellipsis', () => {
-      assert.equal(truncate('Cardeko Social AI Dealership Platform', 15), 'Cardeko Social ...');
+      assert.equal(truncate('CarDekho Social AI Dealership Platform', 16), 'CarDekho Social ...');
     });
 
     it('leaves strings within length limit untouched', () => {

@@ -204,7 +204,7 @@ function BoostSetupModal({ onClose, onLaunch }: BoostModalProps) {
             <>
               <h4 className="font-semibold text-gray-800">Target Audience</h4>
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
-                <p className="font-medium">Cardeko Smart Audience (Recommended)</p>
+                <p className="font-medium">Social AI Smart Audience (Recommended)</p>
                 <p className="text-xs mt-1 text-blue-600">Auto-intenders aged 25–55 within 25 km of your dealership in your region</p>
               </div>
               <button

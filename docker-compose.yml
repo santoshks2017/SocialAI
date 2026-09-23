@@ -9,8 +9,8 @@ services:
       - apps/api/.env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:password@host.docker.internal:5432/socialgenie?schema=public
-      DIRECT_URL: postgresql://postgres:password@host.docker.internal:5432/socialgenie?schema=public
+      DATABASE_URL: postgresql://postgres:password@host.docker.internal:5432/socialai?schema=public
+      DIRECT_URL: postgresql://postgres:password@host.docker.internal:5432/socialai?schema=public
       REDIS_URL: redis://host.docker.internal:6379
       PORT: 3001
       FRONTEND_URL: http://localhost:5173
