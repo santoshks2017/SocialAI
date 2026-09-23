@@ -15,28 +15,36 @@ function mapLead(l: Lead) {
     sourceMessageId: l.source_message_id ?? undefined,
     vehicleInterest: l.vehicle_interest ?? undefined,
     notes: l.notes ?? undefined,
-    createdAt: l.created_at.toISOString(),
+    createdAt: new Date(l.created_at).toISOString(),
   };
 }
 
 export default async function leadsRoutes(fastify: FastifyInstance) {
   // GET /v1/leads — list leads
-  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
     const { sourcePlatform, dateFrom, dateTo, page = '1', pageSize = '30' } = request.query as Record<string, string>;
 
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo) : null;
+    if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+      return reply.code(400).send({ error: 'dateFrom and dateTo must be valid dates' });
+    }
+
     const where: Record<string, unknown> = { dealer_id };
     if (sourcePlatform) where['source_platform'] = sourcePlatform;
-    if (dateFrom || dateTo) {
+    if (from || to) {
       where['created_at'] = {
-        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-        ...(dateTo ? { lte: new Date(dateTo) } : {}),
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
       };
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(pageSize);
+    const pageNumber = Math.max(1, parseInt(page, 10) || 1);
+    const pageSizeNumber = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 30));
+    const skip = (pageNumber - 1) * pageSizeNumber;
     const [leads, total] = await Promise.all([
-      prisma.lead.findMany({ where, orderBy: { created_at: 'desc' }, skip, take: parseInt(pageSize) }),
+      prisma.lead.findMany({ where, orderBy: { created_at: 'desc' }, skip, take: pageSizeNumber }),
       prisma.lead.count({ where }),
     ]);
 
@@ -109,7 +117,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     });
 
     if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
-    const updated = await prisma.lead.findFirst({ where: { id } });
+    const updated = await prisma.lead.findFirst({ where: { id, dealer_id } });
     return { item: mapLead(updated!) };
   });
 

@@ -1,7 +1,10 @@
-import type { Prisma } from '../generated/client/index.js';
+import axios from 'axios';
+import type { Prisma, Post, PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
 import { publishToFacebook, publishToInstagram } from '../services/meta.js';
 import { publishToGmb } from '../services/gmb.js';
+import { getFreshGoogleAccessToken } from './googleToken.js';
+import { transitionPost } from './publishClaim.js';
 
 export interface PublishDirectData {
   post_id: string;
@@ -17,79 +20,216 @@ export interface PublishDirectData {
   dealer_whatsapp?: string;
 }
 
+export interface PlatformPublishResult {
+  platform: string;
+  success: boolean;
+  post_id?: string;
+  url?: string;
+  error?: string;
+}
+
+export interface PostPublishOutcome {
+  status: 'published' | 'failed';
+  results: PlatformPublishResult[];
+}
+
+export type PublishablePost = Pick<Post, 'id' | 'dealer_id' | 'caption_text' | 'creative_urls'>;
+
+const PLATFORM_LABELS: Record<string, string> = {
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  gmb: 'Google Business Profile',
+};
+
+export function platformLabel(platform: string): string {
+  return PLATFORM_LABELS[platform] ?? platform;
+}
+
 function toJsonObject(value: Prisma.JsonValue | null | undefined): Prisma.InputJsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Prisma.InputJsonObject;
 }
 
+export function isSuccessfulResult(entry: unknown): boolean {
+  return !!entry && typeof entry === 'object' && !Array.isArray(entry)
+    && typeof (entry as { post_id?: unknown }).post_id === 'string'
+    && !(entry as { error?: unknown }).error;
+}
+
+// Graph API and Google APIs both return { error: { message } }; prefer that over axios' generic text.
+export function describePublishError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const apiMessage = (err.response?.data as { error?: { message?: unknown } } | undefined)?.error?.message;
+    if (typeof apiMessage === 'string' && apiMessage) return apiMessage;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
+// Returns a token that is safe to publish with: Google tokens are renewed, expired Meta tokens refused.
+export async function resolveAccessToken(conn: PlatformConnection): Promise<string> {
+  if (conn.platform === 'gmb') return getFreshGoogleAccessToken(conn);
+  if (conn.token_expires_at && new Date(conn.token_expires_at).getTime() <= Date.now()) {
+    const label = platformLabel(conn.platform);
+    throw new Error(`${label} access expired. Reconnect ${label} in Settings, then publish again.`);
+  }
+  return conn.access_token;
+}
+
+export function buildPublishData(
+  post: PublishablePost,
+  platform: string,
+  conn: PlatformConnection,
+  accessToken = conn.access_token,
+): PublishDirectData {
+  return {
+    post_id: post.id,
+    dealer_id: post.dealer_id,
+    platform: platform as PublishDirectData['platform'],
+    image_url: (post.creative_urls as Record<string, string> | null)?.[platform] ?? '',
+    caption: post.caption_text ?? '',
+    access_token: accessToken,
+    ...(platform === 'facebook' ? { page_id: conn.platform_account_id } : {}),
+    ...(platform === 'instagram' ? { ig_user_id: conn.platform_account_id } : {}),
+    ...(platform === 'gmb' ? { gmb_location_name: conn.platform_account_id } : {}),
+  };
+}
+
+// Calls the platform API only; no database writes.
+async function sendToPlatform(data: PublishDirectData): Promise<{ platform_post_id: string; url: string }> {
+  const { platform, image_url, caption, access_token } = data;
+  if (platform === 'facebook') {
+    if (!data.page_id) throw new Error('page_id required for Facebook publish');
+    const result = await publishToFacebook(data.page_id, access_token, image_url, caption);
+    return { platform_post_id: result.post_id, url: result.url };
+  }
+  if (platform === 'instagram') {
+    if (!data.ig_user_id) throw new Error('ig_user_id required for Instagram publish');
+    const result = await publishToInstagram(data.ig_user_id, access_token, image_url, caption);
+    return { platform_post_id: result.post_id, url: result.url };
+  }
+  if (platform === 'gmb') {
+    if (!data.gmb_location_name) throw new Error('gmb_location_name required for GMB publish');
+    const result = await publishToGmb(
+      data.gmb_location_name,
+      access_token,
+      image_url,
+      caption.slice(0, 1500),
+      data.dealer_phone ? { actionType: 'CALL', phone: data.dealer_phone } : undefined,
+    );
+    return { platform_post_id: result.post_id, url: result.url };
+  }
+  throw new Error(`Unknown platform: ${platform}`);
+}
+
+function resultEntry(result: PlatformPublishResult, at: string): Prisma.InputJsonObject {
+  return result.success
+    ? { post_id: result.post_id ?? '', url: result.url ?? '', published_at: at }
+    : { error: result.error ?? 'Unknown error', failed_at: at };
+}
+
+// Publishes a post to every requested platform, then writes the outcome once:
+// 'published' if at least one platform succeeded, 'failed' only if all of them failed.
+// The caller is expected to have claimed the post (status 'publishing') first.
+export async function publishPost(
+  post: PublishablePost,
+  platforms: string[],
+): Promise<PostPublishOutcome> {
+  const connections = await prisma.platformConnection.findMany({
+    where: { dealer_id: post.dealer_id, is_connected: true },
+  });
+  const connMap = new Map(connections.map((c) => [c.platform, c]));
+  const existing = await prisma.post.findUnique({ where: { id: post.id } });
+  const previousResults = toJsonObject(existing?.publish_results);
+
+  const results = await Promise.all(
+    platforms.map(async (platform): Promise<PlatformPublishResult> => {
+      // Never send twice to a platform that already has the post (retries, recovered posts)
+      const previous = previousResults[platform];
+      if (isSuccessfulResult(previous)) {
+        const { post_id, url } = previous as { post_id: string; url?: string };
+        return { platform, success: true, post_id, ...(url ? { url } : {}) };
+      }
+      const conn = connMap.get(platform);
+      if (!conn) {
+        return {
+          platform,
+          success: false,
+          error: `No connected ${platformLabel(platform)} account. Connect it in Settings, then publish again.`,
+        };
+      }
+      try {
+        const accessToken = await resolveAccessToken(conn);
+        const sent = await sendToPlatform(buildPublishData(post, platform, conn, accessToken));
+        return { platform, success: true, post_id: sent.platform_post_id, url: sent.url };
+      } catch (err) {
+        return { platform, success: false, error: describePublishError(err) };
+      }
+    }),
+  );
+
+  const status = results.some((r) => r.success) ? 'published' : 'failed';
+  const now = new Date();
+  const publishResults: Record<string, unknown> = { ...previousResults };
+  for (const result of results) {
+    if (!isSuccessfulResult(previousResults[result.platform])) {
+      publishResults[result.platform] = resultEntry(result, now.toISOString());
+    }
+  }
+
+  await prisma.post.update({
+    where: { id: post.id },
+    data: {
+      status,
+      publish_results: publishResults as Prisma.InputJsonObject,
+      ...(status === 'published' ? { published_at: now } : {}),
+    },
+  });
+
+  return { status, results };
+}
+
+// Queue worker path: one platform per call. Records that platform's result and derives the
+// post status from all recorded results so one platform's failure can't mask another's success.
 export async function publishPostToPlatform(
   data: PublishDirectData,
 ): Promise<{ platform_post_id: string; url: string }> {
-  const { post_id, platform, image_url, caption, access_token } = data;
+  const { post_id, platform } = data;
 
-  await prisma.post.update({ where: { id: post_id }, data: { status: 'publishing' } });
-
-  let platformPostId: string;
-  let platformUrl: string;
-
+  let sent: { platform_post_id: string; url: string } | null = null;
+  let failure: unknown = null;
   try {
-    if (platform === 'facebook') {
-      if (!data.page_id) throw new Error('page_id required for Facebook publish');
-      const result = await publishToFacebook(data.page_id, access_token, image_url, caption);
-      platformPostId = result.post_id;
-      platformUrl = result.url;
-    } else if (platform === 'instagram') {
-      if (!data.ig_user_id) throw new Error('ig_user_id required for Instagram publish');
-      const result = await publishToInstagram(data.ig_user_id, access_token, image_url, caption);
-      platformPostId = result.post_id;
-      platformUrl = result.url;
-    } else if (platform === 'gmb') {
-      if (!data.gmb_location_name) throw new Error('gmb_location_name required for GMB publish');
-      const result = await publishToGmb(
-        data.gmb_location_name,
-        access_token,
-        image_url,
-        caption.slice(0, 1500),
-        data.dealer_phone ? { actionType: 'CALL', phone: data.dealer_phone } : undefined,
-      );
-      platformPostId = result.post_id;
-      platformUrl = result.url;
-    } else {
-      throw new Error(`Unknown platform: ${platform}`);
-    }
-
-    const existing = await prisma.post.findUnique({ where: { id: post_id } });
-    const prevResults = toJsonObject(existing?.publish_results);
-    await prisma.post.update({
-      where: { id: post_id },
-      data: {
-        status: 'published',
-        published_at: new Date(),
-        publish_results: {
-          ...prevResults,
-          [platform]: {
-            post_id: platformPostId,
-            url: platformUrl,
-            published_at: new Date().toISOString(),
-          },
-        } as Prisma.InputJsonObject,
-      },
+    // Keeps the cron sweep from also claiming a queued scheduled post.
+    await transitionPost(post_id, (p) => p.status === 'scheduled', { status: 'publishing' });
+    const conn = await prisma.platformConnection.findFirst({
+      where: { dealer_id: data.dealer_id, platform, is_connected: true },
     });
-
-    return { platform_post_id: platformPostId, url: platformUrl };
+    const accessToken = conn ? await resolveAccessToken(conn) : data.access_token;
+    sent = await sendToPlatform({ ...data, access_token: accessToken });
   } catch (err) {
-    const existing = await prisma.post.findUnique({ where: { id: post_id } });
-    const prevResults = toJsonObject(existing?.publish_results);
-    await prisma.post.update({
-      where: { id: post_id },
-      data: {
-        status: 'failed',
-        publish_results: {
-          ...prevResults,
-          [platform]: { error: (err as Error).message, failed_at: new Date().toISOString() },
-        } as Prisma.InputJsonObject,
-      },
-    });
-    throw err;
+    failure = err;
   }
+
+  const result: PlatformPublishResult = sent
+    ? { platform, success: true, post_id: sent.platform_post_id, url: sent.url }
+    : { platform, success: false, error: describePublishError(failure) };
+  const now = new Date();
+  const existing = await prisma.post.findUnique({ where: { id: post_id } });
+  const publishResults: Record<string, unknown> = {
+    ...toJsonObject(existing?.publish_results),
+    [platform]: resultEntry(result, now.toISOString()),
+  };
+  const targets = existing?.platforms?.length ? existing.platforms : [platform];
+  const anySucceeded = targets.some((p) => isSuccessfulResult(publishResults[p]));
+
+  await prisma.post.update({
+    where: { id: post_id },
+    data: {
+      status: anySucceeded ? 'published' : 'failed',
+      publish_results: publishResults as Prisma.InputJsonObject,
+      ...(sent ? { published_at: now } : {}),
+    },
+  });
+
+  if (!sent) throw failure;
+  return sent;
 }

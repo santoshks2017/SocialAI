@@ -1,8 +1,33 @@
-import type { FastifyInstance } from "fastify"
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { prisma } from "../db/prisma.js"
 import { publishQueue, isQueueAvailable } from "../queues/index.js"
 import type { PublishJobData } from "../queues/index.js"
-import { publishPostToPlatform } from "../lib/publishDirect.js"
+import { buildPublishData, platformLabel, publishPost } from "../lib/publishDirect.js"
+import { deletePostIf, transitionPost } from "../lib/publishClaim.js"
+import { PERMISSIONS } from "../lib/permissions.js"
+import { getUser, requirePermission } from "../lib/routeHelpers.js"
+
+// Statuses that end in the post going live; moving a post into one needs publish_post.
+const PUBLISH_STATUSES = new Set(["scheduled", "publishing", "published"])
+
+const PUBLISH_IN_PROGRESS = {
+  error: {
+    code: "PUBLISH_IN_PROGRESS",
+    message: "This post is being published right now. Try again once it finishes.",
+  },
+}
+
+async function requirePublishPermission(request: FastifyRequest, reply: FastifyReply) {
+  if (!requirePermission(reply, getUser(request), PERMISSIONS.PUBLISH_POST)) return reply
+}
+
+async function removeQueuedJobs(postId: string) {
+  if (!isQueueAvailable() || !publishQueue) return
+  const jobs = await publishQueue.getJobs(["delayed", "waiting"])
+  for (const job of jobs) {
+    if (job.data.post_id === postId) await job.remove()
+  }
+}
 
 export default async function publisherRoutes(fastify: FastifyInstance) {
   // POST /v1/publisher/posts — create a draft post
@@ -126,6 +151,13 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         scheduled_at: string
       }>
 
+      if (
+        body.status !== undefined &&
+        PUBLISH_STATUSES.has(body.status) &&
+        !requirePermission(reply, getUser(request), PERMISSIONS.PUBLISH_POST)
+      )
+        return reply
+
       const updateData: Record<string, unknown> = {}
       if (body.promptText !== undefined)
         updateData.prompt_text = body.promptText
@@ -159,7 +191,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
   // PATCH /v1/publisher/posts/:id/reschedule — change scheduled_at for a pending post
   fastify.patch(
     "/posts/:id/reschedule",
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requirePublishPermission] },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id!
       const { id } = request.params as { id: string }
@@ -172,13 +204,9 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       if (post.status === "published") {
         return reply.code(400).send({ error: { code: "ALREADY_PUBLISHED", message: "Cannot reschedule a published post" } })
       }
+      if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
       // Remove any existing delayed BullMQ jobs for this post
-      if (isQueueAvailable() && publishQueue) {
-        const jobs = await publishQueue.getJobs(["delayed", "waiting"])
-        for (const job of jobs) {
-          if (job.data.post_id === id) await job.remove()
-        }
-      }
+      await removeQueuedJobs(id)
       const updated = await prisma.post.update({
         where: { id },
         data: { scheduled_at: new Date(scheduled_at), status: "scheduled" },
@@ -212,7 +240,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/publish",
     {
-      preHandler: [fastify.authenticate, fastify.checkPlanLimit('posts')],
+      preHandler: [fastify.authenticate, requirePublishPermission, fastify.checkPlanLimit('posts')],
     },
     async (request, reply) => {
       const dealer_id = request.user.dealer_id!
@@ -231,6 +259,13 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         })
       }
 
+      const scheduledAt = scheduled_at ? new Date(scheduled_at) : null
+      if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "scheduled_at must be an ISO date" },
+        })
+      }
+
       // Verify the post belongs to this dealer
       const post = await prisma.post.findFirst({
         where: { id: post_id, dealer_id },
@@ -239,89 +274,89 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         return reply
           .code(404)
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
+      if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
 
       // Load platform connections for this dealer
       const connections = await prisma.platformConnection.findMany({
         where: { dealer_id, is_connected: true },
       })
-      const connMap = Object.fromEntries(
-        connections.map((c) => [c.platform, c]),
-      )
+      const connMap = new Map(connections.map((c) => [c.platform, c]))
+      const skipped = platforms.filter((platform) => !connMap.has(platform))
+      const useQueue = isQueueAvailable() && !!publishQueue && skipped.length < platforms.length
 
-      const delay = scheduled_at
-        ? Math.max(0, new Date(scheduled_at).getTime() - Date.now())
-        : 0
-
-      const jobIds: string[] = []
-      const skipped: string[] = []
-
-      for (const platform of platforms) {
-        const conn = connMap[platform]
-        if (!conn) {
-          skipped.push(platform)
-          continue
-        }
-
-        // Build job payload
-        const jobData: PublishJobData = {
-          post_id,
-          dealer_id,
-          platform: platform as PublishJobData["platform"],
-          image_url:
-            (post.creative_urls as Record<string, string> | null)?.[platform] ??
-            "",
-          caption: post.caption_text ?? "",
-          access_token: conn.access_token,
-        }
-
-        if (platform === "facebook") jobData.page_id = conn.platform_account_id
-        if (platform === "instagram")
-          jobData.ig_user_id = conn.platform_account_id
-        if (platform === "gmb")
-          jobData.gmb_location_name = conn.platform_account_id
-
-        if (isQueueAvailable() && publishQueue) {
-          // BullMQ path: enqueue with delay (supports scheduling)
-          const job = await publishQueue.add(
-            `publish-${platform}-${post_id}`,
-            jobData,
-            {
-              delay,
-              attempts: 3,
-              backoff: { type: "exponential", delay: 60_000 },
-            },
-          )
+      // BullMQ path: one job per connected platform, delayed for scheduled posts
+      const enqueue = async (delay: number) => {
+        const jobIds: string[] = []
+        for (const platform of platforms) {
+          const conn = connMap.get(platform)
+          if (!conn) continue
+          const jobData: PublishJobData = buildPublishData(post, platform, conn)
+          const job = await publishQueue!.add(`publish-${platform}-${post_id}`, jobData, {
+            delay,
+            attempts: 3,
+            backoff: { type: "exponential", delay: 60_000 },
+          })
           if (job.id) jobIds.push(job.id)
-        } else if (!scheduled_at) {
-          // No Redis — publish immediately inline (only for "publish now", not schedule)
-          try {
-            await publishPostToPlatform(jobData)
-          } catch (err) {
-            fastify.log.error(err, `Inline publish failed for platform ${platform}`)
-          }
         }
-        // If scheduled_at but no queue: status is set to 'scheduled' below;
-        // the cron endpoint (/v1/cron/publish) will pick it up when the time arrives.
+        return jobIds
       }
 
-      // Update post status
-      const newStatus = scheduled_at ? "scheduled" : "publishing"
-      await prisma.post.update({
-        where: { id: post_id },
-        data: {
-          status: newStatus,
-          platforms,
-          ...(scheduled_at ? { scheduled_at: new Date(scheduled_at) } : {}),
-        },
-      })
+      if (scheduledAt) {
+        await prisma.post.update({
+          where: { id: post_id },
+          data: { status: "scheduled", platforms, scheduled_at: scheduledAt },
+        })
+        // Without a queue, the cron endpoint (/v1/cron/publish) publishes it when due.
+        const jobIds = useQueue
+          ? await enqueue(Math.max(0, scheduledAt.getTime() - Date.now()))
+          : []
+        return {
+          success: true,
+          status: "scheduled",
+          job_ids: jobIds,
+          skipped_platforms: skipped,
+          scheduled_at,
+        }
+      }
 
-      return {
-        success: true,
-        status: newStatus,
-        job_ids: jobIds,
+      // Claim the post so a concurrent request or cron run can't publish it twice.
+      const claimed = await transitionPost(
+        post_id,
+        (p) => p.dealer_id === dealer_id && p.status !== "publishing",
+        { status: "publishing", platforms },
+      )
+      if (!claimed) return reply.code(409).send(PUBLISH_IN_PROGRESS)
+
+      if (useQueue) {
+        return {
+          success: true,
+          status: "publishing",
+          job_ids: await enqueue(0),
+          skipped_platforms: skipped,
+          scheduled_at: null,
+        }
+      }
+
+      // No Redis — publish inline; publishPost writes the final status.
+      const outcome = await publishPost(post, platforms)
+      const failed = outcome.results.filter((r) => !r.success)
+      const body = {
+        success: outcome.status === "published",
+        status: outcome.status,
+        results: outcome.results,
+        failed_platforms: failed.map((r) => r.platform),
         skipped_platforms: skipped,
-        scheduled_at: scheduled_at ?? null,
+        job_ids: [] as string[],
+        scheduled_at: null,
       }
+      if (outcome.status === "failed") {
+        const details = failed.map((r) => `${platformLabel(r.platform)}: ${r.error}`).join(" ")
+        return reply.code(502).send({
+          ...body,
+          error: { code: "PUBLISH_FAILED", message: `Could not publish to any platform. ${details}` },
+        })
+      }
+      return body
     },
   )
 
@@ -393,12 +428,40 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           status: true,
           scheduled_at: true,
           published_at: true,
+          created_at: true,
           creative_urls: true,
           metrics: true,
         },
       })
 
       return { success: true, data: posts }
+    },
+  )
+
+  // DELETE /v1/publisher/posts/:id  — permanently delete a post
+  fastify.delete(
+    "/posts/:id",
+    {
+      preHandler: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const dealer_id = request.user.dealer_id!
+      const { id } = request.params as { id: string }
+
+      const post = await prisma.post.findFirst({ where: { id, dealer_id } })
+      if (!post)
+        return reply
+          .code(404)
+          .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
+      if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
+
+      await removeQueuedJobs(id)
+      const deleted = await deletePostIf(
+        id,
+        (p) => p.dealer_id === dealer_id && p.status !== "publishing",
+      )
+      if (!deleted) return reply.code(409).send(PUBLISH_IN_PROGRESS)
+      return { success: true }
     },
   )
 

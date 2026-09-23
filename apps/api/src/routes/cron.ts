@@ -1,7 +1,56 @@
 import crypto from 'crypto';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
-import { publishPostToPlatform } from '../lib/publishDirect.js';
+import { isSuccessfulResult, publishPost } from '../lib/publishDirect.js';
+import type { PlatformPublishResult } from '../lib/publishDirect.js';
+import { transitionPost } from '../lib/publishClaim.js';
+
+const BATCH_SIZE = 20; // posts per invocation, to keep each request short
+const CONCURRENCY = 5;
+export const STUCK_PUBLISHING_MS = 15 * 60 * 1000;
+export const STUCK_PUBLISHING_ERROR =
+  'Publishing did not finish within 15 minutes and was stopped. Check the platform before retrying to avoid a duplicate post.';
+
+async function forEachLimited<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) await fn(items[next++]!);
+  });
+  await Promise.all(workers);
+}
+
+// Posts left in 'publishing' (crashed instance, killed request) would never move again.
+// Close them out rather than retrying, since the platform may already have the post:
+// 'published' if any platform recorded a success, 'failed' otherwise.
+async function recoverStuckPosts(now: Date): Promise<string[]> {
+  const cutoff = new Date(now.getTime() - STUCK_PUBLISHING_MS);
+  const stuck = await prisma.post.findMany({
+    where: { status: 'publishing', updated_at: { lt: cutoff } },
+    take: BATCH_SIZE,
+  });
+
+  const recovered: string[] = [];
+  for (const post of stuck) {
+    const publishResults: Record<string, unknown> = {
+      ...((post.publish_results as Record<string, unknown> | null) ?? {}),
+    };
+    for (const platform of post.platforms ?? []) {
+      if (!isSuccessfulResult(publishResults[platform])) {
+        publishResults[platform] = { error: STUCK_PUBLISHING_ERROR, failed_at: now.toISOString() };
+      }
+    }
+    const anySucceeded = (post.platforms ?? []).some((platform) => isSuccessfulResult(publishResults[platform]));
+    const marked = await transitionPost(
+      post.id,
+      (p) => p.status === 'publishing' && p.updated_at !== null && p.updated_at < cutoff,
+      anySucceeded
+        ? { status: 'published', publish_results: publishResults, published_at: post.published_at ?? now }
+        : { status: 'failed', publish_results: publishResults },
+    );
+    if (marked) recovered.push(post.id);
+  }
+  return recovered;
+}
 
 // POST /v1/cron/publish
 // Called by an external scheduler (e.g. Cloud Scheduler) once per minute.
@@ -26,58 +75,47 @@ export default async function cronRoutes(fastify: FastifyInstance) {
     }
 
     const now = new Date();
+    const recovered = await recoverStuckPosts(now);
 
-    // Find all scheduled posts that are due
+    // Oldest due posts first, so a backlog drains in order
     const duePosts = await prisma.post.findMany({
       where: {
         status: 'scheduled',
         scheduled_at: { lte: now },
       },
-      take: 20, // process at most 20 per invocation to keep each request short
+      orderBy: [{ scheduled_at: 'asc' }],
+      take: BATCH_SIZE,
     });
 
-    if (duePosts.length === 0) {
-      return { success: true, processed: 0 };
-    }
+    const results: Array<PlatformPublishResult & { post_id: string }> = [];
+    let processed = 0;
+    let skipped = 0;
 
-    const results: Array<{ post_id: string; platform: string; ok: boolean; error?: string }> = [];
-
-    for (const post of duePosts) {
-      // Load all connected platform accounts for this dealer
-      const connections = await prisma.platformConnection.findMany({
-        where: { dealer_id: post.dealer_id, is_connected: true },
-      });
-      const connMap = Object.fromEntries(connections.map((c) => [c.platform, c]));
-
-      for (const platform of post.platforms as string[]) {
-        const conn = connMap[platform];
-        if (!conn) {
-          results.push({ post_id: post.id, platform, ok: false, error: 'No connected account' });
-          continue;
+    await forEachLimited(duePosts, CONCURRENCY, async (post) => {
+      try {
+        // Only one run may move the post out of 'scheduled'; overlapping runs skip it.
+        const claimed = await transitionPost(
+          post.id,
+          (p) => p.status === 'scheduled' && p.scheduled_at !== null && p.scheduled_at <= now,
+          { status: 'publishing' },
+        );
+        if (!claimed) {
+          skipped++;
+          return;
         }
-
-        const jobData = {
-          post_id: post.id,
-          dealer_id: post.dealer_id,
-          platform: platform as 'facebook' | 'instagram' | 'gmb',
-          image_url: (post.creative_urls as Record<string, string> | null)?.[platform] ?? '',
-          caption: post.caption_text ?? '',
-          access_token: conn.access_token,
-          ...(platform === 'facebook' ? { page_id: conn.platform_account_id } : {}),
-          ...(platform === 'instagram' ? { ig_user_id: conn.platform_account_id } : {}),
-          ...(platform === 'gmb' ? { gmb_location_name: conn.platform_account_id } : {}),
-        };
-
-        try {
-          await publishPostToPlatform(jobData);
-          results.push({ post_id: post.id, platform, ok: true });
-        } catch (err) {
-          results.push({ post_id: post.id, platform, ok: false, error: (err as Error).message });
-        }
+        processed++;
+        const outcome = await publishPost(post, post.platforms ?? []);
+        for (const result of outcome.results) results.push({ post_id: post.id, ...result });
+      } catch (err) {
+        // A claimed post left in 'publishing' is failed by recoverStuckPosts later.
+        fastify.log.error({ err, post_id: post.id }, '[cron] failed to publish scheduled post');
+        results.push({ post_id: post.id, platform: '*', success: false, error: (err as Error).message });
       }
-    }
+    });
 
-    fastify.log.info({ results }, `[cron] processed ${duePosts.length} scheduled posts`);
-    return { success: true, processed: duePosts.length, results };
+    if (processed || skipped || recovered.length) {
+      fastify.log.info({ results, skipped, recovered }, `[cron] published ${processed} scheduled posts`);
+    }
+    return { success: true, processed, skipped, recovered: recovered.length, results };
   });
 }
