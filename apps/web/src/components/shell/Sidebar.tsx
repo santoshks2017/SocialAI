@@ -8,11 +8,13 @@ import { roleLabel } from '../../utils/roleLabel';
 import { COMING_SOON, NAV_SECTIONS } from './navConfig';
 import { Logo } from './Logo';
 import { NotificationBell } from './NotificationBell';
+import { useIsDesktop } from './useIsDesktop';
 
 const ITEM_BASE = 'group relative flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-[13.5px] font-medium transition-colors';
 const ITEM_INACTIVE = 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900';
 const ITEM_ACTIVE = 'bg-orange-50 text-zinc-900 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:bg-orange-500 before:rounded-full';
 const SECTION_LABEL = 'px-4 pt-1 pb-1 text-[10px] font-semibold text-zinc-400 tracking-[0.12em] uppercase';
+const MIN_GAP_MS = 55_000;
 
 const itemClass = ({ isActive }: { isActive: boolean }) => `${ITEM_BASE} ${isActive ? ITEM_ACTIVE : ITEM_INACTIVE}`;
 const iconClass = (isActive: boolean) =>
@@ -22,24 +24,34 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const owner = isGlobalOwner(user);
+  const isDesktop = useIsDesktop();
   const [inboxPending, setInboxPending] = useState(0);
   const initials = user?.name ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : 'U';
 
   // Inbox badge: refreshed on mount, every minute, on window focus, and when the Inbox changes.
+  // The focus and interval refreshes skip while the tab is hidden and while the last load
+  // was recent, so backgrounded or rapidly-focused tabs don't hammer the dashboard endpoint.
   useEffect(() => {
     if (owner) return;
+    let lastLoadAt = 0;
     const load = () => {
+      lastLoadAt = Date.now();
       api.get<{ stats?: { inboxPending?: number } }>('/dealer/dashboard')
         .then((res) => setInboxPending(res.stats?.inboxPending ?? 0))
         .catch(() => {});
     };
+    const refreshIfDue = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoadAt < MIN_GAP_MS) return;
+      load();
+    };
     load();
     window.addEventListener('inbox:changed', load);
-    window.addEventListener('focus', load);
-    const id = setInterval(load, 60_000);
+    window.addEventListener('focus', refreshIfDue);
+    const id = setInterval(refreshIfDue, 60_000);
     return () => {
       window.removeEventListener('inbox:changed', load);
-      window.removeEventListener('focus', load);
+      window.removeEventListener('focus', refreshIfDue);
       clearInterval(id);
     };
   }, [owner]);
@@ -53,7 +65,7 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
           <Logo />
         </NavLink>
         <div className="hidden lg:block">
-          <NotificationBell align="left" />
+          {isDesktop && <NotificationBell align="left" />}
         </div>
         <button className="lg:hidden p-1 text-zinc-400 hover:text-zinc-700 transition-colors" onClick={onClose}>
           <X className="w-5 h-5" />
@@ -140,7 +152,7 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
               onClick={handleLogout}
               title="Sign out"
               aria-label="Sign out"
-              className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100"
+              className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors rounded-lg lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

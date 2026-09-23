@@ -22,7 +22,10 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
 
   useEffect(() => {
     load();
-    const id = setInterval(load, POLL_MS);
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      load();
+    }, POLL_MS);
     return () => clearInterval(id);
   }, [load]);
 
@@ -56,6 +59,8 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Notifications"
+        aria-haspopup="true"
+        aria-expanded={open}
         className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-zinc-100 transition-colors"
       >
         <Bell className="w-5 h-5 text-zinc-500" />
