@@ -29,6 +29,23 @@ export function firstCreative(value: unknown): string | null {
   return null;
 }
 
+interface PostMedia {
+  media_type?: string;
+  video_url?: string | null;
+  thumbnail_url?: string | null;
+  creative_urls?: unknown;
+}
+
+/** The still shown for a post: a reel's thumbnail, else its first creative. */
+export function postThumbnail(post: PostMedia): string | null {
+  return post.media_type === 'video' ? post.thumbnail_url || null : firstCreative(post.creative_urls);
+}
+
+/** Where "View" goes when no platform link exists: a reel's video, else its first creative. */
+export function postMediaLink(post: PostMedia): string | null {
+  return post.media_type === 'video' ? post.video_url || null : firstCreative(post.creative_urls);
+}
+
 const dateTime = (iso: string) =>
   new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 const dateOnly = (iso: string) =>
