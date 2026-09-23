@@ -397,3 +397,17 @@ model Subscription {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 }
+
+model Notification {
+  id         String   @id @default(uuid())
+  dealer_id  String
+  user_id    String   // recipient DealerUser.id: one row per recipient, so read state is per person
+  type       String
+  title      String
+  body       String?
+  link       String?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@index([user_id, created_at])
+}
