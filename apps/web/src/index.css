@@ -1,44 +1,45 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap');
 @import "tailwindcss";
 
-/* Design tokens: match the reference Social AI app (spec §4). */
+/*
+ * Design tokens. Layouts and markup follow the reference Social AI app (spec §4); colour,
+ * typography and shape follow the AI Video App look (ai-video-app-cd.web.app): warm cream
+ * canvas, red/coral brand, serif headings.
+ */
 @theme {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-display: "Inter", system-ui, -apple-system, sans-serif; /* legacy alias; the reference uses Inter only */
-  --radius-lg: .625rem;
-  --radius-xl: .875rem;
+  --font-display: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --radius-lg: .5rem;
+  --radius-xl: .75rem;
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / .04);
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / .06), 0 1px 2px -1px rgb(0 0 0 / .04);
-  --color-brand: #ea580c;
-  --color-brand-hover: #c2410c;
-  --color-brand-subtle: #fff7ed;
-  --color-canvas: #fafafa;
+  --color-brand: #c2564f;
+  --color-brand-hover: #a8463f;
+  --color-brand-subtle: #fae9e7;
+  --color-canvas: #fbf8f7;
   /* legacy aliases still referenced by older pages */
-  --color-brand-light: #fff7ed;
-  --color-brand-dark: #c2410c;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
+  --color-brand-light: #fae9e7;
+  --color-brand-dark: #a8463f;
+  --color-success: #3c7d58;
+  --color-warning: #a2670f;
+  --color-error: #9c2b1f;
 }
 
 /*
- * One grey palette. Older pages use slate/stone/gray/neutral; the reference uses zinc. Pointing
- * those scales at zinc gives every page the reference greys, and dark mode (which remaps zinc)
- * then reaches them too. zinc is declared here as well because Tailwind prunes unused theme
- * variables. Must stay before the .dark block: equal specificity, so source order decides.
+ * Palette remaps. Every Tailwind colour utility reads these variables, so re-pointing them
+ * re-themes old and new pages alike:
+ * - zinc becomes the AV warm greys; slate/stone/gray/neutral point at zinc, so there is one
+ *   grey palette and dark mode (which remaps zinc) reaches all of them;
+ * - orange becomes the AV red/coral brand scale (600 = #c2564f, 50 = the selected-state wash);
+ * - emerald becomes the AV "good" green.
+ * Declared unlayered on :root because Tailwind prunes unused theme variables. Must stay before
+ * the .dark block: equal specificity, so source order decides.
  */
 :root {
-  --color-zinc-50: oklch(98.5% 0 0);
-  --color-zinc-100: oklch(96.7% 0.001 286.375);
-  --color-zinc-200: oklch(92% 0.004 286.32);
-  --color-zinc-300: oklch(87.1% 0.006 286.286);
-  --color-zinc-400: oklch(70.5% 0.015 286.067);
-  --color-zinc-500: oklch(55.2% 0.016 285.938);
-  --color-zinc-600: oklch(44.2% 0.017 285.786);
-  --color-zinc-700: oklch(37% 0.013 285.805);
-  --color-zinc-800: oklch(27.4% 0.006 286.033);
-  --color-zinc-900: oklch(21% 0.006 285.885);
-  --color-zinc-950: oklch(14.1% 0.005 285.823);
+  --color-zinc-50: #fbf8f7;  --color-zinc-100: #f7f0ef; --color-zinc-200: #ece2e0;
+  --color-zinc-300: #ddd0cd; --color-zinc-400: #9a918e; --color-zinc-500: #6b625f;
+  --color-zinc-600: #574f4c; --color-zinc-700: #3f3836; --color-zinc-800: #2b2525;
+  --color-zinc-900: #1d1a1a; --color-zinc-950: #141111;
   --color-slate-50: var(--color-zinc-50); --color-slate-100: var(--color-zinc-100); --color-slate-200: var(--color-zinc-200); --color-slate-300: var(--color-zinc-300); --color-slate-400: var(--color-zinc-400); --color-slate-500: var(--color-zinc-500);
   --color-slate-600: var(--color-zinc-600); --color-slate-700: var(--color-zinc-700); --color-slate-800: var(--color-zinc-800); --color-slate-900: var(--color-zinc-900); --color-slate-950: var(--color-zinc-950);
   --color-stone-50: var(--color-zinc-50); --color-stone-100: var(--color-zinc-100); --color-stone-200: var(--color-zinc-200); --color-stone-300: var(--color-zinc-300); --color-stone-400: var(--color-zinc-400); --color-stone-500: var(--color-zinc-500);
@@ -47,56 +48,76 @@
   --color-gray-600: var(--color-zinc-600); --color-gray-700: var(--color-zinc-700); --color-gray-800: var(--color-zinc-800); --color-gray-900: var(--color-zinc-900); --color-gray-950: var(--color-zinc-950);
   --color-neutral-50: var(--color-zinc-50); --color-neutral-100: var(--color-zinc-100); --color-neutral-200: var(--color-zinc-200); --color-neutral-300: var(--color-zinc-300); --color-neutral-400: var(--color-zinc-400); --color-neutral-500: var(--color-zinc-500);
   --color-neutral-600: var(--color-zinc-600); --color-neutral-700: var(--color-zinc-700); --color-neutral-800: var(--color-zinc-800); --color-neutral-900: var(--color-zinc-900); --color-neutral-950: var(--color-zinc-950);
+
+  --color-orange-50: #fae9e7;  --color-orange-100: #f5d7d4; --color-orange-200: #ecbdb8;
+  --color-orange-300: #df9790; --color-orange-400: #d27770; --color-orange-500: #c9645d;
+  --color-orange-600: #c2564f; --color-orange-700: #a8463f; --color-orange-800: #8a3a34;
+  --color-orange-900: #6f302b; --color-orange-950: #3d1714;
+
+  --color-emerald-50: #e6f0e9;  --color-emerald-100: #cfe3d6; --color-emerald-500: #4a9068;
+  --color-emerald-600: #3c7d58; --color-emerald-700: #336b4b;
 }
+
+/* The AV look uses a flat brand colour, not the reference's orange→amber gradients: point every
+   gradient end at the brand red. Amber colour utilities (warnings, pending states) are untouched. */
+.to-amber-400, .to-amber-500, .to-amber-600 { --tw-gradient-to: var(--color-orange-600); }
+.via-amber-500 { --tw-gradient-via: var(--color-orange-600); }
+.hover\:to-amber-500:hover, .hover\:to-amber-600:hover { --tw-gradient-to: var(--color-orange-700); }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   background-color: var(--color-canvas);
-  color: #18181b;
+  color: #1d1a1a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family: Inter, system-ui, -apple-system, sans-serif;
 }
+h1, h2, h3 { font-family: "Source Serif 4", "Iowan Old Style", Georgia, serif; }
 h1, h2, h3, h4 { letter-spacing: -.014em; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #e4e4e7 padding-box; border: 2px solid transparent; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #d4d4d8 padding-box; }
+::-webkit-scrollbar-thumb { background: #ece2e0 padding-box; border: 2px solid transparent; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #ddd0cd padding-box; }
 
-/* Dark mode: verbatim from the reference. The zinc scale and white are inverted; everything
-   written with light-mode classes follows automatically. */
+/* Dark mode: the AV dark palette. Greys and white invert, the brand turns to its lighter coral
+   with a deep red wash for selected states; everything written with light-mode classes follows. */
 .dark {
   color-scheme: dark;
-  --color-canvas: #0f0f12;
-  --color-surface: #18181b;
-  --color-line: #2c2c33;
-  --color-line-strong: #3a3a42;
-  --color-white: #18181b;
-  --color-zinc-50: #1c1c20;  --color-zinc-100: #232329; --color-zinc-200: #2c2c33;
-  --color-zinc-300: #3a3a42; --color-zinc-400: #8b8b94; --color-zinc-500: #a1a1aa;
-  --color-zinc-600: #b4b4bb; --color-zinc-700: #cfcfd4; --color-zinc-800: #e4e4e7;
-  --color-zinc-900: #f4f4f5; --color-zinc-950: #fafafa;
+  --color-canvas: #1a1717;
+  --color-surface: #221e1e;
+  --color-line: #36302f;
+  --color-line-strong: #443c3b;
+  --color-white: #221e1e;
+  --color-zinc-50: #211c1c;  --color-zinc-100: #2a2424; --color-zinc-200: #36302f;
+  --color-zinc-300: #443c3b; --color-zinc-400: #938986; --color-zinc-500: #a99f9c;
+  --color-zinc-600: #bdb3b0; --color-zinc-700: #d6ceca; --color-zinc-800: #e8e2df;
+  --color-zinc-900: #f1ecea; --color-zinc-950: #faf7f6;
+  --color-orange-50: #3b2624;  --color-orange-100: #4a2d2a; --color-orange-200: #5e3632;
+  --color-orange-300: #8a4d47; --color-orange-400: #c7736b; --color-orange-500: #d9807a;
+  --color-orange-600: #e08b83; --color-orange-700: #e9a39c; --color-orange-800: #f0bcb6;
+  --color-orange-900: #f6d6d2; --color-orange-950: #fbeae8;
+  --color-emerald-50: #1e3228;  --color-emerald-100: #264034; --color-emerald-500: #5fae84;
+  --color-emerald-600: #6fbf92; --color-emerald-700: #8fd0aa;
 }
-.dark body { background-color: var(--color-canvas); color: #f4f4f5; }
+.dark body { background-color: var(--color-canvas); color: #f1ecea; }
 .dark .text-white { color: #fafafa; }
 .dark .border-white { border-color: #ffffff1f; }
 .dark .ring-white { --tw-ring-color: #ffffff1f; }
-.dark ::-webkit-scrollbar-thumb { background: #3a3a42; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+.dark ::-webkit-scrollbar-thumb { background: #443c3b; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #5a504e; }
 
-/* Our extra (the reference leaves these light in dark mode): readable tints for the shell.
-   Scoped to the exact classes the shell uses; light mode is untouched. */
-.dark .bg-orange-50 { background-color: color-mix(in oklab, #f97316 14%, #18181b); }
-.dark .bg-orange-50\/40 { background-color: color-mix(in oklab, #f97316 8%, #18181b); }
-.dark .bg-orange-100 { background-color: color-mix(in oklab, #f97316 24%, #18181b); }
-.dark .text-orange-700 { color: #fdba74; }
-.dark .bg-red-50 { background-color: color-mix(in oklab, #ef4444 14%, #18181b); }
-.dark .border-red-200 { border-color: color-mix(in oklab, #ef4444 35%, #18181b); }
+/* On the light coral used for the brand in dark mode, white text is too faint: use the AV
+   dark ink instead, as the AV app does. */
+.dark .from-orange-600.text-white, .dark .bg-orange-600.text-white { color: #2a100d; }
+
+/* Readable red tints in dark mode (the banner): the reference leaves them light. */
+.dark .bg-red-50 { background-color: color-mix(in oklab, #ef4444 14%, #221e1e); }
+.dark .border-red-200 { border-color: color-mix(in oklab, #ef4444 35%, #221e1e); }
 .dark .text-red-800 { color: #fca5a5; }
-.dark .hover\:bg-red-100:hover { background-color: color-mix(in oklab, #ef4444 24%, #18181b); }
+.dark .hover\:bg-red-100:hover { background-color: color-mix(in oklab, #ef4444 24%, #221e1e); }
 
 /* ── Vinyl disc spin animation (YouTube Shorts preview) ──────────────────── */
 @keyframes spin-slow {
