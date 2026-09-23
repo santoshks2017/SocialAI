@@ -165,17 +165,17 @@ async function generateCaptionsAI(
 async function transformCaptionAI(caption: string, instruction: string): Promise<string> {
   if (await isGeminiTextAvailable()) {
     try { return await geminiTransformCaption(caption, instruction) } catch (err) {
-      console.error("Gemini transform failed, falling back to Groq:", err)
+      console.error("Gemini transform failed, falling back to Groq:", err instanceof Error ? err.message : String(err))
     }
   }
   if (isGroqAvailable()) {
     try { return await groqTransformCaption(caption, instruction) } catch (err) {
-      console.error("Groq transform failed, falling back to OpenRouter:", err)
+      console.error("Groq transform failed, falling back to OpenRouter:", err instanceof Error ? err.message : String(err))
     }
   }
   if (isOpenRouterAvailable()) {
     try { return await openrouterTransformCaption(caption, instruction) } catch (err) {
-      console.error("OpenRouter transform failed:", err)
+      console.error("OpenRouter transform failed:", err instanceof Error ? err.message : String(err))
     }
   }
   return caption
