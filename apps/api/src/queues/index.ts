@@ -37,6 +37,8 @@ export interface PublishJobData {
   access_token: string;
   dealer_phone?: string;
   dealer_whatsapp?: string;
+  media_type: 'image' | 'video';
+  video_url: string;
 }
 
 export interface MetricsJobData {

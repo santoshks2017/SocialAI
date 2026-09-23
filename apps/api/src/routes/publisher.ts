@@ -382,13 +382,6 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         })
       }
 
-      const scheduledAt = scheduled_at ? new Date(scheduled_at) : null
-      if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
-        return reply.code(400).send({
-          error: { code: "INVALID_INPUT", message: "scheduled_at must be an ISO date" },
-        })
-      }
-
       // Verify the post belongs to this dealer
       const post = await prisma.post.findFirst({
         where: { id: post_id, dealer_id },
@@ -399,6 +392,15 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
       if (post.status === "publishing") return reply.code(409).send(PUBLISH_IN_PROGRESS)
       if (post.status === "pending_approval") return reply.code(409).send(AWAITING_APPROVAL)
+
+      // Facebook and Instagram process video for minutes, longer than a web request may run,
+      // so publishing a video now hands it to the every-minute cron (/v1/cron/publish).
+      const scheduledAt = scheduled_at ? new Date(scheduled_at) : post?.media_type === "video" ? new Date() : null
+      if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+        return reply.code(400).send({
+          error: { code: "INVALID_INPUT", message: "scheduled_at must be an ISO date" },
+        })
+      }
 
       // Load platform connections for this dealer
       const connections = await prisma.platformConnection.findMany({
@@ -439,7 +441,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           status: "scheduled",
           job_ids: jobIds,
           skipped_platforms: skipped,
-          scheduled_at,
+          scheduled_at: scheduled_at ?? scheduledAt.toISOString(),
         }
       }
 

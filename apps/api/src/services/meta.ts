@@ -100,6 +100,51 @@ export async function publishToInstagram(
   };
 }
 
+// ─── Video (reels) ─────────────────────────────────────────────────────────────
+
+// Video containers take longer to process than images; ~3 minutes in total.
+export const IG_VIDEO_POLL_DELAYS_MS = [5000, 5000, 5000, 5000, 5000, 5000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000];
+
+export async function publishVideoToFacebook(
+  pageId: string,
+  accessToken: string,
+  videoUrl: string,
+  caption: string,
+): Promise<MetaPublishResult> {
+  if (accessToken.startsWith('mock_') || pageId.startsWith('mock_')) {
+    const mockId = `mock_fb_video_${Date.now()}`;
+    return { post_id: mockId, url: `https://www.facebook.com/${pageId}/videos/${mockId}` };
+  }
+  const response = await axios.post<{ id: string }>(
+    `${META_GRAPH_BASE}/${pageId}/videos`,
+    { file_url: videoUrl, description: caption, access_token: accessToken },
+  );
+  return { post_id: response.data.id, url: `https://www.facebook.com/${pageId}/videos/${response.data.id}` };
+}
+
+export async function publishReelToInstagram(
+  igUserId: string,
+  accessToken: string,
+  videoUrl: string,
+  caption: string,
+  pollDelaysMs: readonly number[] = IG_VIDEO_POLL_DELAYS_MS,
+): Promise<MetaPublishResult> {
+  if (accessToken.startsWith('mock_') || igUserId.startsWith('mock_')) {
+    const mockId = `mock_ig_reel_${Date.now()}`;
+    return { post_id: mockId, url: `https://www.instagram.com/reel/${mockId}/` };
+  }
+  const containerRes = await axios.post<{ id: string }>(
+    `${META_GRAPH_BASE}/${igUserId}/media`,
+    { media_type: 'REELS', video_url: videoUrl, caption, share_to_feed: true, access_token: accessToken },
+  );
+  await waitForInstagramContainer(containerRes.data.id, accessToken, pollDelaysMs);
+  const publishRes = await axios.post<{ id: string }>(
+    `${META_GRAPH_BASE}/${igUserId}/media_publish`,
+    { creation_id: containerRes.data.id, access_token: accessToken },
+  );
+  return { post_id: publishRes.data.id, url: `https://www.instagram.com/reel/${publishRes.data.id}/` };
+}
+
 // ─── Token management ─────────────────────────────────────────────────────────
 
 export async function exchangeForLongLivedToken(shortLivedToken: string): Promise<{
