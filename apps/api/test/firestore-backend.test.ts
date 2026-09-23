@@ -164,6 +164,14 @@ describe('Firestore backend calls', () => {
     assert.deepEqual(lastOf('query'), ['query', [], undefined]);
   });
 
+  it("pushes the reel sweep's status filters down (video job status has no schema default)", async () => {
+    const jobs = new FirestoreCollection('video_jobs', 'VideoJob', { db: db as unknown as Firestore });
+    await jobs.findMany({ where: { status: 'queued' }, orderBy: { created_at: 'asc' } });
+    assert.deepEqual(lastOf('query'), ['query', [['status', '==', 'queued']], undefined]);
+    await jobs.findMany({ where: { status: 'processing' } });
+    assert.deepEqual(lastOf('query'), ['query', [['status', '==', 'processing']], undefined]);
+  });
+
   it('limits exact queries, counts with an aggregation, and reads ids directly', async () => {
     const a = await posts.create({ data: { dealer_id: 'd1', prompt_text: 'p', status: 'scheduled' } });
     await posts.create({ data: { dealer_id: 'd1', prompt_text: 'p', status: 'scheduled' } });

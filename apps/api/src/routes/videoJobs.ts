@@ -3,7 +3,7 @@ import { prisma } from '../db/prisma.js';
 import { consumeDailyQuota } from '../lib/dailyQuota.js';
 import { hasGeminiKey } from '../lib/aiKeys.js';
 import { normalizeLanguage } from '../lib/languages.js';
-import { createVideoJob, videoJobView, type VideoEngine } from '../lib/videoJobs.js';
+import { createVideoJob, inlineRenderEnabled, videoJobView, type VideoEngine } from '../lib/videoJobs.js';
 import { runVideoJob } from '../lib/videoJobRunner.js';
 
 const ASPECTS = new Set(['9:16', '1:1', '16:9']);
@@ -35,7 +35,8 @@ function dailyLimit(engine: VideoEngine): number {
   return Number.isFinite(limit) ? limit : cfg.fallback;
 }
 
-// Reels render in the background (Firebase Hosting cuts proxied requests at 60 s).
+// Reels render in the background (Firebase Hosting cuts proxied requests at 60 s): the cron sweep
+// (lib/videoJobRunner.ts) runs queued jobs, or this instance when VIDEO_RENDER_INLINE=true.
 export default async function videoJobRoutes(fastify: FastifyInstance) {
   // POST /v1/creatives/generate-video — queue a reel render
   fastify.post('/generate-video', { preHandler: [fastify.authenticate] }, async (request, reply) => {
@@ -66,8 +67,9 @@ export default async function videoJobRoutes(fastify: FastifyInstance) {
       language: normalizeLanguage(body.language),
     });
 
-    // Start rendering after replying; the cron sweep takes over if this instance can't finish.
-    if (process.env['NODE_ENV'] !== 'test') {
+    // The every-minute cron renders queued jobs. With VIDEO_RENDER_INLINE=true (instances with
+    // always-allocated CPU) this instance starts right after replying; the cron takes over if it can't finish.
+    if (inlineRenderEnabled()) {
       setImmediate(() => {
         void runVideoJob(job.id).catch((err) => request.log.error({ message: err instanceof Error ? err.message : String(err), jobId: job.id }, '[video-jobs] run failed'));
       });

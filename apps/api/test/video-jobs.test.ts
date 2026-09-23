@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/db/prisma.js';
 import {
-  claimVideoJob, completeVideoJob, createVideoJob, expireAbandonedJobs, failVideoJob, findRunnableJobs,
-  isClaimable, MAX_ATTEMPTS, QUEUED_GRACE_MS, STALE_AFTER_MS, touchVideoJob, videoJobView,
+  claimVideoJob, completeVideoJob, createVideoJob, expireAbandonedJobs, failVideoJob, findRunnableJobs, inlineRenderEnabled,
+  isClaimable, MAX_ATTEMPTS, QUEUED_GRACE_MS, queuedGraceMs, STALE_AFTER_MS, touchVideoJob, VIDEO_JOB_RETENTION_MS, videoJobView,
 } from '../src/lib/videoJobs.js';
 
 const newJob = () => createVideoJob({
@@ -50,7 +50,7 @@ describe('video job lifecycle', () => {
   it('finds jobs for the cron and expires ones abandoned too often', async () => {
     const now = new Date(Date.now() + QUEUED_GRACE_MS + 1_000);
     const longAgo = new Date(now.getTime() - STALE_AFTER_MS - 5_000);
-    const fresh = await prisma.videoJob.create({ data: { dealer_id: 'd', user_id: 'u', engine: 'kenburns', prompt: 'p', aspect_ratio: '9:16', duration_seconds: 15, language: 'en', hashtags: [], created_at: now } });
+    const fresh = await prisma.videoJob.create({ data: { dealer_id: 'd', user_id: 'u', engine: 'kenburns', prompt: 'p', status: 'queued', aspect_ratio: '9:16', duration_seconds: 15, language: 'en', hashtags: [], created_at: now } });
     const late = await newJob();
     const abandoned = await newJob();
     await claimVideoJob(abandoned.id, 'w1', longAgo);
@@ -60,11 +60,57 @@ describe('video job lifecycle', () => {
     assert.deepEqual(await expireAbandonedJobs(now), [exhausted.id]);
     const failed = await prisma.videoJob.findUnique({ where: { id: exhausted.id } });
     assert.deepEqual([failed?.status, failed?.error_code], ['failed', 'TIMED_OUT']);
+    assert.equal(failed?.expires_at?.getTime(), now.getTime() + VIDEO_JOB_RETENTION_MS);
 
-    const runnable = (await findRunnableJobs(now, 50)).map((j) => j.id);
+    // With inline rendering on, queued jobs get the grace period before the cron takes them.
+    const runnable = (await findRunnableJobs(now, 50, QUEUED_GRACE_MS)).map((j) => j.id);
     assert.ok(runnable.includes(late.id));
     assert.ok(runnable.includes(abandoned.id));
     assert.ok(!runnable.includes(fresh.id));
     assert.ok(!runnable.includes(exhausted.id));
+  });
+
+  it('expires finished jobs a week after they finish', async () => {
+    const done = await newJob();
+    await claimVideoJob(done.id, 'w1');
+    await completeVideoJob(done.id, 'w1', { videoUrl: 'https://cdn.test/r.mp4', thumbnailUrl: null, caption: 'c', hashtags: [] });
+    const failed = await newJob();
+    await claimVideoJob(failed.id, 'w1');
+    await failVideoJob(failed.id, 'w1', 'X', 'nope');
+    for (const id of [done.id, failed.id]) {
+      const stored = await prisma.videoJob.findUnique({ where: { id } });
+      assert.ok(stored?.finished_at && stored.expires_at, id);
+      assert.equal(stored.expires_at.getTime() - stored.finished_at.getTime(), VIDEO_JOB_RETENTION_MS);
+    }
+  });
+
+  it('keeps the queued grace period only while requests render reels in-process', async () => {
+    assert.equal(inlineRenderEnabled({ VIDEO_RENDER_INLINE: 'true', NODE_ENV: 'production' }), true);
+    assert.equal(inlineRenderEnabled({ NODE_ENV: 'production' }), false);
+    assert.equal(inlineRenderEnabled({ VIDEO_RENDER_INLINE: 'false', NODE_ENV: 'production' }), false);
+    assert.equal(inlineRenderEnabled({ VIDEO_RENDER_INLINE: 'true', NODE_ENV: 'test' }), false);
+    assert.equal(queuedGraceMs({ VIDEO_RENDER_INLINE: 'true', NODE_ENV: 'production' }), QUEUED_GRACE_MS);
+    assert.equal(queuedGraceMs({ NODE_ENV: 'production' }), 0);
+
+    // Tests run without inline rendering, so a job queued just now is runnable at once.
+    const now = new Date(Date.now() + 1_000);
+    const queued = await newJob();
+    assert.ok((await findRunnableJobs(now, 50)).some((j) => j.id === queued.id));
+    assert.ok(!(await findRunnableJobs(now, 50, QUEUED_GRACE_MS)).some((j) => j.id === queued.id));
+  });
+
+  it("doesn't time out a job that heartbeats after the sweep read it", async (t) => {
+    const now = new Date();
+    const job = await newJob();
+    await prisma.videoJob.update({
+      where: { id: job.id },
+      data: { status: 'processing', attempts: MAX_ATTEMPTS, worker_id: 'w1', heartbeat_at: new Date(now.getTime() - STALE_AFTER_MS - 5_000) },
+    });
+    const staleCopy = await prisma.videoJob.findUnique({ where: { id: job.id } });
+    await prisma.videoJob.update({ where: { id: job.id }, data: { heartbeat_at: now } });
+    t.mock.method(prisma.videoJob, 'findMany', async () => [staleCopy]);
+
+    assert.deepEqual(await expireAbandonedJobs(now), []);
+    assert.equal((await prisma.videoJob.findUnique({ where: { id: job.id } }))?.status, 'processing');
   });
 });

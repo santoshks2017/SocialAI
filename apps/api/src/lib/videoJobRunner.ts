@@ -45,12 +45,23 @@ export async function runVideoJob(jobId: string, renderers: ReelRenderers = DEFA
   }
 }
 
-// Called by the every-minute cron: fails jobs abandoned too often, then runs a few waiting ones.
-export async function sweepVideoJobs(now = new Date(), renderers: ReelRenderers = DEFAULT_RENDERERS, limit = 2): Promise<{ ran: string[]; expired: string[] }> {
+// Set while this process renders for a sweep, so overlapping cron requests don't stack renders
+// on one instance (each render is CPU-heavy and runs inside the cron request's time budget).
+let sweepRendering = false;
+
+// Called by the every-minute cron: fails jobs abandoned too often, then runs a waiting one
+// unless this process is still rendering for an earlier sweep.
+export async function sweepVideoJobs(now = new Date(), renderers: ReelRenderers = DEFAULT_RENDERERS, limit = 1): Promise<{ ran: string[]; expired: string[] }> {
   const expired = await expireAbandonedJobs(now);
-  const ran: string[] = [];
-  for (const job of await findRunnableJobs(now, limit)) {
-    if ((await runVideoJob(job.id, renderers)) !== 'skipped') ran.push(job.id);
+  if (sweepRendering) return { ran: [], expired };
+  sweepRendering = true;
+  try {
+    const ran: string[] = [];
+    for (const job of await findRunnableJobs(now, limit)) {
+      if ((await runVideoJob(job.id, renderers)) !== 'skipped') ran.push(job.id);
+    }
+    return { ran, expired };
+  } finally {
+    sweepRendering = false;
   }
-  return { ran, expired };
 }

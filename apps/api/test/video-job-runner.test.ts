@@ -79,6 +79,42 @@ describe('sweepVideoJobs', () => {
     assert.ok(result.ran.includes(j.id));
     assert.equal((await prisma.videoJob.findUnique({ where: { id: j.id } }))?.status, 'ready');
   });
+
+  it('renders one job per sweep, and nothing while this process is already rendering one', async () => {
+    const t = await team();
+    const first = await job(t.dealerId, t.userId);
+    const second = await job(t.dealerId, t.userId);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    let renders = 0;
+    const slow: ReelRenderers = {
+      kenburns: async () => {
+        renders++;
+        if (renders === 1) { markStarted(); await gate; }
+        return { videoUrl: 'https://cdn.test/r.mp4', thumbnailUrl: null, caption: 'Reel', hashtags: [] };
+      },
+      veo: async () => { throw new Error('unused'); },
+    };
+    const now = new Date(Date.now() + QUEUED_GRACE_MS + 1_000);
+
+    const statuses = async () => (await Promise.all([first.id, second.id].map((id) => prisma.videoJob.findUnique({ where: { id } }))))
+      .map((stored) => stored?.status).sort();
+
+    const running = sweepVideoJobs(now, slow);
+    await started;
+    const overlapping = await sweepVideoJobs(now, slow);
+    assert.deepEqual(overlapping.ran, []);
+    assert.equal(renders, 1);
+    assert.deepEqual(await statuses(), ['processing', 'queued']);
+
+    release();
+    const { ran } = await running;
+    assert.equal(ran.length, 1);
+    assert.ok(ran[0] === first.id || ran[0] === second.id);
+    assert.deepEqual(await statuses(), ['queued', 'ready']);
+  });
 });
 
 describe('reel routes', () => {

@@ -468,7 +468,9 @@ model VideoJob {
   dealer_id        String
   user_id          String    // DealerUser.id who asked for the reel
   engine           String    // 'kenburns' | 'veo'
-  status           String    @default("queued") // queued | processing | ready | failed
+  // queued | processing | ready | failed. No schema default: createVideoJob sets it, and a
+  // default would keep status filters in memory (see pushable() in src/db/firestore.ts).
+  status           String
   prompt           String
   image_url        String?   // attached car photo
   aspect_ratio     String    @default("9:16")
@@ -485,6 +487,7 @@ model VideoJob {
   heartbeat_at     DateTime?
   started_at       DateTime?
   finished_at      DateTime?
+  expires_at       DateTime? // Firestore TTL policy on video_jobs.expires_at deletes finished jobs after this time
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 
