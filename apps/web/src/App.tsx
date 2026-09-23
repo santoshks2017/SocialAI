@@ -11,6 +11,7 @@ import api from './services/api';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DealerProfileProvider } from './contexts/DealerProfileContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 import CreatePost from './pages/CreatePost';
 import CalendarPage from './pages/Calendar';
@@ -785,12 +786,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
-      </AuthProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

@@ -5,6 +5,15 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CarDekho Social AI</title>
+    <script>
+      // Mirrors utils/theme.ts: apply the saved theme before first paint to avoid a white flash.
+      try {
+        var m = localStorage.getItem('themeMode');
+        if (m === 'dark' || (m === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
