@@ -51,14 +51,18 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       prisma.dealer.findUnique({ where: { id: dealer_id } }),
       usersWithPermission(dealer_id, PERMISSIONS.APPROVE_POST, [user.dealer_user_id]),
     ]);
-    await notify({
-      dealerId: dealer_id,
-      type: 'approval_requested',
-      userIds: approvers,
-      title: 'Approval requested',
-      body: `"${postLabel(post)}" is waiting for your approval.`,
-      link: '/posts?status=pending_approval',
-    });
+    try {
+      await notify({
+        dealerId: dealer_id,
+        type: 'approval_requested',
+        userIds: approvers,
+        title: 'Approval requested',
+        body: `"${postLabel(post)}" is waiting for your approval.`,
+        link: '/posts?status=pending_approval',
+      });
+    } catch (err) {
+      console.error('[notifications] Could not notify approvers', err);
+    }
 
     const item = await prisma.post.findUnique({ where: { id } });
     return {

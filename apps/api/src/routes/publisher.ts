@@ -4,6 +4,7 @@ import { publishQueue, isQueueAvailable } from "../queues/index.js"
 import type { PublishJobData } from "../queues/index.js"
 import { buildPublishData, platformLabel, publishPost } from "../lib/publishDirect.js"
 import { deletePostIf, transitionPost } from "../lib/publishClaim.js"
+import { spendApprovalLinks } from "../lib/approvals.js"
 import { PERMISSIONS } from "../lib/permissions.js"
 import { getUser, requirePermission } from "../lib/routeHelpers.js"
 
@@ -210,6 +211,23 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       )
         return reply
 
+      const existing = await prisma.post.findFirst({ where: { id, dealer_id } })
+      if (!existing)
+        return reply
+          .code(404)
+          .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
+
+      // A post awaiting or holding approval loses it on a content edit: the approver signed off
+      // on specific content, so a change sends it back to drafts unless this same request also
+      // sets another status.
+      const wasInApproval = existing.status === "pending_approval" || existing.status === "approved"
+      const isContentEdit =
+        body.promptText !== undefined ||
+        body.captionText !== undefined ||
+        body.captionHashtags !== undefined ||
+        body.creativeUrls !== undefined ||
+        body.platforms !== undefined
+
       const updateData: Record<string, unknown> = {}
       if (body.promptText !== undefined)
         updateData.prompt_text = body.promptText
@@ -226,6 +244,14 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           ? new Date(body.scheduled_at)
           : null
 
+      if (wasInApproval && isContentEdit && body.status === undefined) {
+        updateData.status = "draft"
+        updateData.approval_decision = null
+        updateData.approver_note = null
+        updateData.approved_by = null
+        updateData.approved_at = null
+      }
+
       const updated = await prisma.post.updateMany({
         where: { id, dealer_id },
         data: updateData,
@@ -236,6 +262,14 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
 
       const post = await prisma.post.findFirst({ where: { id, dealer_id } })
+
+      // Any open approval link is for the content as it was reviewed; once the post has left
+      // pending_approval/approved — by this edit or an explicit status change — it must not
+      // still be actionable.
+      if (wasInApproval && post && post.status !== "pending_approval" && post.status !== "approved") {
+        await spendApprovalLinks(id)
+      }
+
       return { success: true, item: post }
     },
   )
@@ -553,10 +587,13 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         }
       }
 
+      const wasInApproval = post.status === "pending_approval" || post.status === "approved"
+
       await prisma.post.update({
         where: { id: postId },
         data: { status: "draft", scheduled_at: null },
       })
+      if (wasInApproval) await spendApprovalLinks(postId)
       return { success: true }
     },
   )

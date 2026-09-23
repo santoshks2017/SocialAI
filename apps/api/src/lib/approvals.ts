@@ -51,6 +51,13 @@ async function spendOpenTokens(postId: string, outcome: { decision?: ApprovalDec
   }
 }
 
+// Spends every open approval link for a post without recording a decision or comment — used
+// when a post leaves pending_approval/approved through an edit or a schedule cancel, not an
+// approve/reject decision.
+export async function spendApprovalLinks(postId: string): Promise<void> {
+  await spendOpenTokens(postId);
+}
+
 // Issues a fresh single-use link for a post awaiting approval; older open links for the post
 // stop working. Returns the raw token, which is never stored.
 export async function issueApprovalToken(post: Pick<Post, 'id' | 'dealer_id'>, createdBy: string | null): Promise<string> {
@@ -95,30 +102,39 @@ export async function decideApproval(postId: string, dealerId: string, input: De
   return post;
 }
 
+// Never throws: a notification problem must not turn a recorded approval decision into an error.
 async function notifyDecision(post: Post, decision: ApprovalDecision, byUserId: string | null, note: string | null) {
-  const label = postLabel(post);
-  const author = post.created_by && post.created_by !== byUserId ? [post.created_by] : [];
+  try {
+    const label = postLabel(post);
+    const author = post.created_by && post.created_by !== byUserId ? [post.created_by] : [];
 
-  if (decision === 'approve') {
-    // The author, and everyone who can publish it, need to know it is ready.
-    const publishers = await usersWithPermission(post.dealer_id, PERMISSIONS.PUBLISH_POST, [byUserId]);
+    if (decision === 'approve') {
+      // The author, and everyone who can publish it, need to know it is ready.
+      const publishers = await usersWithPermission(post.dealer_id, PERMISSIONS.PUBLISH_POST, [byUserId]);
+      // A null byUserId means the decision came through the public review link, not the app.
+      const base = byUserId === null
+        ? `"${label}" was approved through the review link and is ready to publish.`
+        : `"${label}" is ready to publish.`;
+      await notify({
+        dealerId: post.dealer_id,
+        type: 'approval_decided',
+        userIds: [...new Set([...author, ...publishers])],
+        title: 'Post approved',
+        body: note ? `${base} Approver note: ${note}` : base,
+        link: '/posts?status=approved',
+      });
+      return;
+    }
+
     await notify({
       dealerId: post.dealer_id,
       type: 'approval_decided',
-      userIds: [...new Set([...author, ...publishers])],
-      title: 'Post approved',
-      body: note ? `"${label}" is ready to publish. Approver note: ${note}` : `"${label}" is ready to publish.`,
-      link: '/posts?status=approved',
+      userIds: author,
+      title: 'Post rejected',
+      body: note ? `"${label}" was sent back to drafts. Reason: ${note}` : `"${label}" was sent back to drafts.`,
+      link: '/posts?status=draft',
     });
-    return;
+  } catch (err) {
+    console.error('[notifications] Could not notify about the approval decision', err);
   }
-
-  await notify({
-    dealerId: post.dealer_id,
-    type: 'approval_decided',
-    userIds: author,
-    title: 'Post rejected',
-    body: note ? `"${label}" was sent back to drafts. Reason: ${note}` : `"${label}" was sent back to drafts.`,
-    link: '/posts?status=draft',
-  });
 }

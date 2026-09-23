@@ -64,6 +64,18 @@ describe('submit for approval', () => {
     const draft = await newPost(t.dealerId, t.creator.id);
     assert.equal((await send('POST', `/v1/publisher/posts/${draft.id}/submit-for-approval`, headersFor(other.creator))).statusCode, 404);
   });
+
+  it('still moves the post to pending_approval when the approver notification fails to store', async (t) => {
+    const tm = await team();
+    const post = await newPost(tm.dealerId, tm.creator.id);
+    t.mock.method(prisma.notification, 'createMany', async () => { throw new Error('store down'); });
+    t.mock.method(console, 'error', () => {});
+
+    const res = await send('POST', `/v1/publisher/posts/${post.id}/submit-for-approval`, headersFor(tm.creator));
+
+    assert.equal(res.statusCode, 200);
+    assert.equal((res.json() as { item: { status: string } }).item.status, 'pending_approval');
+  });
 });
 
 describe('approve and reject', () => {
@@ -140,5 +152,57 @@ describe('approval guards on existing publisher routes', () => {
       assert.equal((res.json() as { error: { code: string } }).error.code, 'AWAITING_APPROVAL');
     }
     assert.equal((await prisma.post.findUnique({ where: { id: post.id } }))?.status, 'pending_approval');
+  });
+});
+
+describe('editing or cancelling a post that is in approval', () => {
+  // A post sent for approval through the API; returns its raw link token.
+  async function pendingWithLink() {
+    const t = await team();
+    const post = await newPost(t.dealerId, t.creator.id);
+    const submitRes = await send('POST', `/v1/publisher/posts/${post.id}/submit-for-approval`, headersFor(t.creator));
+    const token = (submitRes.json() as { approvalUrl: string }).approvalUrl.split('/approve/')[1]!;
+    return { ...t, post, token };
+  }
+
+  it('returns an approved post to draft and clears the approval fields on a content edit', async () => {
+    const t = await team();
+    const post = await newPost(t.dealerId, t.creator.id, 'pending_approval');
+    await send('POST', `/v1/publisher/posts/${post.id}/approve`, headersFor(t.admin));
+
+    const res = await send('PATCH', `/v1/publisher/posts/${post.id}`, headersFor(t.creator), { captionText: 'New caption' });
+
+    assert.equal(res.statusCode, 200);
+    const item = (res.json() as {
+      item: { status: string; caption_text: string; approval_decision: string | null; approver_note: string | null; approved_by: string | null; approved_at: string | null };
+    }).item;
+    assert.equal(item.status, 'draft');
+    assert.equal(item.caption_text, 'New caption');
+    assert.deepEqual(
+      [item.approval_decision, item.approver_note, item.approved_by, item.approved_at],
+      [null, null, null, null],
+    );
+  });
+
+  it('spends an open approval link when the post is edited back to draft', async () => {
+    const s = await pendingWithLink();
+
+    const res = await send('PATCH', `/v1/publisher/posts/${s.post.id}`, headersFor(s.creator), { status: 'draft' });
+    assert.equal(res.statusCode, 200);
+
+    const decideRes = await fastify.inject({ method: 'POST', url: `/v1/publisher/approval/${s.token}`, payload: { decision: 'approve' } });
+    assert.equal(decideRes.statusCode, 409);
+    assert.equal((decideRes.json() as { error: { code: string } }).error.code, 'ALREADY_ACTIONED');
+  });
+
+  it('spends an open approval link when the schedule is cancelled', async () => {
+    const s = await pendingWithLink();
+
+    const res = await fastify.inject({ method: 'DELETE', url: `/v1/publisher/${s.post.id}`, headers: headersFor(s.creator) });
+    assert.equal(res.statusCode, 200);
+
+    const decideRes = await fastify.inject({ method: 'POST', url: `/v1/publisher/approval/${s.token}`, payload: { decision: 'approve' } });
+    assert.equal(decideRes.statusCode, 409);
+    assert.equal((decideRes.json() as { error: { code: string } }).error.code, 'ALREADY_ACTIONED');
   });
 });
