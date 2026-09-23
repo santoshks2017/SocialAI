@@ -1266,8 +1266,9 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex gap-2 justify-center pt-2">
                   <Button
+                    variant="danger"
                     onClick={() => handleDeleteModel(deletingModel)}
-                    className="text-xs bg-red-505 bg-red-500 hover:bg-red-600 text-white cursor-pointer px-4 shadow-sm"
+                    className="text-xs cursor-pointer px-4 shadow-sm"
                   >
                     Yes, Delete
                   </Button>

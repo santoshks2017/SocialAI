@@ -345,9 +345,9 @@ export default function BillingPage() {
                   </Button>
                 ) : (
                   <Button
-                    className={`w-full h-auto text-xs font-extrabold py-3 shadow-md ${
-                      p.highlight 
-                        ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20' 
+                    className={`w-full h-auto text-xs font-extrabold py-3 shadow-md bg-none ${
+                      p.highlight
+                        ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20'
                         : 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/10'
                     }`}
                     onClick={() => handleSubscribe(p.tier)}
@@ -376,8 +376,8 @@ export default function BillingPage() {
               </p>
             </div>
           </div>
-          <Button 
-            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold text-xs py-2 px-4 shadow-md shrink-0 flex items-center gap-1.5"
+          <Button
+            className="bg-none bg-yellow-600 hover:bg-yellow-700 text-white font-bold text-xs py-2 px-4 shadow-md shrink-0 flex items-center gap-1.5"
             onClick={handleSimulatePayment}
             disabled={simulatingWebhook}
           >
