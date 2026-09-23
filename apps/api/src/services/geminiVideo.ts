@@ -255,6 +255,25 @@ export async function generateReelOverlays(params: {
 }
 
 /**
+ * FFmpeg arguments for burning the overlay filter graph into the video (a second H.264 encode).
+ * Instagram needs the moov atom first (+faststart) and 4:2:0 chroma, so this encode keeps both.
+ */
+export function compositeOverlayArgs(inputVideoPath: string, outputVideoPath: string, filterGraph: string): string[] {
+  return [
+    '-y',
+    '-i', inputVideoPath,
+    '-vf', filterGraph,
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '22',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy',
+    '-movflags', '+faststart',
+    outputVideoPath,
+  ];
+}
+
+/**
  * Composites high-contrast, crisp typography overlays onto video frames using FFmpeg.
  */
 export async function compositeVideoOverlays(
@@ -312,16 +331,7 @@ export async function compositeVideoOverlays(
   try {
     const filterGraph = filters.join(',');
     console.log(`[Veo Compositor] Executing FFmpeg drawtext overlay on ${inputVideoPath}...`);
-    await execFileAsync('ffmpeg', [
-      '-y',
-      '-i', inputVideoPath,
-      '-vf', filterGraph,
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '22',
-      '-c:a', 'copy',
-      outputVideoPath
-    ]);
+    await execFileAsync('ffmpeg', compositeOverlayArgs(inputVideoPath, outputVideoPath, filterGraph));
     console.log(`[Veo Compositor] Successfully composited overlays to ${outputVideoPath}`);
     return true;
   } catch (err: any) {

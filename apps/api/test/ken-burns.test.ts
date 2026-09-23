@@ -6,11 +6,27 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { buildKenBurnsArgs, extractThumbnail, reelDimensions, renderKenBurns } from '../src/services/kenBurns.js';
+import { compositeOverlayArgs } from '../src/services/geminiVideo.js';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0 && spawnSync('ffprobe', ['-version']).status === 0;
 
 const graphOf = (args: string[]) => args[args.indexOf('-filter_complex') + 1]!;
 const mapsOf = (args: string[]) => { const i = args.indexOf('-map'); return args.slice(i, i + 4); };
+
+describe('compositeOverlayArgs', () => {
+  it('re-encodes the overlaid reel with faststart and yuv420p so Instagram accepts it', () => {
+    const args = compositeOverlayArgs('clean.mp4', 'final.mp4', "drawtext=text='OFFER'");
+    const pair = (flag: string) => args.slice(args.indexOf(flag), args.indexOf(flag) + 2);
+    assert.deepEqual(args.slice(0, 5), ['-y', '-i', 'clean.mp4', '-vf', "drawtext=text='OFFER'"]);
+    assert.deepEqual(pair('-c:v'), ['-c:v', 'libx264']);
+    assert.deepEqual(pair('-preset'), ['-preset', 'fast']);
+    assert.deepEqual(pair('-crf'), ['-crf', '22']);
+    assert.deepEqual(pair('-pix_fmt'), ['-pix_fmt', 'yuv420p']);
+    assert.deepEqual(pair('-movflags'), ['-movflags', '+faststart']);
+    assert.deepEqual(pair('-c:a'), ['-c:a', 'copy']);
+    assert.equal(args.at(-1), 'final.mp4');
+  });
+});
 
 describe('buildKenBurnsArgs', () => {
   it('pans and zooms each image and crossfades between them', () => {
