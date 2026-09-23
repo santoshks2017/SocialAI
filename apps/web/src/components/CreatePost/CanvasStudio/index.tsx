@@ -84,7 +84,7 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
     handleClose();
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = () => { reset(); setGenerationError(null); onClose(); };
 
   // Dual-write: keep ref for export (synchronous access) + state for RightRail (reactive)
   const handleCanvasReady = (c: fabric.Canvas) => {

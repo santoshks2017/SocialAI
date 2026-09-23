@@ -33,6 +33,33 @@ describe('waitForVideoJob', () => {
     assert.deepEqual(outcome, { kind: 'timeout' });
   });
 
+  it('drops a result that arrives after cancelling, without waiting again', async () => {
+    let sleeps = 0;
+    const c = clock();
+    const sleep = async (ms: number) => { sleeps++; await c.sleep(ms); };
+    let cancelled = false;
+    const ready = await waitForVideoJob(async () => { cancelled = true; return job('ready', { video_url: 'https://cdn.test/r.mp4' }); }, { ...c, sleep, isCancelled: () => cancelled });
+    assert.deepEqual(ready, { kind: 'cancelled' });
+
+    cancelled = false;
+    const failed = await waitForVideoJob(async () => { cancelled = true; throw new Error('network'); }, { ...c, sleep, isCancelled: () => cancelled });
+    assert.deepEqual(failed, { kind: 'cancelled' });
+    assert.equal(sleeps, 0);
+  });
+
+  it('stops with missing when a request error is fatal', async () => {
+    const c = clock();
+    const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { status });
+    const isFatal = (err: unknown) => (err as { status?: number }).status === 404;
+    let calls = 0;
+    const missing = await waitForVideoJob(async () => { calls++; throw httpError(404); }, { ...c, isFatal });
+    assert.deepEqual(missing, { kind: 'missing' });
+    assert.equal(calls, 1);
+
+    const retried = await waitForVideoJob(async () => { throw httpError(502); }, { ...c, isFatal, intervalMs: 1000, timeoutMs: 3000 });
+    assert.deepEqual(retried, { kind: 'timeout' });
+  });
+
   it('can be cancelled', async () => {
     const c = clock();
     let cancelled = false;

@@ -24,7 +24,7 @@ const TEXT: Record<CreateOutcome['kind'], string> = {
   published: 'Your content is being delivered to the selected platforms.',
 };
 const POLL_MS = 5000;
-const MAX_POLLS = 24; // about 2 minutes: video uploads finish in the background (cron)
+const MAX_POLLS = 60; // about 5 minutes: the cron uploads videos in the background, and Instagram can take minutes to process one
 
 export function SuccessScreen({ outcome, onCreateAnother }: { outcome: CreateOutcome; onCreateAnother: () => void }) {
   const navigate = useNavigate();

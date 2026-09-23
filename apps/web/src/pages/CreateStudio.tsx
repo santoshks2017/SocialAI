@@ -31,6 +31,9 @@ type Action = 'publish' | 'schedule' | 'approval';
 // Branded mode's prompt is optional, but captions are written from a brief.
 const FALLBACK_PROMPT = 'Showroom offer post';
 
+// The reel job is gone (another dealership's link, or deleted): polling again won't help.
+const isMissingJobError = (err: unknown) => err instanceof ApiError && (err.status === 403 || err.status === 404);
+
 function dataUrlToFile(dataUrl: string, name: string): File {
   const [head = '', body = ''] = dataUrl.split(',');
   const mime = /^data:([^;,]+)/.exec(head)?.[1] ?? 'image/jpeg';
@@ -38,7 +41,14 @@ function dataUrlToFile(dataUrl: string, name: string): File {
   return new File([bytes], name, { type: mime });
 }
 
-export default function CreateStudio() {
+// Keyed on ?job= / ?edit= so a new one (e.g. a "reel ready" notification clicked while already
+// on /create) mounts a fresh studio that loads it, instead of keeping the current state.
+export default function CreateStudioPage() {
+  const [params] = useSearchParams();
+  return <CreateStudio key={params.get('job') ?? params.get('edit') ?? 'new'} />;
+}
+
+function CreateStudio() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { addToast } = useToast();
@@ -156,8 +166,12 @@ export default function CreateStudio() {
 
   // Polls a reel job. `retry` re-renders with the quick engine when a premium (Veo) render fails.
   const followReel = async (jobId: string, retry: (() => Promise<void>) | null, isCancelled: () => boolean): Promise<void> => {
-    const polled = await waitForVideoJob(() => createStudioService.videoStatus(jobId), { isCancelled });
+    const polled = await waitForVideoJob(() => createStudioService.videoStatus(jobId), { isCancelled, isFatal: isMissingJobError });
     if (polled.kind === 'cancelled') return;
+    if (polled.kind === 'missing') {
+      addToast({ type: 'error', title: 'Reel not found', message: 'This reel is no longer available.' });
+      return;
+    }
     if (polled.kind === 'timeout') {
       addToast({ type: 'info', title: 'Still rendering', message: 'Your reel is taking longer than usual. We’ll notify you when it’s ready.' });
       return;
