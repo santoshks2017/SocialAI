@@ -1576,7 +1576,7 @@ export default function CreatePost() {
               <div className="w-full max-w-[460px] border border-slate-250 bg-white rounded-3xl overflow-hidden shadow-lg flex flex-col shrink-0">
                 <PlatformPreview
                   platform={previewTab === 'gmb' ? 'google' : previewTab as any}
-                  dealerName={dealerProfile?.name || 'SocialGenie'}
+                  dealerName={dealerProfile?.name || 'Social AI'}
                   dealerInitials={dealerProfile?.name ? dealerProfile.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'AD'}
                   caption={caption}
                   imageUrl={aiImageUrls[selectedCreativeIdx || 0] || null}

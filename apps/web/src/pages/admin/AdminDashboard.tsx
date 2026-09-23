@@ -143,7 +143,7 @@ export default function AdminDashboard() {
       {/* Title */}
       <div>
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-          SocialGenie Admin Panel
+          Social AI Admin Panel
           <span className="bg-red-100 text-red-700 text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
             Owner Only
           </span>

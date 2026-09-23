@@ -17,7 +17,7 @@ describe('API Routes (In-Memory Fastify Inject)', () => {
       assert.equal(response.statusCode, 200);
       const body = JSON.parse(response.body);
       assert.equal(body.status, 'ok');
-      assert.equal(body.service, 'Cardeko Social AI - API');
+      assert.equal(body.service, 'CarDekho Social AI - API');
       assert.ok(body.env);
     });
   });

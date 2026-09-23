@@ -49,7 +49,7 @@ async function sendOtp(phone: string, otp: string): Promise<void> {
     await axios.post(
       `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
       new URLSearchParams({
-        Body: `Your Cardeko Social AI OTP is ${otp}. Valid for 10 minutes.`,
+        Body: `Your CarDekho Social AI OTP is ${otp}. Valid for 10 minutes.`,
         From: process.env["TWILIO_PHONE_NUMBER"] ?? "",
         To: phone,
       }),

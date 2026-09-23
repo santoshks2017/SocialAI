@@ -864,7 +864,7 @@ export default function InventoryPage() {
 
             {uploadStep === 'mapping' && (
               <div className="space-y-4">
-                <p className="text-sm text-gray-600">Map your file columns to Cardeko fields:</p>
+                <p className="text-sm text-gray-600">Map your file columns to Social AI fields:</p>
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                   {[
                     { key: 'make', label: 'Make / Brand', required: true },

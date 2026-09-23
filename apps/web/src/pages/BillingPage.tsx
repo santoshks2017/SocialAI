@@ -225,7 +225,7 @@ export default function BillingPage() {
               
               <div className="space-y-1">
                 <h2 className="text-3xl font-extrabold capitalize text-white">
-                  {currentPlan === 'starter' ? 'SocialGenie Starter' : currentPlan === 'growth' ? 'SocialGenie Growth' : 'SocialGenie Enterprise'}
+                  {currentPlan === 'starter' ? 'Social AI Starter' : currentPlan === 'growth' ? 'Social AI Growth' : 'Social AI Enterprise'}
                 </h2>
                 <p className="text-slate-400 text-sm">
                   {billingData.expiresAt 

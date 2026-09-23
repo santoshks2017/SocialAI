@@ -375,7 +375,7 @@ The product is designed around three actions a dealer performs:
 ### 7.3 Monorepo Package Structure
 
 ```
-SocialGenie/
+SocialAI/
 ├── apps/
 │   ├── api/              — Fastify API server
 │   └── web/              — React 19 frontend
