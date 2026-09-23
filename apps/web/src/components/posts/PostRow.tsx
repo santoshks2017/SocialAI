@@ -32,7 +32,10 @@ export function PostRow(props: PostRowProps) {
       tabIndex={0}
       title="View details"
       onClick={() => onOpen(post)}
-      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(post); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') onOpen(post);
+        else if (e.key === ' ') { e.preventDefault(); onOpen(post); }
+      }}
       className="group bg-white rounded-xl border border-zinc-200/80 shadow-sm transition-all duration-200 hover:shadow-md hover:border-zinc-300 cursor-pointer"
     >
       <div className="flex items-center gap-4 p-3.5">
