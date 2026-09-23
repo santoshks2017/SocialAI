@@ -18,6 +18,14 @@ function mapNotification(n: Notification) {
 export default async function notificationRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', fastify.authenticate);
 
+  // Defensive guard: the data adapter drops `undefined` filter values, so a token
+  // whose payload is missing dealer_user_id would otherwise list every notification.
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!request.user?.dealer_user_id) {
+      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Invalid session' } });
+    }
+  });
+
   // GET /v1/notifications?pageSize=15
   fastify.get('/', async (request) => {
     const userId = request.user.dealer_user_id;

@@ -16,8 +16,8 @@ describe('needsReconnect()', () => {
     assert.equal(needsReconnect({ platform: 'facebook', token_expires_at: FUTURE }, NOW), false);
   });
 
-  it('is true when the connection is marked disconnected', () => {
-    assert.equal(needsReconnect({ platform: 'facebook', is_connected: false, token_expires_at: null }, NOW), true);
+  it('is false when the connection was removed or disconnected by the dealer', () => {
+    assert.equal(needsReconnect({ platform: 'facebook', is_connected: false, token_expires_at: null }, NOW), false);
   });
 
   it('is true for an expired Meta token, including the epoch set by a failed health check', () => {
@@ -42,6 +42,7 @@ describe('GET /v1/platforms needs_reconnect', () => {
     await prisma.platformConnection.create({ data: { dealer_id: dealer.id, platform: 'facebook', platform_account_id: 'p1', access_token: 't1', token_expires_at: new Date(0) } });
     await prisma.platformConnection.create({ data: { dealer_id: dealer.id, platform: 'instagram', platform_account_id: 'i1', access_token: 't2', token_expires_at: new Date(Date.now() + 86_400_000) } });
     await prisma.platformConnection.create({ data: { dealer_id: dealer.id, platform: 'gmb', platform_account_id: 'g1', access_token: 't3', refresh_token: 'r', token_expires_at: new Date(Date.now() - 60_000) } });
+    await prisma.platformConnection.create({ data: { dealer_id: dealer.id, platform: 'youtube', platform_account_id: 'y1', access_token: 't4', is_connected: false, token_expires_at: new Date(Date.now() - 60_000) } });
 
     const payload: JwtUser = { dealer_user_id: `u-${dealer.id}`, dealer_id: dealer.id, role: 'admin', phone: '+910000000000', permissions: resolvePermissions('admin'), typ: 'access' };
     const res = await fastify.inject({ method: 'GET', url: '/v1/platforms', headers: { authorization: `Bearer ${fastify.jwt.sign(payload)}` } });
@@ -49,7 +50,7 @@ describe('GET /v1/platforms needs_reconnect', () => {
     assert.equal(res.statusCode, 200);
     const platforms = (res.json() as { platforms: Array<Record<string, unknown>> }).platforms;
     const flags = Object.fromEntries(platforms.map((p) => [p['platform'], p['needs_reconnect']]));
-    assert.deepEqual(flags, { facebook: true, instagram: false, gmb: false });
+    assert.deepEqual(flags, { facebook: true, instagram: false, gmb: false, youtube: false });
     assert.ok(platforms.every((p) => !('access_token' in p) && !('refresh_token' in p)));
   });
 });

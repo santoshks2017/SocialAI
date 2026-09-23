@@ -11,7 +11,9 @@ export function needsReconnect(
   },
   now: Date = new Date(),
 ): boolean {
-  if (conn.is_connected === false) return true;
+  // is_connected is only ever set to false by the dealer's own disconnect or
+  // remove action, so that is not something to prompt them to reconnect.
+  if (conn.is_connected === false) return false;
   if (!conn.token_expires_at) return false;
   if (new Date(conn.token_expires_at).getTime() > now.getTime()) return false;
   return !(REFRESHABLE_PLATFORMS.has(conn.platform) && conn.refresh_token);

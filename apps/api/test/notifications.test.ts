@@ -124,4 +124,16 @@ describe('GET/POST /v1/notifications', () => {
       process.env['NODE_ENV'] = previousEnv;
     }
   });
+
+  it('rejects a validly signed token whose payload is missing dealer_user_id', async () => {
+    const { dealerId } = await newDealerWithUsers(1);
+    const payload = {
+      dealer_id: dealerId, role: 'admin', phone: '+910000000000',
+      permissions: resolvePermissions('admin'), typ: 'access',
+    } as unknown as JwtUser;
+    const token = fastify.jwt.sign(payload);
+
+    const res = await fastify.inject({ method: 'GET', url: '/v1/notifications', headers: bearer(token) });
+    assert.equal(res.statusCode, 401);
+  });
 });
