@@ -8,9 +8,12 @@ interface Props {
   width: number;
   height: number;
   onCanvasReady: (canvas: fabric.Canvas) => void;
+  /** An existing design to edit: drawn as the scene layer until a generated scene is picked. */
+  baseImageUrl?: string | null;
+  onBaseImageError?: () => void;
 }
 
-export function CanvasStage({ width, height, onCanvasReady }: Props) {
+export function CanvasStage({ width, height, onCanvasReady, baseImageUrl = null, onBaseImageError }: Props) {
   const elRef     = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
 
@@ -34,6 +37,28 @@ export function CanvasStage({ width, height, onCanvasReady }: Props) {
   // Run only on mount — width/height changes are handled by key prop on the parent
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Draw the design being edited as the scene layer. A generated scene replaces it once picked.
+  useEffect(() => {
+    const canvas = fabricRef.current;
+    if (!canvas || !baseImageUrl || selectedSceneIdx !== null) return;
+    let cancelled = false;
+    fabric.FabricImage.fromURL(baseImageUrl, { crossOrigin: 'anonymous' })
+      .then((img) => {
+        if (cancelled || fabricRef.current !== canvas) return;
+        canvas.getObjects().forEach((o) => {
+          if (getObjectId(o) === 'scene') { o.off(); canvas.remove(o); }
+        });
+        const scale = Math.max(width / img.width, height / img.height);
+        img.set({ scaleX: scale, scaleY: scale, left: width / 2, top: height / 2, originX: 'center', originY: 'center', selectable: false, evented: false });
+        Object.assign(img, { id: 'scene' });
+        canvas.add(img);
+        canvas.sendObjectToBack(img);
+        canvas.requestRenderAll();
+      })
+      .catch(() => { if (!cancelled) onBaseImageError?.(); });
+    return () => { cancelled = true; };
+  }, [baseImageUrl, selectedSceneIdx, width, height, onBaseImageError]);
 
   const compose = useCallback(async () => {
     const canvas = fabricRef.current;

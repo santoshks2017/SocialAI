@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import * as fabric from 'fabric';
 import { X, Wand2, RefreshCw, Download, AlertCircle } from 'lucide-react';
 import { useCanvasStore } from './useCanvasStore';
@@ -15,9 +15,11 @@ interface Props {
   model: string;
   initialHeading?: string;
   onExport: (dataUrl: string) => void;
+  /** Open on an existing design (1:1) instead of an empty canvas. */
+  initialImageUrl?: string | null;
 }
 
-export function CanvasStudio({ open, onClose, brief, model, initialHeading, onExport }: Props) {
+export function CanvasStudio({ open, onClose, brief, model, initialHeading, onExport, initialImageUrl = null }: Props) {
   // Lifted into state so RightRail re-renders when canvas first becomes available
   const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
@@ -30,6 +32,16 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
   const setLoading       = useCanvasStore((s) => s.setLoading);
   const setSceneVariants = useCanvasStore((s) => s.setSceneVariants);
   const reset            = useCanvasStore((s) => s.reset);
+  const setAspectRatio   = useCanvasStore((s) => s.setAspectRatio);
+
+  // Designs are 1080×1080, so editing one starts square.
+  useEffect(() => {
+    if (open && initialImageUrl) setAspectRatio('1:1');
+  }, [open, initialImageUrl, setAspectRatio]);
+
+  const handleBaseImageError = useCallback(() => {
+    setGenerationError('Could not load this design into the canvas.');
+  }, []);
 
   const dims = getDimensions();
 
@@ -55,7 +67,15 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
   const handleExport = () => {
     const c = canvasRef.current;
     if (!c) return;
-    const dataUrl = c.toDataURL({ format: 'jpeg', quality: 0.92, multiplier: 1 });
+    let dataUrl: string;
+    try {
+      dataUrl = c.toDataURL({ format: 'jpeg', quality: 0.92, multiplier: 1 });
+    } catch (e) {
+      // A cross-origin image without CORS taints the canvas and export throws.
+      console.error('[CanvasStudio] Export failed:', e);
+      setGenerationError('Could not export this design. Please try again.');
+      return;
+    }
     if (!dataUrl || dataUrl === 'data:,') {
       console.error('[CanvasStudio] Export produced empty data URL');
       return;
@@ -118,6 +138,8 @@ export function CanvasStudio({ open, onClose, brief, model, initialHeading, onEx
           width={dims.width}
           height={dims.height}
           onCanvasReady={handleCanvasReady}
+          baseImageUrl={initialImageUrl}
+          onBaseImageError={handleBaseImageError}
         />
         {/* canvas (state) passed so RightRail re-renders when canvas is ready */}
         <RightRail canvas={canvas} initialHeading={initialHeading} aspectRatio={aspectRatio} />
