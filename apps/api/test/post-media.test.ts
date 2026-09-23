@@ -82,3 +82,18 @@ describe('video posts', () => {
     assert.equal(res.statusCode, 400);
   });
 });
+
+describe('PATCH /v1/publisher/posts/:id compare-and-swap', () => {
+  it('answers 409 POST_CHANGED and writes nothing when the status changed after the handler read it', async (t) => {
+    const { dealerId, headers } = await dealerHeaders();
+    const post = await prisma.post.create({ data: { dealer_id: dealerId, prompt_text: 'Offer', caption_text: 'Original', caption_hashtags: [], platforms: ['facebook'], status: 'scheduled' } });
+    // The handler reads the post while it was still a draft; it has been scheduled since.
+    t.mock.method(prisma.post, 'findFirst', async () => ({ ...post, status: 'draft' }));
+
+    const res = await patch(headers, post.id, { captionText: 'Edited' });
+
+    assert.equal(res.statusCode, 409);
+    assert.equal((res.json() as { error: { code: string } }).error.code, 'POST_CHANGED');
+    assert.deepEqual(await prisma.post.findUnique({ where: { id: post.id } }), post);
+  });
+});

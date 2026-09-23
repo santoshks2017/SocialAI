@@ -447,10 +447,14 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       }
 
       if (scheduledAt) {
-        await prisma.post.update({
-          where: { id: post_id },
-          data: { status: "scheduled", platforms, scheduled_at: scheduledAt },
-        })
+        // Only if the status is still the one accepted above: a cron run may have claimed the post
+        // ('publishing') or published it since, and must not be flipped back to 'scheduled'.
+        const scheduled = await transitionPost(
+          post_id,
+          (p) => p.dealer_id === dealer_id && p.status === post.status,
+          { status: "scheduled", platforms, scheduled_at: scheduledAt },
+        )
+        if (!scheduled) return reply.code(409).send(PUBLISH_IN_PROGRESS)
         // Without a queue, the cron endpoint (/v1/cron/publish) publishes it when due.
         const jobIds = useQueue
           ? await enqueue(Math.max(0, scheduledAt.getTime() - Date.now()))

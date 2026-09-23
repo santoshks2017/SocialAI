@@ -79,4 +79,18 @@ describe('publishing video posts', () => {
     assert.equal(stored?.status, 'scheduled');
     assert.ok(new Date(stored!.scheduled_at!).getTime() >= before - 1000);
   });
+
+  it("doesn't flip a video post the cron already claimed back to scheduled", async (t) => {
+    const dealerId = await dealerWithConnections();
+    const payload: JwtUser = { dealer_user_id: 'u1', dealer_id: dealerId, role: 'admin', phone: '+910000000000', permissions: resolvePermissions('admin'), typ: 'access' };
+    const post = await prisma.post.create({ data: { dealer_id: dealerId, prompt_text: 'Reel', caption_hashtags: [], platforms: ['facebook'], status: 'publishing', media_type: 'video', video_url: 'https://cdn.test/reel.mp4' } });
+    // The request read the post while it was still scheduled; the cron claimed it since.
+    t.mock.method(prisma.post, 'findFirst', async () => ({ ...post, status: 'scheduled' }));
+
+    const res = await fastify.inject({ method: 'POST', url: '/v1/publisher/publish', headers: { authorization: `Bearer ${fastify.jwt.sign(payload)}` }, payload: { post_id: post.id, platforms: ['facebook'] } });
+
+    assert.equal(res.statusCode, 409);
+    assert.equal((res.json() as { error: { code: string } }).error.code, 'PUBLISH_IN_PROGRESS');
+    assert.equal((await prisma.post.findUnique({ where: { id: post.id } }))?.status, 'publishing');
+  });
 });
