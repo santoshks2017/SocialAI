@@ -5,6 +5,7 @@ import { exchangeForLongLivedToken, getPageAccessToken } from '../services/meta.
 import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { issueHandoffCode, type SessionHandoff } from '../lib/oauthHandoff.js';
 import { signOAuthState, verifyOAuthState } from '../lib/oauthState.js';
+import { needsReconnect } from '../lib/platformHealth.js';
 
 const META_APP_ID     = process.env['META_APP_ID']     ?? '';
 const META_APP_SECRET = process.env['META_APP_SECRET'] ?? '';
@@ -22,7 +23,7 @@ const GOOGLE_CALLBACK_URI = `${API_BASE_URL}/v1/platforms/callback/google`;
 // Page and OAuth tokens never leave the server.
 function publicConnection(conn: Record<string, any>) {
   const { access_token: _a, refresh_token: _r, ...rest } = conn;
-  return rest;
+  return { ...rest, needs_reconnect: needsReconnect(conn as Parameters<typeof needsReconnect>[0]) };
 }
 
 type PlatformState = { dealer_id: string | null; platform?: string; signin?: boolean };
