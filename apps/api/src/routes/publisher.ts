@@ -125,6 +125,41 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
     },
   )
 
+  // GET /v1/publisher/posts/counts — posts per status, for the Posts tabs and the dashboard pipeline
+  fastify.get("/posts/counts", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = request.user.dealer_id!
+    const groups = (await prisma.post.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+      where: { dealer_id },
+    })) as Array<{ status: string | null; _count: { _all: number } }>
+    const counts: Record<string, number> = {}
+    for (const group of groups) {
+      const status = group.status ?? "draft"
+      counts[status] = (counts[status] ?? 0) + group._count._all
+    }
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0)
+    return { success: true, counts, total }
+  })
+
+  // GET /v1/publisher/posts/activity?days=30 — when recent posts were created and their status,
+  // for the dashboard chart. The browser buckets by local day, so one extra day is included.
+  fastify.get("/posts/activity", { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = request.user.dealer_id!
+    const { days: daysParam } = request.query as { days?: string }
+    const days = Math.max(1, Math.min(90, parseInt(daysParam ?? "30", 10) || 30))
+    const since = new Date(Date.now() - (days + 1) * 24 * 60 * 60 * 1000)
+    const posts = await prisma.post.findMany({
+      where: { dealer_id, created_at: { gte: since } },
+      orderBy: { created_at: "asc" },
+    })
+    return {
+      success: true,
+      days,
+      posts: posts.map((p) => ({ created_at: new Date(p.created_at).toISOString(), status: p.status })),
+    }
+  })
+
   // GET /v1/publisher/posts/:id — fetch a single post
   fastify.get(
     "/posts/:id",

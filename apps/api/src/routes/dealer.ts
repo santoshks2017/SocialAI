@@ -181,6 +181,26 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // GET /v1/dealer/analytics — dashboard insights. Engagement by post type and follower trends
+  // stay empty until post metrics and follower counts are collected; review health is live.
+  fastify.get('/analytics', { preHandler: [fastify.authenticate] }, async (request) => {
+    const dealer_id = request.user.dealer_id!;
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const messages = await prisma.inboxMessage.findMany({ where: { dealer_id, received_at: { gte: since } } });
+    const replied = messages.filter((m) => m.replied_at).length;
+
+    return {
+      success: true,
+      engagementByType: [] as Array<{ type: string; engagementRate: number }>,
+      followerTrend: [] as Array<{ platform: string; current: number; delta: number | null }>,
+      reviewSummary: {
+        avgRating: null as number | null,
+        responseRate: messages.length > 0 ? Math.round((replied / messages.length) * 100) : 0,
+        totalReviews: messages.filter((m) => m.message_type === 'review').length,
+      },
+    };
+  });
+
   // GET /v1/dealer/festivals — list upcoming festivals with regional filter
   fastify.get('/festivals', {
     preHandler: [fastify.authenticate],
