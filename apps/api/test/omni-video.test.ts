@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOmniRequest, buildVeoRequest, videoPrompt } from '../src/services/geminiVideo.js';
+import { buildOmniRequest, buildVeoRequest, retimeOverlays, videoPrompt, type VideoOverlayBeat } from '../src/services/geminiVideo.js';
 
 const image = { data: Buffer.from('jpeg-bytes'), mimeType: 'image/jpeg' };
 
@@ -43,5 +43,23 @@ describe('videoPrompt', () => {
     assert.match(withPhoto, /same car/i);
     assert.match(withPhoto, /no text/i);
     assert.match(videoPrompt({ hasImage: false, vehicleMention: 'A car', motionStyle: 'Slow orbit', visualScene: 'city at dusk' }), /^A car\. Slow orbit\. Setting: city at dusk\./);
+  });
+});
+
+describe('retimeOverlays', () => {
+  const beat = (id: string, startTime: number, endTime: number): VideoOverlayBeat => ({ id, startTime, endTime, title: id.toUpperCase(), position: 'bottom' });
+
+  it('stretches the planned beats onto the clip the model actually returned', () => {
+    const beats = [beat('a', 0, 3.5), beat('b', 3.5, 7.2), beat('c', 7.2, 10)];
+    assert.deepEqual(retimeOverlays(beats, 10, 8).map((b) => [b.startTime, b.endTime]), [[0, 2.8], [2.8, 5.76], [5.76, 8]]);
+    assert.equal(retimeOverlays(beats, 10, 8)[2]!.title, 'C');
+  });
+
+  it('keeps beats inside the clip and leaves them alone without a usable length', () => {
+    const beats = [beat('a', -1, 12)];
+    assert.deepEqual(retimeOverlays(beats, 10, 10).map((b) => [b.startTime, b.endTime]), [[0, 10]]);
+    assert.equal(retimeOverlays(beats, 10, 0), beats);
+    assert.equal(retimeOverlays(beats, 0, 8), beats);
+    assert.equal(retimeOverlays(beats, 10, Number.NaN), beats);
   });
 });

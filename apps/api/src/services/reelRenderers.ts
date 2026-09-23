@@ -74,7 +74,7 @@ export async function renderKenBurnsReel(input: ReelRenderInput): Promise<Render
 
     const final = path.join(dir, 'final.mp4');
     const overlays = kenBurnsOverlays(meta.headline, input.dealerName, input.durationSeconds, input.language);
-    const withText = await compositeVideoOverlays(clean, final, overlays, input.aspectRatio === '16:9' ? '16:9' : '9:16');
+    const withText = await compositeVideoOverlays(clean, final, overlays, { width, height });
     const videoPath = withText ? final : clean;
     const thumbPath = path.join(dir, 'thumb.jpg');
     await extractThumbnail(videoPath, thumbPath);
