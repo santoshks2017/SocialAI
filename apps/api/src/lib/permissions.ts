@@ -1,3 +1,5 @@
+import type { FastifyReply, FastifyRequest } from 'fastify';
+
 // ─── Permission keys ─────────────────────────────────────────────────────────
 export const PERMISSIONS = {
   CREATE_POST:       'create_post',
@@ -62,6 +64,8 @@ export interface JwtUser {
   phone:          string;
   permissions:    Record<Permission, boolean>;
   impersonatedBy?: string;
+  // Tokens issued before this claim existed have none and are treated as access tokens.
+  typ?:           'access' | 'refresh';
 }
 
 // Resolve effective permissions for a user (custom overrides on top of role defaults)
@@ -78,4 +82,19 @@ export function resolvePermissions(
 export function can(user: JwtUser, permission: Permission): boolean {
   if (user.role === 'owner' || user.role === 'admin') return true;
   return user.permissions[permission] === true;
+}
+
+// Platform super-admin (CarDekho staff). An 'owner' role that belongs to a dealer
+// is not global: those accounts must stay inside their own dealership.
+export function isGlobalOwner(user: Pick<JwtUser, 'role' | 'dealer_id'> | null | undefined): boolean {
+  return user?.role === ROLES.OWNER && user.dealer_id == null;
+}
+
+// preHandler that returns 403 unless the authenticated user holds `permission`.
+export function requirePermissionHook(permission: Permission) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!request.user || !can(request.user, permission)) {
+      return reply.code(403).send({ error: { code: 'FORBIDDEN', message: `Missing permission: ${permission}` } });
+    }
+  };
 }

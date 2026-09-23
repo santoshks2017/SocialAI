@@ -20,7 +20,7 @@ import {
   renderCreatives,
   extractHeadline,
 } from "../services/templateRenderer.js"
-import { ORIGINALS_DIR, CREATIVES_DIR } from "./upload.js"
+import { CREATIVES_DIR } from "./upload.js"
 import { uploadFile } from "../lib/storage.js"
 import type { GeneratedCaptions } from "../services/openai.js"
 import {
@@ -42,6 +42,8 @@ import {
 } from "../services/geminiService.js"
 import { getBrandLogoSvg } from "../services/brandLogoService.js"
 import { generateGeminiVideo, generateReelCaptionAndMetadata, type VideoOverlayBeat } from "../services/geminiVideo.js"
+import { loadDealerLogo, loadImageFromUrl, readOriginalUpload } from "../lib/uploadPaths.js"
+import { consumeDailyQuota } from "../lib/dailyQuota.js"
 
 // ── Gradient background fallback (no external AI needed) ──────────────────────
 // Generates a rich automotive-themed 1080×1080 gradient PNG using Sharp + SVG.
@@ -342,7 +344,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
       if (image_id) {
         try {
-          const imageBuffer = await readFile(path.join(ORIGINALS_DIR, image_id))
+          const imageBuffer = await readOriginalUpload(image_id)
           const headline = extractHeadline(
             captions.variants[0]?.caption_text ?? prompt,
           )
@@ -638,21 +640,15 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         let subjectBuffer: Buffer | undefined
         if (body.subject_image_id) {
           try {
-            const rawBuf = await readFile(path.join(ORIGINALS_DIR, body.subject_image_id))
+            const rawBuf = await readOriginalUpload(body.subject_image_id)
             subjectBuffer = await removeBackground(rawBuf)
           } catch {
             // skip layer 1 if file read fails
           }
         } else if (body.subject_image_url) {
           try {
-            const response = await axios.get(body.subject_image_url, {
-              responseType: 'arraybuffer',
-              timeout: 20000
-            })
-            if (response.status === 200) {
-              const rawBuf = Buffer.from(response.data)
-              subjectBuffer = await removeBackground(rawBuf)
-            }
+            const { buffer: rawBuf } = await loadImageFromUrl(body.subject_image_url, { timeoutMs: 20000 })
+            subjectBuffer = await removeBackground(rawBuf)
           } catch {
             // skip layer 1 if fetch fails
           }
@@ -734,7 +730,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           try {
             const ext = path.extname(id).toLowerCase()
             const mimeType = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg"
-            const buf = await readFile(path.join(ORIGINALS_DIR, id))
+            const buf = await readOriginalUpload(id)
             rawImages.push({ buffer: buf, mimeType })
           } catch (err) {
             fastify.log.warn(err, `Failed to read subject_image_id: ${id}`)
@@ -743,16 +739,8 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
         for (const url of imageUrls) {
           try {
-            const response = await axios.get(url, {
-              responseType: 'arraybuffer',
-              timeout: 20000
-            })
-            if (response.status === 200) {
-              const contentType = response.headers["content-type"]
-              const mimeType = (Array.isArray(contentType) ? contentType[0] : contentType) || "image/jpeg"
-              const buf = Buffer.from(response.data)
-              rawImages.push({ buffer: buf, mimeType })
-            }
+            const { buffer: buf, contentType } = await loadImageFromUrl(url, { timeoutMs: 20000 })
+            rawImages.push({ buffer: buf, mimeType: contentType || "image/jpeg" })
           } catch (err) {
             fastify.log.warn(err, `Failed to fetch subject_image_url: ${url}`)
           }
@@ -782,20 +770,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         let dealerLogoBuffer: Buffer | undefined
         if (dealer.logo_url) {
           try {
-            const logoFilename = path.basename(dealer.logo_url)
-            const localLogoPath = path.join(ORIGINALS_DIR, logoFilename)
-            try {
-              dealerLogoBuffer = await readFile(localLogoPath)
-            } catch {
-              // Try HTTP fetch if local file read fails
-              const logoRes = await axios.get(dealer.logo_url, {
-                responseType: 'arraybuffer',
-                timeout: 10000
-              })
-              if (logoRes.status === 200) {
-                dealerLogoBuffer = Buffer.from(logoRes.data)
-              }
-            }
+            dealerLogoBuffer = await loadDealerLogo(dealer.logo_url)
           } catch (err) {
             fastify.log.warn(err, `Failed to load dealer logo from: ${dealer.logo_url}`)
           }
@@ -1301,19 +1276,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
       if (dealer.logo_url) {
         try {
-          const logoFilename = path.basename(dealer.logo_url);
-          const localLogoPath = path.join(ORIGINALS_DIR, logoFilename);
-          try {
-            branding.logoBuffer = await readFile(localLogoPath);
-          } catch {
-            const logoRes = await axios.get(dealer.logo_url, {
-              responseType: 'arraybuffer',
-              timeout: 10000
-            });
-            if (logoRes.status === 200) {
-              branding.logoBuffer = Buffer.from(logoRes.data);
-            }
-          }
+          branding.logoBuffer = await loadDealerLogo(dealer.logo_url);
         } catch (err) {
           fastify.log.warn(err, `Failed to load dealer logo from: ${dealer.logo_url}`);
         }
@@ -1359,13 +1322,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         const fetchBuffer = async (url?: string) => {
           if (!url) return undefined;
           try {
-            const res = await axios.get(url, {
-              responseType: 'arraybuffer',
-              timeout: 15000
-            });
-            if (res.status === 200) {
-              return Buffer.from(res.data);
-            }
+            return (await loadImageFromUrl(url, { timeoutMs: 15000 })).buffer;
           } catch (err) {
             fastify.log.warn(err, `Failed to fetch image from ${url}`);
           }
@@ -1455,15 +1412,8 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
             });
           }
 
-          let inspirationBuf: Buffer;
-          const imgRes = await axios.get(body.uploaded_image_url, {
-            responseType: 'arraybuffer',
-            timeout: 20000
-          });
-          if (imgRes.status !== 200) {
-            throw new Error(`Failed to fetch inspiration image from ${body.uploaded_image_url}`);
-          }
-          inspirationBuf = Buffer.from(imgRes.data);
+          const inspiration = await loadImageFromUrl(body.uploaded_image_url, { timeoutMs: 20000 });
+          const inspirationBuf = inspiration.buffer;
 
           const describeInstructions = "Analyze this automotive advertisement image. Describe the style, scene setting, lighting, colors, and background theme in detail. Do not mention any overlay text or logos. Provide only a single highly-detailed prompt (100-150 words) that can be used by an AI image generator to create a similar background scene, leaving empty space in the bottom-middle for a vehicle placement.";
           
@@ -1475,7 +1425,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
                   { text: describeInstructions },
                   {
                     inlineData: {
-                      mimeType: (imgRes.headers as any)["content-type"] || "image/jpeg",
+                      mimeType: inspiration.contentType || "image/jpeg",
                       data: inspirationBuf.toString("base64")
                     }
                   }
@@ -1560,15 +1510,10 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
   // POST /v1/creatives/generate-reel — AI Video (Reel) generation powered by Google Veo 3.1
   fastify.post(
     "/generate-reel",
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      let dealer_id: string | undefined;
-      try {
-        await fastify.authenticate(request, reply);
-        dealer_id = request.user?.dealer_id ?? undefined;
-      } catch {
-        // demo / guest mode allowed
-      }
-      const body = request.body as {
+      const dealer_id = request.user.dealer_id ?? undefined;
+      const body = (request.body ?? {}) as {
         prompt: string;
         brand?: string;
         model_name?: string;
@@ -1582,6 +1527,18 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
       if (!body.prompt || !body.prompt.trim()) {
         return reply.code(400).send({
           error: { code: "INVALID_INPUT", message: "Prompt is required to generate a video reel." }
+        });
+      }
+
+      // Veo is billed per video, so each dealer gets a daily allowance.
+      const reelLimit = Number(process.env["REEL_DAILY_LIMIT"] ?? 10)
+      const quotaSubject = dealer_id ?? `user:${request.user.dealer_user_id}`
+      if (!(await consumeDailyQuota("generate_reel", quotaSubject, Number.isFinite(reelLimit) ? reelLimit : 10))) {
+        return reply.code(429).send({
+          error: {
+            code: "REEL_DAILY_LIMIT_REACHED",
+            message: "Daily video reel limit reached for your dealership. Try again tomorrow.",
+          }
         });
       }
 

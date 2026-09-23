@@ -108,7 +108,8 @@ describe('CORS headers on the API (fastify.inject)', () => {
         url: '/v1/health',
         headers: { origin },
       });
-      assert.notEqual(request.statusCode, 200);
+      assert.equal(preflight.statusCode, 403);
+      assert.equal(request.statusCode, 403);
       assert.equal(request.headers['access-control-allow-origin'], undefined);
       assert.equal(request.headers['access-control-allow-credentials'], undefined);
     });

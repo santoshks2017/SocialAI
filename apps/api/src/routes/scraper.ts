@@ -8,30 +8,42 @@
  *   GET  /v1/admin/scraper/status    — show scrape status per handle
  *
  * Protected by ADMIN_SECRET env var (simple bearer token for internal use).
+ * Without it the routes are open outside production and closed in production.
  */
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { createHash, timingSafeEqual } from 'crypto';
 import { prisma } from '../db/prisma.js';
 import { SEED_PAGES, scrapePublicPage, scrapeWithGraphAPI, extractPatterns } from '../services/socialScraper.js';
 import { scrapeUrl } from '@cardeko/scraper';
+import { assertSafeFetchUrl, UnsafeUrlError } from '../lib/safeUrl.js';
 
-function requireAdminSecret(request: { headers: Record<string, string | string[] | undefined> }, reply: { code: (n: number) => { send: (v: unknown) => unknown } }): boolean {
+function sameSecret(a: string, b: string): boolean {
+  // Hashing first gives equal-length inputs, as timingSafeEqual requires.
+  return timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
+}
+
+async function requireAdminSecret(request: FastifyRequest, reply: FastifyReply) {
   const secret = process.env['ADMIN_SECRET'];
-  if (!secret) return true; // not configured — open in dev
-  const auth = request.headers['authorization'] as string | undefined;
-  if (!auth?.startsWith('Bearer ') || auth.slice(7) !== secret) {
-    reply.code(403).send({ error: 'Forbidden' });
-    return false;
+  if (!secret) {
+    if (process.env['NODE_ENV'] !== 'production') return;
+    return reply.code(503).send({ error: { code: 'ADMIN_DISABLED', message: 'ADMIN_SECRET is not configured' } });
   }
-  return true;
+  const auth = request.headers['authorization'];
+  if (!auth?.startsWith('Bearer ')) {
+    return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Admin secret required' } });
+  }
+  if (!sameSecret(auth.slice(7), secret)) {
+    return reply.code(403).send({ error: 'Forbidden' });
+  }
 }
 
 export default async function scraperRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', requireAdminSecret);
+
   // POST /v1/admin/scraper/seed
   // Scrapes the curated list of Indian dealer pages and stores as inspiration handles
   // under the demo dealer account so they're available to all caption generation.
   fastify.post('/seed', async (request, reply) => {
-    if (!requireAdminSecret(request as never, reply as never)) return;
-
     const metaToken = process.env['META_USER_ACCESS_TOKEN']; // optional — enables Graph API
 
     // Find the demo dealer (created by /auth/demo endpoint)
@@ -97,9 +109,7 @@ export default async function scraperRoutes(fastify: FastifyInstance) {
 
   // POST /v1/admin/scraper/analyze
   // Re-runs pattern extraction on all existing handles for the demo dealer
-  fastify.post('/analyze', async (request, reply) => {
-    if (!requireAdminSecret(request as never, reply as never)) return;
-
+  fastify.post('/analyze', async () => {
     const handles = await prisma.inspirationHandle.findMany({
       where: { dealer: { phone: '+0000000001' } },
     });
@@ -117,9 +127,7 @@ export default async function scraperRoutes(fastify: FastifyInstance) {
   });
 
   // GET /v1/admin/scraper/status
-  fastify.get('/status', async (request, reply) => {
-    if (!requireAdminSecret(request as never, reply as never)) return;
-
+  fastify.get('/status', async () => {
     const handles = await prisma.inspirationHandle.findMany({
       where: { dealer: { phone: '+0000000001' } },
       select: {
@@ -148,23 +156,20 @@ export default async function scraperRoutes(fastify: FastifyInstance) {
   // POST /v1/admin/scraper/scrape
   // Scrapes any arbitrary URL and returns extracted text and images
   fastify.post('/scrape', async (request, reply) => {
-    if (!requireAdminSecret(request as never, reply as never)) return;
-
     const body = request.body as { url?: string } | undefined;
     if (!body?.url || typeof body.url !== 'string') {
       return reply.code(400).send({ error: 'Valid URL is required' });
     }
 
     try {
-      const urlObject = new URL(body.url);
-      if (!['http:', 'https:'].includes(urlObject.protocol)) {
-        return reply.code(400).send({ error: 'URL must be HTTP or HTTPS' });
-      }
-      
+      await assertSafeFetchUrl(body.url);
       const result = await scrapeUrl(body.url);
       
       return { success: true, data: result };
     } catch (err) {
+      if (err instanceof UnsafeUrlError) {
+        return reply.code(400).send({ error: err.message });
+      }
       fastify.log.error(`Scrape failed for ${body.url}: ${String(err)}`);
       return reply.code(500).send({ error: 'Failed to scrape URL' });
     }
@@ -172,9 +177,7 @@ export default async function scraperRoutes(fastify: FastifyInstance) {
 
   // POST /v1/admin/scraper/seed-models
   // Seeds model library for ALL dealers in the database
-  fastify.post('/seed-models', async (request, reply) => {
-    // We allow anyone to trigger this since it's an idempotent seeding of static brand data
-    // and has no side effects other than populating the model library with official OEM models.
+  fastify.post('/seed-models', async (request) => {
     const body = (request.body || {}) as { brands?: string[]; dealerId?: string };
     
     let dealers;
@@ -223,25 +226,5 @@ export default async function scraperRoutes(fastify: FastifyInstance) {
       summary,
       errors: errors.length > 0 ? errors : undefined
     };
-  });
-
-  // GET /v1/admin/scraper/debug-db
-  fastify.get('/debug-db', async () => {
-    const dealers = await prisma.dealer.findMany({
-      select: {
-        id: true,
-        name: true,
-        brands: true,
-      }
-    });
-
-    const modelCounts = await prisma.syncedModel.groupBy({
-      by: ['dealer_id', 'brand'],
-      _count: {
-        _all: true
-      }
-    });
-
-    return { success: true, dealers, modelCounts };
   });
 }

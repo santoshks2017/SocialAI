@@ -1,12 +1,9 @@
 import { createHash, randomUUID } from 'crypto';
-import { readFile, writeFile } from 'fs/promises';
-import path from 'path';
-import axios from 'axios';
 import sharp from 'sharp';
 import { prisma } from '../db/prisma.js';
 import { uploadFile } from '../lib/storage.js';
 import { getCache, setCache } from '../lib/cache.js';
-import { ORIGINALS_DIR, CREATIVES_DIR } from '../routes/upload.js';
+import { CREATIVES_DIR } from '../routes/upload.js';
 import type { DealerBranding } from './layeredCompositor.js';
 import { compositeLayered } from './layeredCompositor.js';
 import { getBrandLogoSvg } from './brandLogoService.js';
@@ -17,6 +14,7 @@ import { generateGeminiCreativeContent, isGeminiTextAvailable } from './geminiSe
 import { generateGeminiImage, isGeminiImageAvailable } from './geminiImage.js';
 import { generateImage as cfGenerateImage, isCloudflareAvailable } from './cloudflareAI.js';
 import { generateOpenRouterImage, isOpenRouterImageAvailable } from './openrouterImage.js';
+import { loadDealerLogo, loadImageFromUrl, readOriginalUpload } from '../lib/uploadPaths.js';
 
 export interface RobustGenerateRequest {
   dealerId: string;
@@ -69,11 +67,7 @@ async function findDealer(dealerId: string) {
 }
 
 async function fetchImageBuffer(url: string): Promise<Buffer> {
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 20000,
-  });
-  return Buffer.from(response.data);
+  return (await loadImageFromUrl(url, { timeoutMs: 20000 })).buffer;
 }
 
 // Gradient background generator for fallback path
@@ -141,8 +135,7 @@ export async function runRobustCreativeEngine(input: RobustGenerateRequest): Pro
     let photoHash: string;
 
     if (input.deliveryPhotoId) {
-      const filepath = path.join(ORIGINALS_DIR, input.deliveryPhotoId);
-      imageBuffer = await readFile(filepath);
+      imageBuffer = await readOriginalUpload(input.deliveryPhotoId);
       photoHash = input.deliveryPhotoId;
     } else {
       imageBuffer = await fetchImageBuffer(input.deliveryPhotoUrl!);
@@ -203,19 +196,7 @@ export async function runRobustCreativeEngine(input: RobustGenerateRequest): Pro
 
     if (dealer.logo_url) {
       try {
-        const logoFilename = path.basename(dealer.logo_url);
-        const localLogoPath = path.join(ORIGINALS_DIR, logoFilename);
-        try {
-          branding.logoBuffer = await readFile(localLogoPath);
-        } catch {
-          const logoRes = await axios.get(dealer.logo_url, {
-            responseType: 'arraybuffer',
-            timeout: 10000
-          });
-          if (logoRes.status === 200) {
-            branding.logoBuffer = Buffer.from(logoRes.data);
-          }
-        }
+        branding.logoBuffer = await loadDealerLogo(dealer.logo_url);
       } catch (err) {
         console.warn(`Failed to load dealer logo from: ${dealer.logo_url}`, err);
       }
@@ -334,19 +315,7 @@ export async function runRobustCreativeEngine(input: RobustGenerateRequest): Pro
 
   if (dealer.logo_url) {
     try {
-      const logoFilename = path.basename(dealer.logo_url);
-      const localLogoPath = path.join(ORIGINALS_DIR, logoFilename);
-      try {
-        branding.logoBuffer = await readFile(localLogoPath);
-      } catch {
-        const logoRes = await axios.get(dealer.logo_url, {
-          responseType: 'arraybuffer',
-          timeout: 10000
-        });
-        if (logoRes.status === 200) {
-          branding.logoBuffer = Buffer.from(logoRes.data);
-        }
-      }
+      branding.logoBuffer = await loadDealerLogo(dealer.logo_url);
     } catch (err) {
       console.warn(`Failed to load dealer logo from: ${dealer.logo_url}`, err);
     }

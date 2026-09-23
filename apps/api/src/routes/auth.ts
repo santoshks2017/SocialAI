@@ -1,8 +1,11 @@
 import type { FastifyInstance } from "fastify"
+import { randomInt } from "crypto"
 import { prisma } from "../db/prisma.js"
-import { resolvePermissions, ROLES } from "../lib/permissions.js"
+import { isGlobalOwner, resolvePermissions, ROLES } from "../lib/permissions.js"
 import type { Role, JwtUser } from "../lib/permissions.js"
-import { setOtp, getOtp, deleteOtp } from "../lib/otpStore.js"
+import { storeOtp, verifyOtp } from "../lib/otpStore.js"
+import { isAccessToken } from "../plugins/jwt.js"
+import { signOAuthState, verifyOAuthState } from "../lib/oauthState.js"
 import { SEED_PAGES, scrapePublicPage, extractPatterns } from "../services/socialScraper.js"
 import { saveAccount } from "../services/platformConnections.js"
 import { getFrontendUrl } from "../lib/frontendUrl.js"
@@ -10,7 +13,24 @@ import { issueHandoffCode, redeemHandoffCode, stashMetaPageSelection } from "../
 import type { MetaPageSelection, SessionHandoff } from "../lib/oauthHandoff.js"
 
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return randomInt(100000, 1000000).toString()
+}
+
+const OTP_PROVIDERS = new Set(["twilio", "msg91"])
+const OTP_RATE_LIMIT = { rateLimit: { max: 5, timeWindow: "1 minute" } }
+
+// Whitespace is allowed in the phone input; the code is keyed without it so
+// spacing variants share one send limit and attempt counter.
+function phoneOtpKey(phone: unknown): string {
+  return String(phone).replace(/\s/g, "")
+}
+
+function isOwnerEmail(email: string): boolean {
+  return (process.env["OWNER_EMAIL"] ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(email)
 }
 
 async function sendOtp(phone: string, otp: string): Promise<void> {
@@ -46,13 +66,16 @@ async function sendOtp(phone: string, otp: string): Promise<void> {
       authkey: process.env["MSG91_AUTH_KEY"],
       otp,
     })
+    return
   }
+
+  throw new Error(`Unknown OTP_PROVIDER: ${provider}`)
 }
 
 export default async function authRoutes(fastify: FastifyInstance) {
   // POST /v1/auth/otp/send
-  fastify.post("/otp/send", async (request, reply) => {
-    const { phone } = request.body as { phone?: string }
+  fastify.post("/otp/send", { config: OTP_RATE_LIMIT }, async (request, reply) => {
+    const { phone } = (request.body ?? {}) as { phone?: string }
     if (!phone || !/^\+?[0-9]{10,13}$/.test(phone.replace(/\s/g, ""))) {
       return reply.code(400).send({
         error: {
@@ -62,8 +85,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
       })
     }
 
+    if (process.env["NODE_ENV"] === "production" && !OTP_PROVIDERS.has(process.env["OTP_PROVIDER"] ?? "")) {
+      return reply.code(503).send({
+        error: { code: "OTP_UNAVAILABLE", message: "Phone sign-in is not available right now" },
+      })
+    }
+
     const otp = generateOtp()
-    await setOtp(phone, otp)
+    if (!(await storeOtp(phoneOtpKey(phone), otp))) {
+      return reply.code(429).send({
+        error: { code: "OTP_SEND_LIMIT", message: "Too many codes requested. Try again in a few minutes." },
+      })
+    }
 
     try {
       await sendOtp(phone, otp)
@@ -78,8 +111,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/auth/otp/verify
-  fastify.post("/otp/verify", async (request, reply) => {
-    const { phone, otp } = request.body as { phone?: string; otp?: string }
+  fastify.post("/otp/verify", { config: OTP_RATE_LIMIT }, async (request, reply) => {
+    const { phone, otp } = (request.body ?? {}) as { phone?: string; otp?: string }
     if (!phone || !otp) {
       return reply.code(400).send({
         error: {
@@ -91,16 +124,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     // Dev bypass
     const isDev = process.env["NODE_ENV"] === "development"
-    const storedOtp = await getOtp(phone)
-    const valid = (isDev && otp === "1234") || (storedOtp && storedOtp === otp)
+    const check = isDev && otp === "1234" ? "valid" : await verifyOtp(phoneOtpKey(phone), String(otp))
 
-    if (!valid) {
+    if (check === "locked") {
+      return reply.code(429).send({
+        error: { code: "OTP_LOCKED", message: "Too many incorrect attempts. Request a new code." },
+      })
+    }
+    if (check !== "valid") {
       return reply.code(400).send({
         error: { code: "INVALID_OTP", message: "Incorrect or expired OTP" },
       })
     }
-
-    await deleteOtp(phone)
 
     const ownerPhone = process.env["OWNER_PHONE"]
 
@@ -125,10 +160,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         phone,
         permissions,
       }
-      const token = fastify.jwt.sign(payload, {
+      const token = fastify.jwt.sign({ ...payload, typ: "access" }, {
         expiresIn: process.env["JWT_EXPIRES_IN"] ?? "15m",
       })
-      const refreshToken = fastify.jwt.sign(payload, {
+      const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
         expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
       })
       const crypto = await import("crypto")
@@ -205,10 +240,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
       phone,
       permissions,
     }
-    const token = fastify.jwt.sign(payload, {
+    const token = fastify.jwt.sign({ ...payload, typ: "access" }, {
       expiresIn: process.env["JWT_EXPIRES_IN"] ?? "15m",
     })
-    const refreshToken = fastify.jwt.sign(payload, {
+    const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
       expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
     })
 
@@ -256,8 +291,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/auth/email-otp/send
-  fastify.post("/email-otp/send", async (request, reply) => {
-    const { email } = request.body as { email?: string }
+  fastify.post("/email-otp/send", { config: OTP_RATE_LIMIT }, async (request, reply) => {
+    // No email provider is wired up, so a code could never reach the user.
+    if (process.env["NODE_ENV"] === "production") {
+      return reply.code(501).send({
+        error: { code: "EMAIL_OTP_UNAVAILABLE", message: "Email sign-in codes are not available. Sign in with phone or Google." },
+      })
+    }
+
+    const { email } = (request.body ?? {}) as { email?: string }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return reply.code(400).send({
         error: {
@@ -268,18 +310,21 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
 
     const cleanEmail = email.toLowerCase().trim()
-    const otp = generateOtp()
-    await setOtp(cleanEmail, otp)
+    if (!(await storeOtp(cleanEmail, generateOtp()))) {
+      return reply.code(429).send({
+        error: { code: "OTP_SEND_LIMIT", message: "Too many codes requested. Try again in a few minutes." },
+      })
+    }
 
-    // Log the OTP code so the developer can see it in development console
-    console.log(`[EMAIL OTP] ${cleanEmail} → ${otp}`)
+    // Never log the code itself. NODE_ENV=development accepts 123456 instead.
+    console.log(`[EMAIL OTP] ${cleanEmail} → ****** (not delivered: no email provider)`)
 
     return { success: true, message: `OTP sent to ${cleanEmail}` }
   })
 
   // POST /v1/auth/email-otp/verify
-  fastify.post("/email-otp/verify", async (request, reply) => {
-    const { email, otp } = request.body as { email?: string; otp?: string }
+  fastify.post("/email-otp/verify", { config: OTP_RATE_LIMIT }, async (request, reply) => {
+    const { email, otp } = (request.body ?? {}) as { email?: string; otp?: string }
     if (!email || !otp) {
       return reply.code(400).send({
         error: {
@@ -291,20 +336,24 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     const cleanEmail = email.toLowerCase().trim()
     const isDev = process.env["NODE_ENV"] === "development"
-    const storedOtp = await getOtp(cleanEmail)
-    const valid = (isDev && (otp === "1234" || otp === "123456")) || (storedOtp && storedOtp === otp)
+    const check = isDev && (otp === "1234" || otp === "123456")
+      ? "valid"
+      : await verifyOtp(cleanEmail, String(otp))
 
-    if (!valid) {
+    if (check === "locked") {
+      return reply.code(429).send({
+        error: { code: "OTP_LOCKED", message: "Too many incorrect attempts. Request a new code." },
+      })
+    }
+    if (check !== "valid") {
       return reply.code(400).send({
         error: { code: "INVALID_OTP", message: "Incorrect or expired OTP" },
       })
     }
 
-    await deleteOtp(cleanEmail)
-
     // Check if user exists
     const existingUser = await prisma.dealerUser.findFirst({
-      where: { email: cleanEmail },
+      where: { email: cleanEmail, dealer_id: { not: null } },
     })
 
     if (existingUser && !existingUser.is_active) {
@@ -357,10 +406,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
       phone: dealerUser.phone,
       permissions,
     }
-    const token = fastify.jwt.sign(payload, {
+    const token = fastify.jwt.sign({ ...payload, typ: "access" }, {
       expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
     })
-    const refreshToken = fastify.jwt.sign(payload, {
+    const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
       expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
     })
 
@@ -469,28 +518,30 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
+      // The demo account is the demo dealership's admin, never a platform owner.
+      // Older deployments stored it as 'owner', so the role is reset on every login.
       const demoUser = await prisma.dealerUser.upsert({
         where: { phone: demoPhone },
         create: {
           phone: demoPhone,
           name: "Demo User",
-          role: ROLES.OWNER,
+          role: ROLES.ADMIN,
           dealer_id: demoDealer.id,
           is_active: true,
         },
-        update: {},
+        update: { role: ROLES.ADMIN, dealer_id: demoDealer.id },
       })
 
-      const permissions = resolvePermissions(ROLES.OWNER)
+      const permissions = resolvePermissions(ROLES.ADMIN)
       const payload: JwtUser = {
         dealer_user_id: demoUser.id,
         dealer_id: demoDealer.id,
-        role: ROLES.OWNER as Role,
+        role: ROLES.ADMIN,
         phone: demoPhone,
         permissions,
       }
-      const token = fastify.jwt.sign(payload, { expiresIn: "8h" })
-      const refreshToken = fastify.jwt.sign(payload, {
+      const token = fastify.jwt.sign({ ...payload, typ: "access" }, { expiresIn: "8h" })
+      const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
         expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
       })
 
@@ -500,7 +551,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         user: {
           id: demoUser.id,
           name: demoUser.name,
-          role: demoUser.role,
+          role: ROLES.ADMIN,
           dealer_id: demoDealer.id,
           permissions,
           onboarding_completed: true,
@@ -517,34 +568,62 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // POST /v1/auth/refresh
   fastify.post("/refresh", async (request, reply) => {
-    const { refreshToken } = request.body as { refreshToken?: string }
+    const { refreshToken } = (request.body ?? {}) as { refreshToken?: string }
     if (!refreshToken) {
       return reply.code(400).send({
         error: { code: "MISSING_TOKEN", message: "refreshToken is required" },
       })
     }
 
+    const rejected = () => reply.code(401).send({
+      error: {
+        code: "INVALID_REFRESH_TOKEN",
+        message: "Invalid or expired refresh token",
+      },
+    })
+
+    let claims: JwtUser
     try {
-      const payload = fastify.jwt.verify<JwtUser>(refreshToken)
-      const token = fastify.jwt.sign(
-        {
-          dealer_user_id: payload.dealer_user_id,
-          dealer_id: payload.dealer_id,
-          role: payload.role,
-          phone: payload.phone,
-          permissions: payload.permissions,
-        },
-        { expiresIn: process.env["JWT_EXPIRES_IN"] ?? "15m" },
-      )
-      return { token }
+      claims = fastify.jwt.verify<JwtUser>(refreshToken)
     } catch {
-      return reply.code(401).send({
-        error: {
-          code: "INVALID_REFRESH_TOKEN",
-          message: "Invalid or expired refresh token",
-        },
-      })
+      return rejected()
     }
+    // Tokens issued before the typ claim carry none and are still accepted.
+    const typ: unknown = claims.typ
+    if (typ !== undefined && typ !== "refresh") return rejected()
+
+    // Role, dealer and permissions come from the database, not the old token, so
+    // deactivated or re-roled users lose access at their next refresh.
+    const dealerUser = claims.dealer_user_id
+      ? await prisma.dealerUser.findUnique({ where: { id: claims.dealer_user_id } })
+      : null
+    if (!dealerUser || dealerUser.is_active === false) return rejected()
+
+    if (claims.impersonatedBy) {
+      const impersonator = await prisma.dealerUser.findUnique({ where: { id: claims.impersonatedBy } })
+      if (
+        !impersonator ||
+        impersonator.is_active === false ||
+        !isGlobalOwner({ role: impersonator.role as Role, dealer_id: impersonator.dealer_id ?? null })
+      ) {
+        return rejected()
+      }
+    }
+
+    const payload: JwtUser = {
+      dealer_user_id: dealerUser.id,
+      dealer_id: dealerUser.dealer_id ?? null,
+      role: dealerUser.role as Role,
+      phone: dealerUser.phone,
+      permissions: resolvePermissions(
+        dealerUser.role,
+        dealerUser.permissions as Record<string, boolean> | null,
+      ),
+      ...(claims.impersonatedBy ? { impersonatedBy: claims.impersonatedBy } : {}),
+      typ: "access",
+    }
+    const token = fastify.jwt.sign(payload, { expiresIn: process.env["JWT_EXPIRES_IN"] ?? "15m" })
+    return { token }
   })
 
   // POST /v1/auth/oauth/exchange — trade the one-time code from an OAuth sign-in
@@ -586,7 +665,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (!token) return null;
     try {
       const payload = fastify.jwt.verify<JwtUser>(token);
-      return payload.dealer_id ?? null;
+      return isAccessToken(payload) ? payload.dealer_id ?? null : null;
     } catch {
       return null;
     }
@@ -824,7 +903,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-    authUrl.searchParams.set('state', 'signin');
+    authUrl.searchParams.set('state', signOAuthState(fastify, 'google_signin'));
 
     fastify.log.info('[Google OAuth] Initiating standard user login flow');
     return reply.redirect(authUrl.toString());
@@ -847,7 +926,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       // Check if user exists
       let dealerUser = await prisma.dealerUser.findFirst({
-        where: { email: cleanEmail },
+        where: { email: cleanEmail, dealer_id: { not: null } },
       });
 
       if (dealerUser && !dealerUser.is_active) {
@@ -902,10 +981,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         permissions,
       };
 
-      const token = fastify.jwt.sign(payload, {
+      const token = fastify.jwt.sign({ ...payload, typ: "access" }, {
         expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
       });
-      const refreshToken = fastify.jwt.sign(payload, {
+      const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
         expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
       });
 
@@ -944,7 +1023,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/google/callback', async (request, reply) => {
-    const { code, error: gError } = request.query as { code?: string; error?: string };
+    const { code, error: gError, state } = request.query as { code?: string; error?: string; state?: string };
     const FRONTEND_URL = getFrontendUrl();
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
     const GOOGLE_REDIRECT_URI_AUTH = process.env['GOOGLE_REDIRECT_URI'] ?? `${API_BASE_URL}/v1/auth/google/callback`;
@@ -952,6 +1031,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (gError || !code) {
       fastify.log.warn(`[Google OAuth] Callback error: ${gError ?? 'no_code'}`);
       return reply.redirect(`${FRONTEND_URL}/auth/callback?error=${encodeURIComponent(gError ?? 'no_code')}&platform=google`);
+    }
+
+    if (!verifyOAuthState(fastify, state, 'google_signin')) {
+      fastify.log.warn('[Google OAuth] Callback with missing or invalid state');
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=invalid_state&platform=google`);
     }
 
     const GOOGLE_CLIENT_ID = process.env['GOOGLE_CLIENT_ID'];
@@ -987,7 +1071,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      const googleUser = await userinfoRes.json() as { sub: string; name: string; email: string; picture?: string };
+      const googleUser = await userinfoRes.json() as { sub: string; name: string; email: string; email_verified?: boolean; picture?: string };
 
       if (!googleUser.email) {
         fastify.log.error({ googleUser }, '[Google OAuth] Userinfo returned no email address');
@@ -996,9 +1080,65 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const cleanEmail = googleUser.email.toLowerCase().trim();
 
-      // Check if user exists
+      // ── Platform owner (OWNER_EMAIL) ──────────────────────────────────────────
+      // A separate account from any dealership user with the same email; the owner
+      // reaches dealerships through impersonation.
+      if (googleUser.email_verified === true && isOwnerEmail(cleanEmail)) {
+        const ownerPhone = `owner_${cleanEmail}`;
+        let owner = await prisma.dealerUser.findUnique({ where: { phone: ownerPhone } });
+        if (owner && (!owner.is_active || !isGlobalOwner({ role: owner.role as Role, dealer_id: owner.dealer_id ?? null }))) {
+          return reply.redirect(`${FRONTEND_URL}/auth/callback?error=account_inactive`);
+        }
+        if (!owner) {
+          owner = await prisma.dealerUser.create({
+            data: {
+              phone: ownerPhone,
+              email: cleanEmail,
+              name: googleUser.name || "Platform Owner",
+              role: ROLES.OWNER,
+              dealer_id: null,
+              is_active: true,
+            },
+          });
+        }
+
+        const ownerPayload: JwtUser = {
+          dealer_user_id: owner.id,
+          dealer_id: null,
+          role: ROLES.OWNER,
+          phone: ownerPhone,
+          permissions: resolvePermissions(ROLES.OWNER),
+        };
+        const token = fastify.jwt.sign({ ...ownerPayload, typ: "access" }, {
+          expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
+        });
+        const refreshToken = fastify.jwt.sign({ ...ownerPayload, typ: "refresh" }, {
+          expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
+        });
+        const crypto = await import("crypto");
+        await prisma.userSession.create({
+          data: {
+            dealer_user_id: owner.id,
+            token_hash: crypto.createHash("sha256").update(token).digest("hex"),
+            ip_address: request.ip,
+            user_agent: request.headers["user-agent"] ?? null,
+            expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000),
+          },
+        });
+
+        const handoffCode = await issueHandoffCode('session', { token, refreshToken } satisfies SessionHandoff);
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?code=${handoffCode}`);
+      }
+
+      // An address Google says it hasn't verified can't be trusted to match an existing account
+      if (googleUser.email_verified === false) {
+        return reply.redirect(`${FRONTEND_URL}/auth/callback?error=email_unverified`);
+      }
+
+      // Check if user exists. Owner records (no dealership) are excluded: they are only
+      // reachable through the OWNER_EMAIL branch above.
       let dealerUser = await prisma.dealerUser.findFirst({
-        where: { email: cleanEmail },
+        where: { email: cleanEmail, dealer_id: { not: null } },
       });
 
       if (dealerUser && !dealerUser.is_active) {
@@ -1053,10 +1193,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         permissions,
       };
 
-      const token = fastify.jwt.sign(payload, {
+      const token = fastify.jwt.sign({ ...payload, typ: "access" }, {
         expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
       });
-      const refreshToken = fastify.jwt.sign(payload, {
+      const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
         expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
       });
 
@@ -1148,14 +1288,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
     authUrl.searchParams.set('redirect_uri', FB_LOGIN_REDIRECT_URI);
     authUrl.searchParams.set('scope', 'email,public_profile');
     authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('state', 'signin');
+    authUrl.searchParams.set('state', signOAuthState(fastify, 'facebook_signin'));
 
     fastify.log.info('[FB Login] Initiating Facebook user login flow');
     return reply.redirect(authUrl.toString());
   });
 
   fastify.get('/facebook-login/callback', async (request, reply) => {
-    const { code, error: fbError } = request.query as { code?: string; error?: string };
+    const { code, error: fbError, state } = request.query as { code?: string; error?: string; state?: string };
     const FRONTEND_URL = getFrontendUrl();
     const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
     const FB_LOGIN_REDIRECT_URI = `${API_BASE_URL}/v1/auth/facebook-login/callback`;
@@ -1163,6 +1303,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (fbError || !code) {
       fastify.log.warn(`[FB Login] Callback error: ${fbError ?? 'no_code'}`);
       return reply.redirect(`${FRONTEND_URL}/auth/callback?error=${encodeURIComponent(fbError ?? 'no_code')}&platform=facebook`);
+    }
+
+    if (!verifyOAuthState(fastify, state, 'facebook_signin')) {
+      fastify.log.warn('[FB Login] Callback with missing or invalid state');
+      return reply.redirect(`${FRONTEND_URL}/auth/callback?error=invalid_state&platform=facebook`);
     }
 
     const META_APP_ID = process.env['META_APP_ID'];
@@ -1199,7 +1344,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       // Check if user exists
       let dealerUser = await prisma.dealerUser.findFirst({
-        where: { email: cleanEmail },
+        where: { email: cleanEmail, dealer_id: { not: null } },
       });
 
       if (dealerUser && !dealerUser.is_active) {
@@ -1254,10 +1399,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         permissions,
       };
 
-      const token = fastify.jwt.sign(payload, {
+      const token = fastify.jwt.sign({ ...payload, typ: "access" }, {
         expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
       });
-      const refreshToken = fastify.jwt.sign(payload, {
+      const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
         expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
       });
 
@@ -1312,7 +1457,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       // Check if user exists
       let dealerUser = await prisma.dealerUser.findFirst({
-        where: { email: cleanEmail },
+        where: { email: cleanEmail, dealer_id: { not: null } },
       });
 
       if (dealerUser && !dealerUser.is_active) {
@@ -1367,10 +1512,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         permissions,
       };
 
-      const token = fastify.jwt.sign(payload, {
+      const token = fastify.jwt.sign({ ...payload, typ: "access" }, {
         expiresIn: process.env["JWT_EXPIRES_IN"] ?? "8h",
       });
-      const refreshToken = fastify.jwt.sign(payload, {
+      const refreshToken = fastify.jwt.sign({ ...payload, typ: "refresh" }, {
         expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] ?? "30d",
       });
 

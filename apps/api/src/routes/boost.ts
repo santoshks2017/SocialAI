@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import type { BoostCampaign } from '../generated/client/index.js';
 import { Prisma } from '../generated/client/index.js';
+import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 
 function mapCampaign(c: BoostCampaign) {
   return {
@@ -23,15 +24,14 @@ function mapCampaign(c: BoostCampaign) {
 
 export default async function boostRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', async (request, reply) => {
-    try {
-      await request.jwtVerify();
-    } catch (err) {
-      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
-    }
+    await fastify.authenticate(request, reply);
+    if (reply.sent) return reply;
 
     const planGateHook = fastify.checkPlanLimit('boost');
-    await planGateHook(request, reply);
+    return planGateHook(request, reply);
   });
+
+  const canRunBoost = requirePermissionHook(PERMISSIONS.RUN_BOOST);
 
   // GET /v1/boost — list all campaigns for dealer
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request) => {
@@ -77,7 +77,7 @@ export default async function boostRoutes(fastify: FastifyInstance) {
   });
 
   // POST /v1/boost — create boost campaign
-  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post('/', { preHandler: [fastify.authenticate, canRunBoost] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
     const body = request.body as {
       postId: string;
@@ -130,7 +130,7 @@ export default async function boostRoutes(fastify: FastifyInstance) {
   });
 
   // POST /v1/boost/:id/resume — resume campaign (frontend uses POST)
-  fastify.post('/:id/resume', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post('/:id/resume', { preHandler: [fastify.authenticate, canRunBoost] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
     const { id } = request.params as { id: string };
     const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id }, data: { status: 'active' } });
