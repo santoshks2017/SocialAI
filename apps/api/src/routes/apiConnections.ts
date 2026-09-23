@@ -156,7 +156,14 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
     if (connection.has_key) {
       const secret = await prisma.apiConnectionSecret.findFirst({ where: { connection_id: id } });
       if (secret) {
-        key = openSecret(secret);
+        try {
+          key = openSecret(secret);
+        } catch (err) {
+          if (err instanceof KeyStorageUnavailableError) {
+            return reply.code(503).send({ error: { code: 'KEY_STORAGE_UNAVAILABLE', message: 'Key storage is not configured on the server.' } });
+          }
+          throw err;
+        }
         source = 'saved';
       }
     }
