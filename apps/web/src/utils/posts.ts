@@ -40,12 +40,21 @@ export function postTimeline(post: { status: string; created_at: string; schedul
   return `Created ${dateOnly(post.created_at)}`;
 }
 
-/** The approver's words for a post row: the rejection reason on a draft, or the note on an approved post. */
-export function approvalRemark(post: { status: string; approver_note?: string | null; approval_decision?: string | null }): { kind: 'rejected' | 'note'; text: string } | null {
-  const text = post.approver_note?.trim();
-  if (!text) return null;
-  if (post.status === 'draft' && post.approval_decision === 'rejected') return { kind: 'rejected', text };
-  if (post.status === 'approved' && post.approval_decision === 'approved') return { kind: 'note', text };
+/**
+ * The approver's words for a post row: the rejection reason on a draft, the note on a post
+ * approved in-app, or (for one approved through the public review link, which has no
+ * `approved_by`) a callout even when there is no note.
+ */
+export function approvalRemark(post: { status: string; approver_note?: string | null; approval_decision?: string | null; approved_by?: string | null }): { kind: 'rejected' | 'note' | 'link'; text: string } | null {
+  if (post.status === 'draft' && post.approval_decision === 'rejected') {
+    const text = post.approver_note?.trim();
+    return text ? { kind: 'rejected', text } : null;
+  }
+  if (post.status === 'approved' && post.approval_decision === 'approved') {
+    const text = post.approver_note?.trim() ?? '';
+    if (post.approved_by == null) return { kind: 'link', text };
+    return text ? { kind: 'note', text } : null;
+  }
   return null;
 }
 

@@ -5,9 +5,8 @@ import type { Post } from '../services/creative';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../contexts/AuthContext';
 import { can, PERMISSIONS } from '../lib/permissions';
+import type { PostStatus } from '../utils/posts';
 import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Clock, Trash2 } from 'lucide-react';
-
-type PostStatus = 'published' | 'scheduled' | 'draft' | 'failed';
 
 interface CalendarPost {
   id: string;
@@ -24,6 +23,9 @@ const STATUS_STYLES: Record<PostStatus, string> = {
   scheduled: 'bg-yellow-100 text-yellow-700',
   draft: 'bg-gray-100 text-gray-500',
   failed: 'bg-red-100 text-red-600',
+  pending_approval: 'bg-violet-100 text-violet-700',
+  approved: 'bg-teal-100 text-teal-700',
+  publishing: 'bg-blue-100 text-blue-700',
 };
 
 const STATUS_DOT: Record<PostStatus, string> = {
@@ -31,6 +33,19 @@ const STATUS_DOT: Record<PostStatus, string> = {
   scheduled: 'bg-yellow-400',
   draft: 'bg-gray-300',
   failed: 'bg-red-500',
+  pending_approval: 'bg-violet-400',
+  approved: 'bg-teal-500',
+  publishing: 'bg-blue-400',
+};
+
+const STATUS_LABELS: Record<PostStatus, string> = {
+  published: 'Published',
+  scheduled: 'Scheduled',
+  draft: 'Draft',
+  failed: 'Failed',
+  pending_approval: 'Awaiting approval',
+  approved: 'Ready to publish',
+  publishing: 'Publishing',
 };
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -128,7 +143,7 @@ function PostDetailModal({ post, canPublish, onClose, onCancel, onReschedule }: 
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLES[post.status]}`}>
-              {post.status}
+              {STATUS_LABELS[post.status]}
             </span>
             <h3 className="font-bold text-gray-900 mt-1.5 text-sm leading-snug">{post.title}</h3>
           </div>
@@ -407,7 +422,7 @@ export default function CalendarPage() {
           plat === 'facebook' ? 'FB' : plat === 'instagram' ? 'IG' : 'GMB',
         ),
         time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-        status: p.status as PostStatus,
+        status: p.status,
         _date: d,
         _raw: p,
       }];

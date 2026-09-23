@@ -20,13 +20,16 @@ const MAX_POLLS = 20; // about 80 seconds of watching a post that is publishing
 
 export default function PostsPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useToast();
   const { user } = useAuth();
   const canPublish = can(user, PERMISSIONS.PUBLISH_POST);
   const canApprove = can(user, PERMISSIONS.APPROVE_POST);
 
-  const [tab, setTab] = useState<PostTab>(() => parsePostTab(searchParams.get('status')));
+  // Derived from the URL so a bell deep link (`?status=pending_approval`) switches tabs even
+  // when already on this page, and so back/forward navigation works.
+  const tab = parsePostTab(searchParams.get('status'));
+  const [prevTab, setPrevTab] = useState(tab);
   const [page, setPage] = useState(1);
   const [posts, setPosts] = useState<Post[]>([]);
   const [total, setTotal] = useState(0);
@@ -39,7 +42,17 @@ export default function PostsPage() {
   const [rescheduling, setRescheduling] = useState<Post | null>(null);
   const [viewing, setViewing] = useState<Post | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
   const polls = useRef(0);
+
+  // Any route that changes the tab — a click, a deep link, browser back/forward — resets paging
+  // and shows fresh loading state. Adjusted during render, not an effect, per React's "adjusting
+  // state when a prop changes" pattern; this avoids the set-state-in-effect lint rule.
+  if (tab !== prevTab) {
+    setPrevTab(tab);
+    setPage(1);
+    setLoading(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +72,11 @@ export default function PostsPage() {
   }, [tab, page, listKey, addToast]);
 
   useEffect(() => {
-    postService.counts().then((res) => setCounts(res.counts)).catch(() => { /* tab counts are optional */ });
+    let cancelled = false;
+    postService.counts()
+      .then((res) => { if (!cancelled) setCounts(res.counts); })
+      .catch(() => { /* tab counts are optional */ });
+    return () => { cancelled = true; };
   }, [countsKey]);
 
   const refreshQuietly = useCallback(() => {
@@ -84,9 +101,7 @@ export default function PostsPage() {
 
   const switchTab = (next: PostTab) => {
     if (next === tab) return;
-    setTab(next);
-    setPage(1);
-    setLoading(true);
+    setSearchParams(next === 'all' ? {} : { status: next });
   };
   const goToPage = (next: number) => {
     setPage(next);
@@ -154,8 +169,8 @@ export default function PostsPage() {
     try {
       await postService.reject(post.id, reason.trim());
       addToast({ type: 'success', title: 'Post rejected', message: 'The post has been sent back to drafts.' });
-    } catch {
-      addToast({ type: 'error', title: 'Reject failed', message: 'Could not reject the post. Try again.' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Reject failed', message: err instanceof ApiError ? err.message : 'Could not reject the post. Try again.' });
     } finally {
       setRejecting(null);
       refreshQuietly();
@@ -175,12 +190,14 @@ export default function PostsPage() {
   };
 
   const submitForApproval = async (post: Post) => {
+    setSubmittingId(post.id);
     try {
       await postService.submitForApproval(post.id);
       addToast({ type: 'success', title: 'Sent for approval', message: 'Your approver has been notified with the review link.' });
     } catch (err) {
       addToast({ type: 'error', title: 'Could not send for approval', message: err instanceof ApiError ? err.message : 'Please try again.' });
     } finally {
+      setSubmittingId(null);
       refreshQuietly();
     }
   };
@@ -248,6 +265,7 @@ export default function PostsPage() {
                 canPublish={canPublish}
                 canApprove={canApprove}
                 approving={approvingId === post.id}
+                submitting={submittingId === post.id}
                 onOpen={setViewing}
                 onEdit={(p) => navigate(`/create?edit=${p.id}&prompt=${encodeURIComponent(p.prompt_text ?? '')}`)}
                 onConfirm={(kind, p) => setConfirm({ kind, post: p })}

@@ -48,6 +48,7 @@ export interface Post {
   created_by?: string | null;
   approver_note?: string | null;
   approval_decision?: 'approved' | 'rejected' | null;
+  approved_by?: string | null;
   publish_results?: Record<string, unknown> | null;
   metrics?: { reach?: number; likes?: number; comments?: number };
   created_at: string;

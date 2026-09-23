@@ -25,7 +25,7 @@ export interface DashboardData {
 export interface DealerAnalytics {
   engagementByType: Array<{ type: string; engagementRate: number }>;
   followerTrend: Array<{ platform: string; current: number; delta: number | null }>;
-  reviewSummary: { avgRating: number | null; responseRate: number; totalReviews: number };
+  reviewSummary: { avgRating: number | null; responseRate: number | null; totalReviews: number };
 }
 
 export const dashboardService = {

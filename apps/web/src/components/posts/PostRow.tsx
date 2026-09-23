@@ -14,6 +14,7 @@ export interface PostRowProps {
   canPublish: boolean;
   canApprove: boolean;
   approving: boolean;
+  submitting: boolean;
   onOpen: (post: Post) => void;
   onEdit: (post: Post) => void;
   onConfirm: (kind: ConfirmKind, post: Post) => void;
@@ -56,7 +57,15 @@ export function PostRow(props: PostRowProps) {
           </div>
           {remark && (
             <p className={cn('mt-1.5 text-[12px] line-clamp-2 leading-relaxed', remark.kind === 'rejected' ? 'text-red-600' : 'text-teal-700')}>
-              <span className="font-semibold">{remark.kind === 'rejected' ? 'Rejected:' : 'Approver note:'}</span> {remark.text}
+              {remark.kind === 'link' ? (
+                <>
+                  <span className="font-semibold">Approved via review link</span>{remark.text && <>: {remark.text}</>}
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">{remark.kind === 'rejected' ? 'Rejected:' : 'Approver note:'}</span> {remark.text}
+                </>
+              )}
             </p>
           )}
         </div>
@@ -79,7 +88,7 @@ export function PostRow(props: PostRowProps) {
   );
 }
 
-function RowActions({ post, canPublish, canApprove, approving, onEdit, onConfirm, onApprove, onReject, onReschedule, onSubmitForApproval }: PostRowProps) {
+function RowActions({ post, canPublish, canApprove, approving, submitting, onEdit, onConfirm, onApprove, onReject, onReschedule, onSubmitForApproval }: PostRowProps) {
   switch (post.status) {
     case 'draft':
       return (
@@ -88,7 +97,9 @@ function RowActions({ post, canPublish, canApprove, approving, onEdit, onConfirm
           {canPublish ? (
             <Button className={ACTION} onClick={() => onConfirm('publish', post)}><Send className="w-3.5 h-3.5" /> Publish</Button>
           ) : (
-            <Button variant="secondary" className={ACTION} onClick={() => onSubmitForApproval(post)}><Send className="w-3.5 h-3.5" /> Send for approval</Button>
+            <Button variant="secondary" className={ACTION} disabled={submitting} onClick={() => onSubmitForApproval(post)}>
+              {submitting ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Send for approval
+            </Button>
           )}
         </>
       );

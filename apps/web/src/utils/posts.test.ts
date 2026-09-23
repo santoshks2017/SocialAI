@@ -32,12 +32,27 @@ describe('postTimeline', () => {
 });
 
 describe('approvalRemark', () => {
-  it('shows a rejection reason on drafts and a note on approved posts only', () => {
+  it('shows a rejection reason on drafts and a note on posts approved in-app only when there is one', () => {
     assert.deepEqual(approvalRemark({ status: 'draft', approval_decision: 'rejected', approver_note: ' Fix price ' }), { kind: 'rejected', text: 'Fix price' });
-    assert.deepEqual(approvalRemark({ status: 'approved', approval_decision: 'approved', approver_note: 'Nice' }), { kind: 'note', text: 'Nice' });
+    assert.deepEqual(approvalRemark({ status: 'approved', approval_decision: 'approved', approver_note: 'Nice', approved_by: 'user-1' }), { kind: 'note', text: 'Nice' });
     assert.equal(approvalRemark({ status: 'draft', approval_decision: 'approved', approver_note: 'Nice' }), null);
     assert.equal(approvalRemark({ status: 'published', approval_decision: 'approved', approver_note: 'Nice' }), null);
-    assert.equal(approvalRemark({ status: 'approved', approval_decision: 'approved', approver_note: '  ' }), null);
+    assert.equal(approvalRemark({ status: 'approved', approval_decision: 'approved', approver_note: '  ', approved_by: 'user-1' }), null);
+  });
+
+  it('shows a link callout for a post approved through the review link, with or without a note', () => {
+    assert.deepEqual(
+      approvalRemark({ status: 'approved', approval_decision: 'approved', approver_note: 'Looks great', approved_by: null }),
+      { kind: 'link', text: 'Looks great' },
+    );
+    assert.deepEqual(
+      approvalRemark({ status: 'approved', approval_decision: 'approved', approver_note: null, approved_by: null }),
+      { kind: 'link', text: '' },
+    );
+    assert.deepEqual(
+      approvalRemark({ status: 'approved', approval_decision: 'approved' }),
+      { kind: 'link', text: '' },
+    );
   });
 });
 

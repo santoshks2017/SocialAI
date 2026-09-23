@@ -41,7 +41,7 @@ export function AudienceSummary({ analytics }: { analytics: DealerAnalytics | nu
         : followers.map((f) => <FollowerRow key={f.platform} {...f} />)}
       <div className="grid grid-cols-2 gap-2 pt-3 border-t border-zinc-100">
         <MiniStat icon={<Star className="w-3.5 h-3.5" />} label="Avg rating" value={review?.avgRating == null ? '—' : review.avgRating.toFixed(1)} />
-        <MiniStat icon={<MessageSquare className="w-3.5 h-3.5" />} label="Response rate" value={review ? `${review.responseRate}%` : '—'} />
+        <MiniStat icon={<MessageSquare className="w-3.5 h-3.5" />} label="Response rate" value={review?.responseRate == null ? '—' : `${review.responseRate}%`} />
       </div>
     </div>
   );
