@@ -36,7 +36,7 @@ export interface PostPublishOutcome {
   results: PlatformPublishResult[];
 }
 
-export type PublishablePost = Pick<Post, 'id' | 'dealer_id' | 'caption_text' | 'creative_urls'> & Partial<Pick<Post, 'media_type' | 'video_url'>>;
+export type PublishablePost = Pick<Post, 'id' | 'dealer_id' | 'caption_text' | 'creative_urls'> & Partial<Pick<Post, 'media_type' | 'video_url' | 'caption_hashtags'>>;
 
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
@@ -78,6 +78,31 @@ export async function resolveAccessToken(conn: PlatformConnection): Promise<stri
   return conn.access_token;
 }
 
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A tag the caption already contains as a whole tag (not a prefix of a longer one), ignoring case.
+function captionHasTag(caption: string, tag: string): boolean {
+  return new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_#])${escapeRegExp(tag)}(?![\\p{L}\\p{M}\\p{N}_])`, 'iu').test(caption);
+}
+
+/**
+ * The text platforms receive: the caption, a blank line, then the post's hashtags.
+ * Tags already in the caption (older posts wrote them into it) aren't repeated.
+ */
+export function captionWithHashtags(caption: string, hashtags: readonly string[]): string {
+  const tags: string[] = [];
+  for (const raw of hashtags) {
+    const name = raw.trim().replace(/^#+/, '');
+    if (!name) continue;
+    const tag = `#${name}`;
+    if (captionHasTag(caption, tag) || tags.some((t) => t.toLowerCase() === tag.toLowerCase())) continue;
+    tags.push(tag);
+  }
+  if (tags.length === 0) return caption;
+  const body = caption.trimEnd();
+  return body ? `${body}\n\n${tags.join(' ')}` : tags.join(' ');
+}
+
 export function buildPublishData(
   post: PublishablePost,
   platform: string,
@@ -89,7 +114,8 @@ export function buildPublishData(
     dealer_id: post.dealer_id,
     platform: platform as PublishDirectData['platform'],
     image_url: (post.creative_urls as Record<string, string> | null)?.[platform] ?? '',
-    caption: post.caption_text ?? '',
+    // Every path to a platform (direct, cron and queued jobs) sends this caption.
+    caption: captionWithHashtags(post.caption_text ?? '', post.caption_hashtags ?? []),
     access_token: accessToken,
     ...(platform === 'facebook' ? { page_id: conn.platform_account_id } : {}),
     ...(platform === 'instagram' ? { ig_user_id: conn.platform_account_id } : {}),

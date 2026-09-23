@@ -56,6 +56,15 @@ describe('output format and limits', () => {
     assert.equal(limitMessage(issues[0]!), 'Facebook: caption too long · too many hashtags.');
     assert.deepEqual(limitIssues('image', ['facebook'], null, 'x'.repeat(500), []), []);
   });
+
+  it('measures the caption as platforms receive it, with the hashtags appended', () => {
+    // 90 + 2 (blank line) + '#ab #cd'.length (7) = 99, within Facebook's 100 here.
+    assert.deepEqual(limitIssues('image', ['facebook'], specs, 'x'.repeat(90), ['#ab', '#cd']), []);
+    // 92 + 2 + 7 = 101
+    assert.deepEqual(limitIssues('image', ['facebook'], specs, 'x'.repeat(92), ['#ab', '#cd']),
+      [{ platform: 'facebook', label: 'Facebook', captionOver: true, hashtagsOver: false }]);
+    assert.deepEqual(limitIssues('image', ['facebook'], specs, 'x'.repeat(100), []), []);
+  });
 });
 
 describe('dealer display helpers', () => {

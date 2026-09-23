@@ -76,10 +76,12 @@ export interface LimitIssue {
 export function limitIssues(type: CreateType, selected: readonly string[], specs: PlatformSpecs | null, caption: string, hashtags: readonly string[]): LimitIssue[] {
   if (!specs) return [];
   const kind = type === 'reel' ? 'reel' : 'post';
+  // Platforms receive the caption, a blank line, then the hashtags (API captionWithHashtags).
+  const sentLength = caption.length + (hashtags.length ? 2 + hashtags.join(' ').length : 0);
   return selected.flatMap((platform) => {
     const spec = specs[platform]?.[kind];
     if (!spec?.supported) return [];
-    const captionOver = spec.captionMaxChars != null && caption.length > spec.captionMaxChars;
+    const captionOver = spec.captionMaxChars != null && sentLength > spec.captionMaxChars;
     const hashtagsOver = spec.hashtagsMax != null && hashtags.length > spec.hashtagsMax;
     return captionOver || hashtagsOver ? [{ platform, label: platformLabel(platform), captionOver, hashtagsOver }] : [];
   });

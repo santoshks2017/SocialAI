@@ -11,6 +11,7 @@ import publisherRoutes from '../src/routes/publisher.js';
 import { resolvePermissions } from '../src/lib/permissions.js';
 import type { JwtUser, Role } from '../src/lib/permissions.js';
 import { googleTokenNeedsRefresh } from '../src/lib/googleToken.js';
+import { buildPublishData, captionWithHashtags } from '../src/lib/publishDirect.js';
 
 type FetchArgs = Parameters<typeof fetch>;
 
@@ -391,5 +392,54 @@ describe('GET /v1/publisher/calendar', () => {
     const item = res.json().data.find((p: { id: string }) => p.id === draft.id);
     assert.ok(item);
     assert.ok(!Number.isNaN(new Date(item.created_at).getTime()));
+  });
+});
+
+describe('captions sent to platforms include the hashtags', () => {
+  it('appends the tags after a blank line, adding # where missing', () => {
+    assert.equal(captionWithHashtags('Visit us  \n', ['#Diwali', 'Creta', ' ##SUV ', '']), 'Visit us\n\n#Diwali #Creta #SUV');
+  });
+
+  it('skips tags the caption already has, case-insensitively and only as whole tags', () => {
+    assert.equal(captionWithHashtags('Big sale #diwali on #CretaSale', ['#Diwali', '#Creta', '#creta']), 'Big sale #diwali on #CretaSale\n\n#Creta');
+    assert.equal(captionWithHashtags('Visit us\n\n#Diwali #Creta', ['Diwali', '#CRETA']), 'Visit us\n\n#Diwali #Creta');
+  });
+
+  it('returns just the tags for an empty caption and the caption alone without tags', () => {
+    assert.equal(captionWithHashtags('', ['#Diwali', 'Creta']), '#Diwali #Creta');
+    assert.equal(captionWithHashtags('Visit us', []), 'Visit us');
+    assert.equal(captionWithHashtags('Visit us', ['#', '  ']), 'Visit us');
+  });
+
+  it('builds queued job data with the tags in the caption', async () => {
+    const dealerId = await newDealer();
+    const conn = await connect(dealerId, 'facebook');
+    const post = await newPost(dealerId, { caption_hashtags: ['#Diwali', 'Creta'] });
+    assert.equal(buildPublishData(post, 'facebook', conn).caption, 'Visit us this weekend\n\n#Diwali #Creta');
+  });
+
+  it('publishes the caption with its hashtags to every platform', async (t) => {
+    const bodies: Array<{ url: string; body: Record<string, unknown> }> = [];
+    t.mock.method(axios, 'post', async (url: string, body: Record<string, unknown>) => {
+      bodies.push({ url, body });
+      if (url.endsWith('/photos')) return { data: { id: 'fb-photo-1' } };
+      if (url.endsWith('/media')) return { data: { id: 'ig-container-1' } };
+      if (url.endsWith('/media_publish')) return { data: { id: 'ig-media-1' } };
+      throw new Error(`unexpected POST ${url}`);
+    });
+    t.mock.method(axios, 'get', async (url: string) => {
+      if (url.endsWith('/ig-container-1')) return { data: { status_code: 'FINISHED' } };
+      throw new Error(`unexpected GET ${url}`);
+    });
+    const dealerId = await newDealer();
+    await connect(dealerId, 'facebook');
+    await connect(dealerId, 'instagram');
+    const post = await newPost(dealerId, { caption_hashtags: ['#Diwali', 'Creta'] });
+
+    const res = await publish(dealerId, { post_id: post.id, platforms: ['facebook', 'instagram'] });
+    assert.equal(res.statusCode, 200);
+    const expected = 'Visit us this weekend\n\n#Diwali #Creta';
+    assert.equal(bodies.find((b) => b.url.endsWith('/photos'))?.body['message'], expected);
+    assert.equal(bodies.find((b) => b.url.endsWith('/media'))?.body['caption'], expected);
   });
 });
