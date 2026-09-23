@@ -65,6 +65,23 @@ export async function waitForInstagramContainer(
   }
 }
 
+// Instagram links use a shortcode, not the media id the Graph API returns, so ask for the
+// post's permalink. Publishing already succeeded, so a failure here keeps the fallback link.
+async function instagramPermalink(mediaId: string, accessToken: string, fallback: string): Promise<string> {
+  try {
+    const res = await axios.get<{ permalink?: unknown }>(
+      `${META_GRAPH_BASE}/${mediaId}`,
+      { params: { fields: 'permalink', access_token: accessToken } },
+    );
+    const permalink = res.data?.permalink;
+    return typeof permalink === 'string' && permalink.startsWith('https://') ? permalink : fallback;
+  } catch (err) {
+    // The message only: a raw axios error carries the request config, including the access token.
+    console.warn('[meta] Could not fetch the Instagram permalink:', err instanceof Error ? err.message : String(err));
+    return fallback;
+  }
+}
+
 export async function publishToInstagram(
   igUserId: string,
   accessToken: string,
@@ -96,7 +113,7 @@ export async function publishToInstagram(
 
   return {
     post_id: publishRes.data.id,
-    url: `https://www.instagram.com/p/${publishRes.data.id}/`,
+    url: await instagramPermalink(publishRes.data.id, accessToken, `https://www.instagram.com/p/${publishRes.data.id}/`),
   };
 }
 
@@ -142,7 +159,10 @@ export async function publishReelToInstagram(
     `${META_GRAPH_BASE}/${igUserId}/media_publish`,
     { creation_id: containerRes.data.id, access_token: accessToken },
   );
-  return { post_id: publishRes.data.id, url: `https://www.instagram.com/reel/${publishRes.data.id}/` };
+  return {
+    post_id: publishRes.data.id,
+    url: await instagramPermalink(publishRes.data.id, accessToken, `https://www.instagram.com/reel/${publishRes.data.id}/`),
+  };
 }
 
 // ─── Token management ─────────────────────────────────────────────────────────

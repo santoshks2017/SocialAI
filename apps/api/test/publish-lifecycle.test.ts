@@ -97,6 +97,7 @@ function mockPlatformApis(t: TestContext, options: { failInstagram?: boolean } =
   t.mock.method(axios, 'get', async (url: string) => {
     calls.push({ method: 'GET', url });
     if (url.endsWith('/ig-container-1')) return { data: { status_code: 'FINISHED' } };
+    if (url.endsWith('/ig-media-1')) return { data: { permalink: 'https://www.instagram.com/p/DAbC123xYz/' } };
     throw new Error(`unexpected GET ${url}`);
   });
   return calls;
@@ -429,6 +430,7 @@ describe('captions sent to platforms include the hashtags', () => {
     });
     t.mock.method(axios, 'get', async (url: string) => {
       if (url.endsWith('/ig-container-1')) return { data: { status_code: 'FINISHED' } };
+      if (url.endsWith('/ig-media-1')) return { data: { permalink: 'https://www.instagram.com/p/DAbC123xYz/' } };
       throw new Error(`unexpected GET ${url}`);
     });
     const dealerId = await newDealer();

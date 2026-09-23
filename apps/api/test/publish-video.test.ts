@@ -21,7 +21,9 @@ function mockGraph(t: TestContext) {
     if (url.endsWith('/ig-user/media_publish')) return { data: { id: 'reel-1' } };
     throw new Error(`unexpected POST ${url}`);
   });
-  t.mock.method(axios, 'get', async () => ({ data: { status_code: 'FINISHED' } }));
+  t.mock.method(axios, 'get', async (url: string) => (url.endsWith('/reel-1')
+    ? { data: { permalink: 'https://www.instagram.com/reel/DAbC123xYz/' } }
+    : { data: { status_code: 'FINISHED' } }));
   return posts;
 }
 
@@ -36,7 +38,7 @@ describe('Meta video publishing', () => {
   it('publishes an Instagram reel once its container is ready', async (t) => {
     const posts = mockGraph(t);
     const result = await publishReelToInstagram('ig-user', 'token', 'https://cdn.test/reel.mp4', 'Caption', [0]);
-    assert.deepEqual(result, { post_id: 'reel-1', url: 'https://www.instagram.com/reel/reel-1/' });
+    assert.deepEqual(result, { post_id: 'reel-1', url: 'https://www.instagram.com/reel/DAbC123xYz/' });
     assert.deepEqual(posts[0]!.body, { media_type: 'REELS', video_url: 'https://cdn.test/reel.mp4', caption: 'Caption', share_to_feed: true, access_token: 'token' });
     assert.ok(posts[1]!.url.endsWith('/media_publish'));
   });
