@@ -30,6 +30,8 @@ import {
 import { generateOpenRouterImage, isOpenRouterImageAvailable } from "../services/openrouterImage.js"
 import { generateGeminiImage, isGeminiImageAvailable } from "../services/geminiImage.js"
 import { getGeminiApiKey } from "../lib/aiKeys.js"
+import { resolveAiModels } from "../lib/aiModels.js"
+import { generateContentUrl, googleAiHeaders } from "../lib/googleAi.js"
 import { removeBackground } from "../services/backgroundRemoval.js"
 import {
   compositeLayered,
@@ -823,6 +825,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
         const templateStyles: Array<'festive' | 'premium' | 'value'> = ['festive', 'premium', 'value']
         const optionBrandLogoSvg = getBrandLogoSvg(activeBrand, "#ffffff")
         const optionBranding = { ...branding, brandLogoSvg: optionBrandLogoSvg }
+        const imageModel = (await resolveAiModels()).image
 
         const options = await Promise.all(
           creativeOptions.map(async (option, i) => {
@@ -892,7 +895,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
                 negativePrompt: promptBrief.negative_prompt,
                 colorMood: promptBrief.color_mood,
                 seed: Math.floor(Math.random() * 1000000000),
-                modelVersion: process.env.GEMINI_IMAGE_MODEL ?? "gemini-3.1-flash-image-preview",
+                modelVersion: imageModel,
                 timestamp: new Date().toISOString(),
               }
             }
@@ -1426,7 +1429,8 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
 
           const describeInstructions = "Analyze this automotive advertisement image. Describe the style, scene setting, lighting, colors, and background theme in detail. Do not mention any overlay text or logos. Provide only a single highly-detailed prompt (100-150 words) that can be used by an AI image generator to create a similar background scene, leaving empty space in the bottom-middle for a vehicle placement.";
           
-          const describeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+          const describeModel = (await resolveAiModels()).text;
+          const describeUrl = generateContentUrl(describeModel);
           const describeKey = await getGeminiApiKey();
           const describePayload = {
             contents: [
@@ -1445,7 +1449,7 @@ export default async function creativeRoutes(fastify: FastifyInstance) {
           };
 
           const describeRes = await axios.post(describeUrl, describePayload, {
-            headers: { "Content-Type": "application/json", "x-goog-api-key": describeKey ?? "" },
+            headers: googleAiHeaders(describeKey ?? ""),
             timeout: 30000
           });
 

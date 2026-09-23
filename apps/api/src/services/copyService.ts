@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { getGeminiApiKey } from '../lib/aiKeys.js';
+import { resolveAiModels } from '../lib/aiModels.js';
+import { generateContentUrl, googleAiHeaders } from '../lib/googleAi.js';
 
 export interface CopyOutput {
   headlines: string[];       // length 3
@@ -19,7 +21,7 @@ export async function generateCopy(params: {
   languageMode?: string;
 }): Promise<CopyOutput> {
   const apiKey = await getGeminiApiKey();
-  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const model = (await resolveAiModels()).text;
   const language = params.languageMode || 'hinglish';
   
   const systemInstructions = `You are an expert automotive copywriter for Indian car dealerships.
@@ -43,7 +45,7 @@ Return the result STRICTLY as a JSON object matching this schema:
   // 1. Call Google Gemini API
   if (apiKey) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const url = generateContentUrl(model);
       const payload = {
         contents: [
           { parts: [{ text: systemInstructions }] }
@@ -76,7 +78,7 @@ Return the result STRICTLY as a JSON object matching this schema:
       };
 
       const response = await axios.post(url, payload, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: googleAiHeaders(apiKey),
         timeout: 25000,
       });
 
@@ -89,8 +91,8 @@ Return the result STRICTLY as a JSON object matching this schema:
           hashtagsSets: [result.hashtags]
         };
       }
-    } catch (err: any) {
-      console.warn(`Gemini generateCopy failed: ${err.message || err}`);
+    } catch (err) {
+      console.warn(`Gemini generateCopy failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

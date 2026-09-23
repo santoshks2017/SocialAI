@@ -9,6 +9,8 @@ import { uploadFile } from '../lib/storage.js';
 import { UPLOADS_ROOT } from '../routes/upload.js';
 import { getGeminiApiKey } from '../lib/aiKeys.js';
 import { captionLanguage } from '../lib/languages.js';
+import { resolveAiModels } from '../lib/aiModels.js';
+import { generateContentUrl, googleAiHeaders } from '../lib/googleAi.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -156,7 +158,7 @@ async function batchVideoCreativeData(params: {
     return { visualScene: regexScene, overlays: defaultOverlays, ...defaultCaption };
   }
 
-  const textModel = process.env['GEMINI_TEXT_MODEL'] || 'gemini-2.5-flash';
+  const textModel = (await resolveAiModels()).text;
   const batchPrompt = `You are an automotive video ad creative director AND viral social media manager for Indian car dealerships.
 Given this ad request for "${car}" at "${dealer}": "${rawPrompt}"
 
@@ -181,14 +183,14 @@ Rules:
 - Return valid JSON only, no surrounding text`;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${textModel}:generateContent?key=${apiKey}`;
+    const url = generateContentUrl(textModel);
     const res = await axios.post(
       url,
       {
         contents: [{ parts: [{ text: batchPrompt }] }],
         generationConfig: { responseMimeType: 'application/json' },
       },
-      { timeout: 15000 }
+      { headers: googleAiHeaders(apiKey), timeout: 15000 }
     );
     const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (text) {
@@ -607,7 +609,6 @@ export async function generateReelCaptionAndMetadata(params: {
   language?: string | undefined;
 }): Promise<ReelMetadataResult> {
   const apiKey = await getGeminiApiKey();
-  const textModel = process.env['GEMINI_TEXT_MODEL'] || 'gemini-2.5-flash';
 
   const dealer = params.dealerName || 'Authorized Dealership';
   const city = params.city || 'your city';
@@ -622,6 +623,8 @@ export async function generateReelCaptionAndMetadata(params: {
     };
   }
 
+  const textModel = (await resolveAiModels()).text;
+
   const systemPrompt = `You are a viral social media manager for top Indian car dealerships creating high-engagement Instagram Reels and Facebook Reels.
 Generate a reel headline, an engaging caption in ${captionLanguage(params.language ?? 'en')} with a clear hook and call-to-action, viral hashtags, and a trending audio track vibe.
 Return strictly valid JSON matching this schema:
@@ -635,7 +638,7 @@ Return strictly valid JSON matching this schema:
   const userContent = `Car: ${car}\nDealership: ${dealer}, ${city}\nPromotion / Concept: ${params.prompt}`;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${textModel}:generateContent?key=${apiKey}`;
+    const url = generateContentUrl(textModel);
     const res = await axios.post(
       url,
       {
@@ -650,7 +653,7 @@ Return strictly valid JSON matching this schema:
           responseMimeType: 'application/json'
         }
       },
-      { timeout: 20000 }
+      { headers: googleAiHeaders(apiKey), timeout: 20000 }
     );
 
     const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;

@@ -4,6 +4,8 @@ import { buildEnrichedSystemPrompt } from "../data/indianAutoPatterns.js";
 import { getFrontendUrl } from "../lib/frontendUrl.js";
 import { getGeminiApiKey, hasGeminiKey } from "../lib/aiKeys.js";
 import { briefCaptionInstructions } from "../lib/languages.js";
+import { resolveAiModels } from "../lib/aiModels.js";
+import { generateContentUrl, googleAiHeaders } from "../lib/googleAi.js";
 
 export interface GeminiCreativeOptionOutput {
   headline: string;
@@ -30,7 +32,7 @@ async function callGoogleGeminiApi(
   promptText: string,
   images: GeminiImageInput[]
 ): Promise<GeminiMultiCreativeOutput> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const url = generateContentUrl(model);
 
   const textPart = {
     text: `${promptText}
@@ -95,7 +97,7 @@ Return the result strictly as a JSON object matching this schema:
   };
 
   const response = await axios.post(url, payload, {
-    headers: { "Content-Type": "application/json" },
+    headers: googleAiHeaders(apiKey),
     timeout: 30000 // 30 seconds timeout
   });
 
@@ -258,7 +260,7 @@ async function callGoogleGeminiBrief(
   promptText: string,
   images: GeminiImageInput[]
 ): Promise<ExpandedPromptBrief> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const url = generateContentUrl(model);
 
   const textPart = {
     text: `${promptText}
@@ -312,7 +314,7 @@ Return the result strictly as a JSON object matching this schema:
   };
 
   const response = await axios.post(url, payload, {
-    headers: { "Content-Type": "application/json" },
+    headers: googleAiHeaders(apiKey),
     timeout: 30000
   });
 
@@ -463,27 +465,16 @@ PROMPT STRUCTURE RULES:
 5. Negative Prompt: Always set the negative_prompt exactly to: "no cars, no vehicles, no text, no watermarks, no logos, no people, no animals, blurry, low resolution, distorted, cartoon, illustration".
 `;
 
-  // 1. Try Google Gemini API with gemini-2.5-flash
+  // 1. Try Google Gemini API with the resolved text model, then its fallbacks
   if (apiKey) {
-    try {
-      console.log("Attempting prompt brief generation with gemini-2.5-flash...");
-      return await callGoogleGeminiBrief("gemini-2.5-flash", apiKey, promptText, images);
-    } catch (err: any) {
-      console.warn(`Gemini gemini-2.5-flash brief generation failed: ${err.message || err}`);
-    }
-
-    try {
-      console.log("Attempting prompt brief fallback with gemini-2.5-flash-lite...");
-      return await callGoogleGeminiBrief("gemini-2.5-flash-lite", apiKey, promptText, images);
-    } catch (err: any) {
-      console.warn(`Gemini gemini-2.5-flash-lite brief generation failed: ${err.message || err}`);
-    }
-
-    try {
-      console.log("Attempting prompt brief fallback with gemini-1.5-flash...");
-      return await callGoogleGeminiBrief("gemini-1.5-flash", apiKey, promptText, images);
-    } catch (err: any) {
-      console.warn(`Gemini gemini-1.5-flash brief generation failed: ${err.message || err}`);
+    const models = await resolveAiModels();
+    for (const candidate of [models.text, ...models.textFallbacks]) {
+      try {
+        console.log(`Attempting prompt brief generation with ${candidate}...`);
+        return await callGoogleGeminiBrief(candidate, apiKey, promptText, images);
+      } catch (err) {
+        console.warn(`Gemini ${candidate} brief generation failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
 
@@ -542,30 +533,17 @@ The background_prompt MUST NOT ask for any text, headlines, dealer names, phone 
 
   let multiCreativeOutput: GeminiMultiCreativeOutput;
 
-  // 1. Try Google Gemini API with gemini-2.5-flash
+  // 1. Try Google Gemini API with the resolved text model, then its fallbacks
   if (apiKey) {
-    try {
-      console.log("Attempting creative option generation with gemini-2.5-flash...");
-      multiCreativeOutput = await callGoogleGeminiApi("gemini-2.5-flash", apiKey, promptInstructions, images);
-      return { brief, options: multiCreativeOutput.options };
-    } catch (err: any) {
-      console.warn(`Gemini gemini-2.5-flash content generation failed: ${err.message || err}`);
-    }
-
-    try {
-      console.log("Attempting creative option generation fallback with gemini-2.5-flash-lite...");
-      multiCreativeOutput = await callGoogleGeminiApi("gemini-2.5-flash-lite", apiKey, promptInstructions, images);
-      return { brief, options: multiCreativeOutput.options };
-    } catch (err: any) {
-      console.warn(`Gemini gemini-2.5-flash-lite content generation failed: ${err.message || err}`);
-    }
-
-    try {
-      console.log("Attempting creative option generation fallback with gemini-1.5-flash...");
-      multiCreativeOutput = await callGoogleGeminiApi("gemini-1.5-flash", apiKey, promptInstructions, images);
-      return { brief, options: multiCreativeOutput.options };
-    } catch (err: any) {
-      console.warn(`Gemini gemini-1.5-flash content generation failed: ${err.message || err}`);
+    const models = await resolveAiModels();
+    for (const candidate of [models.text, ...models.textFallbacks]) {
+      try {
+        console.log(`Attempting creative option generation with ${candidate}...`);
+        multiCreativeOutput = await callGoogleGeminiApi(candidate, apiKey, promptInstructions, images);
+        return { brief, options: multiCreativeOutput.options };
+      } catch (err) {
+        console.warn(`Gemini ${candidate} content generation failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
 
@@ -599,7 +577,7 @@ export async function generateGeminiCaptions(
 ): Promise<GeneratedCaptions> {
   const apiKey = await getGeminiApiKey();
   if (!apiKey) throw new Error('Gemini API key is not configured. Save one in Admin → APIs & models or set GEMINI_API_KEY on the server.');
-  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const model = (await resolveAiModels()).text;
 
   const systemPrompt = buildEnrichedSystemPrompt(dealer.city, dealer.brands ?? [], postType, languageMode);
   const includeHindi = languageMode === 'bilingual';
@@ -620,7 +598,7 @@ POST REQUEST: "${prompt}"${inspirationBlock}
 
 Generate 3 caption variants as JSON.${includeHindi ? ' Include hindi_variants.' : ''}`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const url = generateContentUrl(model);
   const payload = {
     contents: [{ parts: [{ text: userMessage }] }],
     generationConfig: {
@@ -651,7 +629,7 @@ Generate 3 caption variants as JSON.${includeHindi ? ' Include hindi_variants.' 
   };
 
   const response = await axios.post(url, payload, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: googleAiHeaders(apiKey),
     timeout: 30000,
   });
 
@@ -750,68 +728,70 @@ ${modelText}
 
 Generate the detailed layers and copy now.`;
 
-  // 1. Try Google Gemini API
+  // 1. Try Google Gemini API with the resolved text model, then its fallbacks
   if (apiKey) {
-    try {
-      const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const payload = {
-        contents: [
-          {
-            parts: [{ text: `${systemInstructions}\n\n${userMessage}` }]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'OBJECT',
-            properties: {
-              brand: { type: 'STRING' },
-              model_name: { type: 'STRING' },
-              car_angle: { type: 'STRING' },
-              background_theme: { type: 'STRING' },
-              background_details: { type: 'STRING' },
-              background_details_option2: { type: 'STRING' },
-              background_details_option3: { type: 'STRING' },
-              lighting_mood: { type: 'STRING' },
-              headline: { type: 'STRING' },
-              caption: { type: 'STRING' },
-              caption_option2: { type: 'STRING' },
-              caption_option3: { type: 'STRING' },
-              hashtags: {
-                type: 'ARRAY',
-                items: { type: 'STRING' }
-              },
-              hashtags_option2: {
-                type: 'ARRAY',
-                items: { type: 'STRING' }
-              },
-              hashtags_option3: {
-                type: 'ARRAY',
-                items: { type: 'STRING' }
-              }
-            },
-            required: [
-              'brand', 'model_name', 'car_angle', 'background_theme', 
-              'background_details', 'background_details_option2', 'background_details_option3', 
-              'lighting_mood', 'headline', 'caption', 'caption_option2', 'caption_option3', 
-              'hashtags', 'hashtags_option2', 'hashtags_option3'
-            ]
-          }
+    const payload = {
+      contents: [
+        {
+          parts: [{ text: `${systemInstructions}\n\n${userMessage}` }]
         }
-      };
-
-      const response = await axios.post(url, payload, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000,
-      });
-
-      const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) {
-        return JSON.parse(text.trim()) as ElaboratedPromptBrief;
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            brand: { type: 'STRING' },
+            model_name: { type: 'STRING' },
+            car_angle: { type: 'STRING' },
+            background_theme: { type: 'STRING' },
+            background_details: { type: 'STRING' },
+            background_details_option2: { type: 'STRING' },
+            background_details_option3: { type: 'STRING' },
+            lighting_mood: { type: 'STRING' },
+            headline: { type: 'STRING' },
+            caption: { type: 'STRING' },
+            caption_option2: { type: 'STRING' },
+            caption_option3: { type: 'STRING' },
+            hashtags: {
+              type: 'ARRAY',
+              items: { type: 'STRING' }
+            },
+            hashtags_option2: {
+              type: 'ARRAY',
+              items: { type: 'STRING' }
+            },
+            hashtags_option3: {
+              type: 'ARRAY',
+              items: { type: 'STRING' }
+            }
+          },
+          required: [
+            'brand', 'model_name', 'car_angle', 'background_theme',
+            'background_details', 'background_details_option2', 'background_details_option3',
+            'lighting_mood', 'headline', 'caption', 'caption_option2', 'caption_option3',
+            'hashtags', 'hashtags_option2', 'hashtags_option3'
+          ]
+        }
       }
-    } catch (err: any) {
-      console.warn(`Gemini elaboratePromptBrief failed: ${err.message || err}`);
+    };
+
+    const models = await resolveAiModels();
+    for (const candidate of [models.text, ...models.textFallbacks]) {
+      try {
+        const url = generateContentUrl(candidate);
+        const response = await axios.post(url, payload, {
+          headers: googleAiHeaders(apiKey),
+          timeout: 30000,
+        });
+
+        const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          return JSON.parse(text.trim()) as ElaboratedPromptBrief;
+        }
+      } catch (err) {
+        console.warn(`Gemini elaboratePromptBrief ${candidate} failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
 
@@ -860,11 +840,11 @@ Generate the detailed layers and copy now.`;
 export async function geminiTransformCaption(caption: string, instruction: string): Promise<string> {
   const apiKey = await getGeminiApiKey();
   if (!apiKey) throw new Error('Gemini API key is not configured.');
-  const model = process.env['GEMINI_TEXT_MODEL'] || 'gemini-2.5-flash';
+  const model = (await resolveAiModels()).text;
   const res = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    generateContentUrl(model),
     { contents: [{ parts: [{ text: `${instruction}\n\nCaption:\n${caption}` }] }] },
-    { headers: { 'x-goog-api-key': apiKey }, timeout: 20000 },
+    { headers: googleAiHeaders(apiKey), timeout: 20000 },
   );
   const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (typeof text !== 'string' || !text.trim()) throw new Error('Gemini returned no text');
