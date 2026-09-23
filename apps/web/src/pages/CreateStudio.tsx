@@ -298,7 +298,7 @@ export default function CreateStudio() {
       ...(type === 'image' && selectedCreative ? { creativeUrls: Object.fromEntries(selected.map((p) => [p, selectedCreative])) } : {}),
     };
     if (savedId) {
-      await postService.update(savedId, { ...content, ...(video ?? {}) });
+      await postService.update(savedId, { ...content, mediaType: type === 'reel' ? 'video' : 'image', ...(video ?? {}) });
       return savedId;
     }
     const { item } = await postService.create({ ...content, ...(video ? { mediaType: 'video' as const, ...video } : {}) });

@@ -15,6 +15,8 @@ async function dealerHeaders() {
 }
 
 const create = (headers: Record<string, string>, payload: object) => fastify.inject({ method: 'POST', url: '/v1/publisher', headers, payload });
+const patch = (headers: Record<string, string>, id: string, payload: object) =>
+  fastify.inject({ method: 'PATCH', url: `/v1/publisher/posts/${id}`, headers, payload });
 
 describe('video posts', () => {
   it('stores a video post with its video and thumbnail', async () => {
@@ -42,5 +44,41 @@ describe('video posts', () => {
     assert.equal(res.statusCode, 200);
     const item = (res.json() as { item: { video_url: string; caption_text: string } }).item;
     assert.deepEqual([item.video_url, item.caption_text], ['https://cdn.test/b.mp4', 'New caption']);
+  });
+
+  it('switches a video draft to an image through PATCH mediaType, clearing the video fields', async () => {
+    const { headers } = await dealerHeaders();
+    const created = await create(headers, { promptText: 'Reel', platforms: ['instagram'], mediaType: 'video', videoUrl: 'https://cdn.test/a.mp4', thumbnailUrl: 'https://cdn.test/a.jpg' });
+    const id = (created.json() as { item: { id: string } }).item.id;
+    const res = await patch(headers, id, { mediaType: 'image', creativeUrls: { facebook: 'https://cdn.test/a.jpg' } });
+    assert.equal(res.statusCode, 200);
+    const item = (res.json() as { item: { media_type: string; video_url: string | null; thumbnail_url: string | null } }).item;
+    assert.deepEqual([item.media_type, item.video_url, item.thumbnail_url], ['image', null, null]);
+  });
+
+  it('switches an image draft to a reel through PATCH mediaType with a videoUrl', async () => {
+    const { headers } = await dealerHeaders();
+    const created = await create(headers, { promptText: 'Offer', platforms: ['facebook'] });
+    const id = (created.json() as { item: { id: string } }).item.id;
+    const res = await patch(headers, id, { mediaType: 'video', videoUrl: 'https://cdn.test/r.mp4' });
+    assert.equal(res.statusCode, 200);
+    const item = (res.json() as { item: { media_type: string; video_url: string } }).item;
+    assert.deepEqual([item.media_type, item.video_url], ['video', 'https://cdn.test/r.mp4']);
+  });
+
+  it('rejects PATCH mediaType: video with no video URL anywhere', async () => {
+    const { headers } = await dealerHeaders();
+    const created = await create(headers, { promptText: 'Offer', platforms: ['facebook'] });
+    const id = (created.json() as { item: { id: string } }).item.id;
+    const res = await patch(headers, id, { mediaType: 'video' });
+    assert.equal(res.statusCode, 400);
+  });
+
+  it('rejects an unknown PATCH mediaType', async () => {
+    const { headers } = await dealerHeaders();
+    const created = await create(headers, { promptText: 'Offer', platforms: ['facebook'] });
+    const id = (created.json() as { item: { id: string } }).item.id;
+    const res = await patch(headers, id, { mediaType: 'gif' });
+    assert.equal(res.statusCode, 400);
   });
 });

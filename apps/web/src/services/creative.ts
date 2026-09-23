@@ -133,6 +133,7 @@ export interface PostUpdate {
   captionHashtags?: string[];
   creativeUrls?: Record<string, string>;
   platforms?: string[];
+  mediaType?: 'image' | 'video';
   videoUrl?: string;
   thumbnailUrl?: string;
 }

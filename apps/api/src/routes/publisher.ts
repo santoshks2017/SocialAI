@@ -216,6 +216,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         platforms: string[]
         status: string
         scheduled_at: string
+        mediaType: string
         videoUrl: string
         thumbnailUrl: string
       }>
@@ -233,6 +234,9 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       )
         return reply
 
+      if (body.mediaType !== undefined && body.mediaType !== "image" && body.mediaType !== "video") {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "mediaType must be image or video" } })
+      }
       if (body.videoUrl !== undefined && !isMediaUrl(body.videoUrl)) {
         return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "videoUrl is required for video posts" } })
       }
@@ -246,6 +250,10 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           .code(404)
           .send({ error: { code: "NOT_FOUND", message: "Post not found" } })
 
+      if (body.mediaType === "video" && !isMediaUrl(body.videoUrl) && !isMediaUrl(existing.video_url)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "videoUrl is required for video posts" } })
+      }
+
       // A post awaiting or holding approval loses it on a content edit: the approver signed off
       // on specific content, so a change sends it back to drafts unless this same request also
       // sets another status.
@@ -256,6 +264,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         body.captionHashtags !== undefined ||
         body.creativeUrls !== undefined ||
         body.platforms !== undefined ||
+        body.mediaType !== undefined ||
         body.videoUrl !== undefined ||
         body.thumbnailUrl !== undefined
 
@@ -271,6 +280,16 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       if (body.platforms !== undefined) updateData.platforms = body.platforms
       if (body.videoUrl !== undefined) updateData.video_url = body.videoUrl
       if (body.thumbnailUrl !== undefined) updateData.thumbnail_url = body.thumbnailUrl
+      // mediaType: 'image' ignores any videoUrl/thumbnailUrl sent in the same request and clears
+      // the existing ones; mediaType: 'video' keeps whichever video URL the checks above accepted
+      // (this request's videoUrl, or the post's existing one).
+      if (body.mediaType === "video") {
+        updateData.media_type = "video"
+      } else if (body.mediaType === "image") {
+        updateData.media_type = "image"
+        updateData.video_url = null
+        updateData.thumbnail_url = null
+      }
       if (body.status !== undefined) updateData.status = body.status
       if (body.scheduled_at !== undefined)
         updateData.scheduled_at = body.scheduled_at
