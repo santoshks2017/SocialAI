@@ -1,34 +1,91 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap');
 @import "tailwindcss";
 
+/* Design tokens: match the reference Social AI app (spec §4). */
 @theme {
-  --color-brand: #f97316;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Inter", system-ui, -apple-system, sans-serif; /* legacy alias; the reference uses Inter only */
+  --radius-lg: .625rem;
+  --radius-xl: .875rem;
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / .04);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / .06), 0 1px 2px -1px rgb(0 0 0 / .04);
+  --color-brand: #ea580c;
+  --color-brand-hover: #c2410c;
+  --color-brand-subtle: #fff7ed;
+  --color-canvas: #fafafa;
+  /* legacy aliases still referenced by older pages */
   --color-brand-light: #fff7ed;
-  --color-brand-dark: #ea580c;
+  --color-brand-dark: #c2410c;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
+/*
+ * One grey palette. Older pages use slate/stone/gray/neutral; the reference uses zinc. Pointing
+ * those scales at zinc gives every page the reference greys, and dark mode (which remaps zinc)
+ * then reaches them too. zinc is declared here as well because Tailwind prunes unused theme
+ * variables. Must stay before the .dark block: equal specificity, so source order decides.
+ */
+:root {
+  --color-zinc-50: oklch(98.5% 0 0);
+  --color-zinc-100: oklch(96.7% 0.001 286.375);
+  --color-zinc-200: oklch(92% 0.004 286.32);
+  --color-zinc-300: oklch(87.1% 0.006 286.286);
+  --color-zinc-400: oklch(70.5% 0.015 286.067);
+  --color-zinc-500: oklch(55.2% 0.016 285.938);
+  --color-zinc-600: oklch(44.2% 0.017 285.786);
+  --color-zinc-700: oklch(37% 0.013 285.805);
+  --color-zinc-800: oklch(27.4% 0.006 286.033);
+  --color-zinc-900: oklch(21% 0.006 285.885);
+  --color-zinc-950: oklch(14.1% 0.005 285.823);
+  --color-slate-50: var(--color-zinc-50); --color-slate-100: var(--color-zinc-100); --color-slate-200: var(--color-zinc-200); --color-slate-300: var(--color-zinc-300); --color-slate-400: var(--color-zinc-400); --color-slate-500: var(--color-zinc-500);
+  --color-slate-600: var(--color-zinc-600); --color-slate-700: var(--color-zinc-700); --color-slate-800: var(--color-zinc-800); --color-slate-900: var(--color-zinc-900); --color-slate-950: var(--color-zinc-950);
+  --color-stone-50: var(--color-zinc-50); --color-stone-100: var(--color-zinc-100); --color-stone-200: var(--color-zinc-200); --color-stone-300: var(--color-zinc-300); --color-stone-400: var(--color-zinc-400); --color-stone-500: var(--color-zinc-500);
+  --color-stone-600: var(--color-zinc-600); --color-stone-700: var(--color-zinc-700); --color-stone-800: var(--color-zinc-800); --color-stone-900: var(--color-zinc-900); --color-stone-950: var(--color-zinc-950);
+  --color-gray-50: var(--color-zinc-50); --color-gray-100: var(--color-zinc-100); --color-gray-200: var(--color-zinc-200); --color-gray-300: var(--color-zinc-300); --color-gray-400: var(--color-zinc-400); --color-gray-500: var(--color-zinc-500);
+  --color-gray-600: var(--color-zinc-600); --color-gray-700: var(--color-zinc-700); --color-gray-800: var(--color-zinc-800); --color-gray-900: var(--color-zinc-900); --color-gray-950: var(--color-zinc-950);
+  --color-neutral-50: var(--color-zinc-50); --color-neutral-100: var(--color-zinc-100); --color-neutral-200: var(--color-zinc-200); --color-neutral-300: var(--color-zinc-300); --color-neutral-400: var(--color-zinc-400); --color-neutral-500: var(--color-zinc-500);
+  --color-neutral-600: var(--color-zinc-600); --color-neutral-700: var(--color-zinc-700); --color-neutral-800: var(--color-zinc-800); --color-neutral-900: var(--color-zinc-900); --color-neutral-950: var(--color-zinc-950);
 }
 
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #f8fafc;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  background-color: var(--color-canvas);
+  color: #18181b;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #0f172a;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
 }
+h1, h2, h3, h4 { letter-spacing: -.014em; }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb { background: #e4e4e7 padding-box; border: 2px solid transparent; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #d4d4d8 padding-box; }
+
+/* Dark mode: verbatim from the reference. The zinc scale and white are inverted; everything
+   written with light-mode classes follows automatically. */
+.dark {
+  color-scheme: dark;
+  --color-canvas: #0f0f12;
+  --color-surface: #18181b;
+  --color-line: #2c2c33;
+  --color-line-strong: #3a3a42;
+  --color-white: #18181b;
+  --color-zinc-50: #1c1c20;  --color-zinc-100: #232329; --color-zinc-200: #2c2c33;
+  --color-zinc-300: #3a3a42; --color-zinc-400: #8b8b94; --color-zinc-500: #a1a1aa;
+  --color-zinc-600: #b4b4bb; --color-zinc-700: #cfcfd4; --color-zinc-800: #e4e4e7;
+  --color-zinc-900: #f4f4f5; --color-zinc-950: #fafafa;
+}
+.dark body { background-color: var(--color-canvas); color: #f4f4f5; }
+.dark .text-white { color: #fafafa; }
+.dark .border-white { border-color: #ffffff1f; }
+.dark .ring-white { --tw-ring-color: #ffffff1f; }
+.dark ::-webkit-scrollbar-thumb { background: #3a3a42; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
 /* ── Vinyl disc spin animation (YouTube Shorts preview) ──────────────────── */
 @keyframes spin-slow {
@@ -45,4 +102,3 @@ body {
     animation-duration: 20s;
   }
 }
-
