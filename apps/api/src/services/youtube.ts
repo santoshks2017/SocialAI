@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isMockId } from '../lib/platformMock.js';
 
 // YouTube Data API v3 reads. OAuth access tokens go in the Authorization header, never in a URL.
 export const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
@@ -27,4 +28,28 @@ export async function fetchYouTubeChannels(accessToken: string): Promise<YouTube
     { params: { part: 'snippet,statistics', mine: 'true' }, headers: bearer(accessToken), timeout: TIMEOUT_MS },
   );
   return (res.data.items ?? []).flatMap((item) => (item.id ? [{ id: item.id, title: item.snippet?.title?.trim() || item.id }] : []));
+}
+
+/** A video's public numbers: views also count as reach (as Google Business Profile views do), plus likes and comments. */
+export async function fetchYouTubeVideoMetrics(videoId: string, accessToken: string): Promise<Record<string, number>> {
+  if (isMockId(videoId) || isMockId(accessToken)) return {};
+  const res = await axios.get<{ items?: Array<{ statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }> }>(
+    `${YOUTUBE_API_BASE}/videos`,
+    { params: { part: 'statistics', id: videoId }, headers: bearer(accessToken), timeout: TIMEOUT_MS },
+  );
+  const stats = res.data.items?.[0]?.statistics;
+  const views = youtubeCount(stats?.viewCount) ?? 0;
+  return { views, reach: views, likes: youtubeCount(stats?.likeCount) ?? 0, comments: youtubeCount(stats?.commentCount) ?? 0 };
+}
+
+/** A channel's subscribers; null when the channel hides the count. */
+export async function fetchYouTubeSubscribers(channelId: string, accessToken: string): Promise<number | null> {
+  if (isMockId(channelId) || isMockId(accessToken)) return null;
+  const res = await axios.get<{ items?: Array<{ statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean } }> }>(
+    `${YOUTUBE_API_BASE}/channels`,
+    { params: { part: 'statistics', id: channelId }, headers: bearer(accessToken), timeout: TIMEOUT_MS },
+  );
+  const stats = res.data.items?.[0]?.statistics;
+  if (!stats || stats.hiddenSubscriberCount) return null;
+  return youtubeCount(stats.subscriberCount);
 }

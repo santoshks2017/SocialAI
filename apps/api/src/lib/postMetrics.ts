@@ -1,5 +1,6 @@
 // Post.metrics holds one object per platform, written by the metrics sync (lib/metricsSync.ts):
-// { facebook: { reach, likes, comments, shares }, instagram: { reach, likes, comments, saved }, gmb: { views, clicks } }.
+// { facebook: { reach, likes, comments, shares }, instagram: { reach, likes, comments, saved }, gmb: { views, clicks },
+//   youtube: { views, reach, likes, comments } }.
 // These helpers turn it into comparable numbers. Nothing is invented: a missing value is 0.
 
 export const METRIC_FIELDS = [
@@ -9,7 +10,7 @@ export const METRIC_FIELDS = [
 export type MetricField = (typeof METRIC_FIELDS)[number];
 export type MetricsBag = Record<MetricField, number>;
 
-export const METRIC_PLATFORMS = ['facebook', 'instagram', 'gmb'] as const;
+export const METRIC_PLATFORMS = ['facebook', 'instagram', 'gmb', 'youtube'] as const;
 export type MetricPlatform = (typeof METRIC_PLATFORMS)[number];
 
 export function isMetricPlatform(value: unknown): value is MetricPlatform {
