@@ -2,14 +2,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
 import { LOGO_MAX_BYTES, logoStorageKey, logoTypeFor, sniffLogoType } from '../src/lib/dealerLogo.js';
-import { loadImageFromUrl } from '../src/lib/uploadPaths.js';
-import { LOGOS_DIR } from '../src/routes/upload.js';
+import { loadDealerLogo, loadImageFromUrl } from '../src/lib/uploadPaths.js';
+import { LOGOS_DIR, ORIGINALS_DIR } from '../src/routes/upload.js';
 
 // Local disk only: apps/api/.env may point uploads at a real bucket.
 const STORAGE_ENV = ['GCS_BUCKET', 'S3_BUCKET', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'API_BASE_URL'] as const;
@@ -141,6 +141,26 @@ describe('POST /v1/dealer/logo', () => {
       assert.equal(res.statusCode, 401);
     } finally {
       process.env['NODE_ENV'] = previous;
+    }
+  });
+});
+
+describe('loadDealerLogo', () => {
+  it('reads a logos/ upload from its own folder, never from originals/', async () => {
+    const dealerId = `d-${randomUUID()}`;
+    const name = `${randomUUID()}.png`;
+    // Same file name in both folders: only the logos/ copy is this logo.
+    await mkdir(path.join(LOGOS_DIR, dealerId), { recursive: true });
+    await mkdir(ORIGINALS_DIR, { recursive: true });
+    await writeFile(path.join(LOGOS_DIR, dealerId, name), PNG);
+    await writeFile(path.join(ORIGINALS_DIR, name), JPEG);
+    try {
+      assert.deepEqual(await loadDealerLogo(`/uploads/logos/${dealerId}/${name}`), PNG);
+      // Older logos were uploaded as originals and are still found there.
+      assert.deepEqual(await loadDealerLogo(`/uploads/originals/${name}`), JPEG);
+    } finally {
+      await rm(path.join(LOGOS_DIR, dealerId), { recursive: true, force: true });
+      await rm(path.join(ORIGINALS_DIR, name), { force: true });
     }
   });
 });

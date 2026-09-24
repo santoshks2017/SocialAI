@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import { Prisma } from '../generated/client/index.js';
 import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
-import { BOOST_MAX_DAILY_BUDGET, boostPostSummary, mapCampaign, parseBoostCreate, reachEstimate, type BoostPostSummary } from '../lib/boostView.js';
+import { BOOST_MAX_DAILY_BUDGET, boostListPaging, boostPostSummary, mapCampaign, parseBoostCreate, reachEstimate, type BoostPostSummary } from '../lib/boostView.js';
 
 const invalid = (message: string) => ({ error: { code: 'INVALID_INPUT', message } });
 
@@ -43,14 +43,15 @@ export default async function boostRoutes(fastify: FastifyInstance) {
   // GET /v1/boost — list all campaigns for dealer
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
-    const { status, page = '1', pageSize = '20' } = request.query as Record<string, string>;
+    const query = request.query as Record<string, string | undefined>;
+    const status = query['status'];
 
     const where: Record<string, unknown> = { dealer_id };
     if (status) where['status'] = status;
 
-    const skip = (parseInt(page) - 1) * parseInt(pageSize);
+    const { skip, take } = boostListPaging(query);
     const [campaigns, total] = await Promise.all([
-      prisma.boostCampaign.findMany({ where, orderBy: { created_at: 'desc' }, skip, take: parseInt(pageSize) }),
+      prisma.boostCampaign.findMany({ where, orderBy: { created_at: 'desc' }, skip, take }),
       prisma.boostCampaign.count({ where }),
     ]);
 

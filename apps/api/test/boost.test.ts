@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
-import { boostPostSummary, parseBoostCreate, reachEstimate } from '../src/lib/boostView.js';
+import { boostListPaging, boostPostSummary, parseBoostCreate, reachEstimate } from '../src/lib/boostView.js';
 
 before(async () => { await fastify.ready(); });
 after(async () => { await fastify.close(); });
@@ -91,6 +91,27 @@ describe('GET /v1/boost', () => {
     assert.equal(body.items[0]?.status, 'draft');
     assert.deepEqual(body.items[0]?.post, { id: post.id, title: 'Creta festive offer', thumbnail: 'https://cdn.example/creta.png' });
     assert.equal(body.stats.campaignsThisMonth, 1);
+  });
+
+  it('keeps pageSize between 1 and 100, and 20 when it is not a number', async () => {
+    assert.deepEqual(boostListPaging({}), { skip: 0, take: 20 });
+    assert.deepEqual(boostListPaging({ pageSize: 'lots' }), { skip: 0, take: 20 });
+    assert.deepEqual(boostListPaging({ pageSize: '100000' }), { skip: 0, take: 100 });
+    assert.deepEqual(boostListPaging({ pageSize: '0' }), { skip: 0, take: 1 });
+    assert.deepEqual(boostListPaging({ pageSize: '-5' }), { skip: 0, take: 1 });
+    assert.deepEqual(boostListPaging({ page: '3', pageSize: '50' }), { skip: 100, take: 50 });
+    assert.deepEqual(boostListPaging({ page: 'x', pageSize: '50' }), { skip: 0, take: 50 });
+
+    const dealerId = await newDealer();
+    const post = await newPost(dealerId);
+    for (let i = 0; i < 3; i += 1) {
+      await prisma.boostCampaign.create({ data: { dealer_id: dealerId, post_id: post.id, daily_budget: 500, duration_days: 3, status: 'draft' } });
+    }
+    const list = async (qs: string) => (await fastify.inject({ method: 'GET', url: `/v1/boost${qs}`, headers: headers(dealerId) })).json() as { items: unknown[]; total: number };
+    assert.equal((await list('?pageSize=abc')).items.length, 3);
+    assert.equal((await list('?pageSize=0')).items.length, 1);
+    const second = await list('?pageSize=2&page=2');
+    assert.deepEqual([second.items.length, second.total], [1, 3]);
   });
 
   it("never shows another dealership's post", async () => {

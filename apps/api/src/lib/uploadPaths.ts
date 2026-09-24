@@ -59,11 +59,27 @@ export async function loadImageFromUrl(url: string, options?: SafeFetchOptions):
   return safeFetchBuffer(url, options);
 }
 
-/** A dealer logo: uploaded logos are read back from storage, external URLs go through the SSRF guard. */
-export async function loadDealerLogo(logoUrl: string): Promise<Buffer> {
+/** Logos from POST /v1/dealer/logo are stored under logos/{dealer}/ (locally or in a bucket), never in originals/. */
+function isLogoUpload(logoUrl: string): boolean {
   try {
-    return await readOriginalUpload(path.basename(logoUrl));
+    return new URL(logoUrl, 'http://relative.invalid').pathname.includes('/logos/');
   } catch {
-    return (await loadImageFromUrl(logoUrl, { timeoutMs: 10000 })).buffer;
+    return false;
   }
+}
+
+/**
+ * A dealer logo: uploaded logos are read back from storage, external URLs go through the SSRF guard.
+ * Older logos were uploaded as originals, so other URLs try originals/{name} first; a logos/ URL
+ * skips that lookup, which would only miss (a 404 download on a bucket) before every render.
+ */
+export async function loadDealerLogo(logoUrl: string): Promise<Buffer> {
+  if (!isLogoUpload(logoUrl)) {
+    try {
+      return await readOriginalUpload(path.basename(logoUrl));
+    } catch {
+      // not an originals upload: load it by URL below
+    }
+  }
+  return (await loadImageFromUrl(logoUrl, { timeoutMs: 10000 })).buffer;
 }

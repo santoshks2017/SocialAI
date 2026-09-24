@@ -96,6 +96,28 @@ describe('PATCH /v1/users/:id/account', () => {
     assert.equal((await editAccount(headersFor(manager), creator.id, { phone: creator.phone, name: 'Same Phone' })).statusCode, 200);
   });
 
+  it('refuses an email another account signs in with, in any dealership, without saying where', async () => {
+    const dealerId = await newDealer();
+    const manager = await member(dealerId, 'admin');
+    const creator = await member(dealerId, 'user', { email: 'mine@example.com' });
+    const taken = `taken-${randomUUID()}@example.com`;
+    await member(await newDealer(), 'user', { email: taken });
+
+    const res = await editAccount(headersFor(manager), creator.id, { email: `  ${taken.toUpperCase()} ` });
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.json(), { error: { code: 'EMAIL_TAKEN', message: 'That email is already used by another account.' } });
+    assert.equal((await prisma.dealerUser.findUnique({ where: { id: creator.id } }))?.email, 'mine@example.com');
+  });
+
+  it('lets a member keep their own email', async () => {
+    const dealerId = await newDealer();
+    const manager = await member(dealerId, 'admin');
+    const creator = await member(dealerId, 'user', { email: 'keep@example.com' });
+    const res = await editAccount(headersFor(manager), creator.id, { name: 'Renamed', email: 'KEEP@example.com' });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal((res.json() as { user: { email?: string } }).user.email, 'keep@example.com');
+  });
+
   it('refuses bad input', async () => {
     const dealerId = await newDealer();
     const manager = await member(dealerId, 'admin');
@@ -151,6 +173,58 @@ describe('owner role guards', () => {
 
     const plain = await fastify.inject({ method: 'POST', url: '/v1/users/invite', headers: headersFor(manager), payload: { phone: `ph-${randomUUID()}` } });
     assert.equal((plain.json() as { user: { role: string } }).user.role, 'user');
+  });
+
+  it('refuses to invite with an email another account signs in with', async () => {
+    const dealerId = await newDealer();
+    const manager = await member(dealerId, 'admin');
+    const taken = `taken-${randomUUID()}@example.com`;
+    await member(await newDealer(), 'user', { email: taken });
+    const phone = `ph-${randomUUID()}`;
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/users/invite', headers: headersFor(manager), payload: { phone, email: taken.toUpperCase() },
+    });
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual(res.json(), { error: { code: 'EMAIL_TAKEN', message: 'That email is already used by another account.' } });
+    assert.equal(await prisma.dealerUser.findUnique({ where: { phone } }), null);
+
+    const fresh = `fresh-${randomUUID()}@example.com`;
+    const ok = await fastify.inject({
+      method: 'POST', url: '/v1/users/invite', headers: headersFor(manager), payload: { phone, email: ` ${fresh.toUpperCase()} ` },
+    });
+    assert.equal(ok.statusCode, 201, ok.body);
+    assert.equal((ok.json() as { user: { email?: string } }).user.email, fresh);
+  });
+
+  it("a Manager can't deactivate or remove an Owner; an Owner can", async () => {
+    const dealerId = await newDealer();
+    const manager = await member(dealerId, 'admin');
+    const owner = await member(dealerId, 'owner');
+    const setActive = (actor: { id: string; role: string; dealer_id: string | null }, id: string, isActive: boolean) =>
+      fastify.inject({ method: 'PATCH', url: `/v1/users/${id}/status`, headers: headersFor(actor), payload: { isActive } });
+    const remove = (actor: { id: string; role: string; dealer_id: string | null }, id: string) =>
+      fastify.inject({ method: 'DELETE', url: `/v1/users/${id}`, headers: headersFor(actor) });
+
+    assert.equal((await setActive(manager, owner.id, false)).statusCode, 403);
+    assert.equal((await remove(manager, owner.id)).statusCode, 403);
+    const stored = await prisma.dealerUser.findUnique({ where: { id: owner.id } });
+    assert.equal(stored?.is_active, true);
+
+    const deactivated = await setActive(owner, manager.id, false);
+    assert.equal(deactivated.statusCode, 200, deactivated.body);
+    assert.equal((deactivated.json() as { user: { isActive: boolean } }).user.isActive, false);
+    assert.equal((await remove(owner, manager.id)).statusCode, 200);
+    assert.equal(await prisma.dealerUser.findUnique({ where: { id: manager.id } }), null);
+  });
+
+  it('nobody deactivates or removes themselves', async () => {
+    const dealerId = await newDealer();
+    const manager = await member(dealerId, 'admin');
+    const res = await fastify.inject({ method: 'PATCH', url: `/v1/users/${manager.id}/status`, headers: headersFor(manager), payload: { isActive: false } });
+    assert.equal(res.statusCode, 400);
+    assert.equal((await fastify.inject({ method: 'DELETE', url: `/v1/users/${manager.id}`, headers: headersFor(manager) })).statusCode, 400);
+    assert.equal((await prisma.dealerUser.findUnique({ where: { id: manager.id } }))?.is_active, true);
   });
 
   it("a Manager can't change an Owner's role but can change a Creator's", async () => {

@@ -66,7 +66,7 @@ model DealerUser {
   permissions  Json?     // granular permission overrides for role = "user"
   invited_by   String?   // DealerUser.id who created this account
   is_active    Boolean   @default(true)
-  theme_mode         String   @default("system") // light | dark | system: Settings → Preferences, follows the person across devices
+  theme_mode         String?  // light | dark | system: Settings → Preferences, follows the person across devices; null until they pick one
   notification_prefs Json?    // { [NotificationType]: false } turns a type off for this person; a missing type is on
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt

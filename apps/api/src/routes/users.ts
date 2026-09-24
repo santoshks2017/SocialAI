@@ -5,7 +5,7 @@ import { getUser, requirePermission } from '../lib/routeHelpers.js';
 import type { DealerUser } from '../generated/client/index.js';
 import { Prisma } from '../generated/client/index.js';
 import { mergeNotificationPrefs, parsePreferencesUpdate, preferencesView } from '../lib/userPreferences.js';
-import { canManageMember, inviteRole, parseAccountEdit } from '../lib/teamAccounts.js';
+import { canManageMember, inviteRole, parseAccountEdit, parseEmail } from '../lib/teamAccounts.js';
 
 function mapUser(u: DealerUser) {
   return {
@@ -21,6 +21,26 @@ function mapUser(u: DealerUser) {
     isActive: u.is_active,
     createdAt: u.created_at.toISOString(),
   };
+}
+
+const EMAIL_TAKEN = { error: { code: 'EMAIL_TAKEN', message: 'That email is already used by another account.' } };
+
+/**
+ * Whether a dealership user other than `exceptId` already has this email, in any dealership.
+ * Google, Facebook and email-OTP sign-in find the account by email among dealership users
+ * (routes/auth.ts), so a second account with the same address would make sign-in ambiguous.
+ * The platform owner's own account (no dealership) is reached separately and isn't counted.
+ */
+async function emailTaken(email: string, exceptId?: string): Promise<boolean> {
+  const other = await prisma.dealerUser.findFirst({
+    where: {
+      email: { equals: email, mode: 'insensitive' },
+      dealer_id: { not: null },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
+    select: { id: true },
+  });
+  return other !== null;
 }
 
 export default async function usersRoutes(fastify: FastifyInstance) {
@@ -97,12 +117,15 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const body = request.body as {
       phone: string;
       name?: string;
-      email?: string;
+      email?: string | null;
       role?: string;
       permissions?: Record<string, boolean>;
     };
 
     if (!body.phone) return reply.code(400).send({ error: 'phone is required' });
+    const parsedEmail = parseEmail(body.email ?? null);
+    if (!parsedEmail.ok) return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: parsedEmail.message } });
+    const email = parsedEmail.email;
 
     const role = inviteRole(body.role);
     // Only the platform owner grants the owner role (the same rule as PATCH /:id/role).
@@ -118,12 +141,13 @@ export default async function usersRoutes(fastify: FastifyInstance) {
       }
       return reply.code(409).send({ error: 'Phone number is already registered in another organization' });
     }
+    if (email && await emailTaken(email)) return reply.code(409).send(EMAIL_TAKEN);
 
     const invited = await prisma.dealerUser.create({
       data: {
         phone: body.phone,
         name: body.name ?? 'New User',
-        email: body.email ?? null,
+        email,
         role,
         dealer_id,
         invited_by: user.dealer_user_id,
@@ -192,18 +216,23 @@ export default async function usersRoutes(fastify: FastifyInstance) {
 
     const { id } = request.params as { id: string };
     const { isActive } = request.body as { isActive: boolean };
+    if (id === user.dealer_user_id) return reply.code(400).send({ error: 'Cannot change your own status' });
 
     const target = await prisma.dealerUser.findFirst({
       where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
     });
     if (!target) return reply.code(404).send({ error: 'User not found' });
+    // A Manager deactivating the Owner would lock the Owner out of their own dealership.
+    if (!canManageMember(user.role, target.role)) {
+      return reply.code(403).send({ error: 'Only an Owner can change an Owner’s status' });
+    }
 
     const updated = await prisma.dealerUser.update({ where: { id }, data: { is_active: isActive } });
     return { user: mapUser(updated) };
   });
 
   // PATCH /v1/users/:id/account { name?, email?, phone? } — edit a team member's account (manage_users).
-  // A Manager can't edit an Owner. A phone number is a sign-in identity, so it must stay unique.
+  // A Manager can't edit an Owner. Email and phone number are sign-in identities, so each must stay unique.
   fastify.patch('/:id/account', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const user = getUser(request);
     if (!requirePermission(reply, user, 'manage_users')) return;
@@ -224,6 +253,10 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     if (phone !== undefined && phone !== target.phone) {
       const taken = await prisma.dealerUser.findUnique({ where: { phone } });
       if (taken) return reply.code(409).send({ error: { code: 'PHONE_TAKEN', message: 'This phone number is already in use' } });
+    }
+    // Keeping their own email is fine; taking someone else's is not.
+    if (email && email !== target.email?.trim().toLowerCase() && await emailTaken(email, target.id)) {
+      return reply.code(409).send(EMAIL_TAKEN);
     }
 
     const updated = await prisma.dealerUser.update({
@@ -249,6 +282,9 @@ export default async function usersRoutes(fastify: FastifyInstance) {
       where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
     });
     if (!target) return reply.code(404).send({ error: 'User not found' });
+    if (!canManageMember(user.role, target.role)) {
+      return reply.code(403).send({ error: 'Only an Owner can remove an Owner' });
+    }
 
     await prisma.dealerUser.delete({ where: { id } });
     return { success: true };

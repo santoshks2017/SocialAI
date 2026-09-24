@@ -17,6 +17,7 @@ export type GatedFeature = 'inbox' | 'boost' | 'inventory';
 export const UNLIMITED = 999_999;
 
 export const PAYMENTS_OFF_MESSAGE = 'Online payments are being set up. Contact us to change your plan.';
+export const ALREADY_SUBSCRIBED_MESSAGE = 'You already have an active plan. Contact us to change plans.';
 
 export interface PlanLimits {
   /** Posts created per calendar month; null means no limit. */
@@ -194,4 +195,25 @@ export function tierForRazorpayPlan(planId: string | null | undefined, env: Env 
   if (id.includes('growth') || id.includes('premium')) return 'growth';
   if (id.includes('enterprise')) return 'enterprise';
   return 'starter';
+}
+
+/** The billing cycle a Razorpay plan id is configured for, or null when it isn't one of the configured ids. */
+export function billingCycleForPlan(planId: string | null | undefined, env: Env = process.env): BillingCycle | null {
+  if (!planId) return null;
+  return BILLING_CYCLES.find((cycle) => PLAN_TIERS.some((tier) => razorpayPlanId(tier, cycle, env) === planId)) ?? null;
+}
+
+/**
+ * Razorpay subscription states that can still charge the dealer. The webhook stores Razorpay's status
+ * as it arrives ('active' on activation or charge); 'created' is an unpaid link, and cancelled,
+ * completed and expired subscriptions have ended.
+ */
+const LIVE_SUBSCRIPTION_STATUSES: readonly string[] = ['authenticated', 'active', 'pending', 'halted', 'paused'];
+
+/**
+ * Whether the dealer's subscription row is a live Razorpay subscription. Starting another one would
+ * leave both charging (POST /billing/subscribe overwrites the single row), so plan changes go through us.
+ */
+export function hasLiveSubscription(sub: { status: string; razorpaySubscriptionId: string | null } | null | undefined): boolean {
+  return !!sub?.razorpaySubscriptionId && LIVE_SUBSCRIPTION_STATUSES.includes(sub.status);
 }

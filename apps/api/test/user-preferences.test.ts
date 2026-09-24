@@ -5,7 +5,7 @@ import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
 import { NOTIFICATION_TYPES, notificationPrefsOf, wantsNotification } from '../src/lib/notifications.js';
-import { mergeNotificationPrefs, parsePreferencesUpdate, preferencesView, themeModeOf } from '../src/lib/userPreferences.js';
+import { mergeNotificationPrefs, parsePreferencesUpdate, preferencesView, savedThemeMode } from '../src/lib/userPreferences.js';
 
 before(async () => { await fastify.ready(); });
 after(async () => { await fastify.close(); });
@@ -26,10 +26,12 @@ function headersFor(userId: string, dealerId: string | null) {
 const allOn = Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t, true]));
 
 describe('preference helpers', () => {
-  it('treats a missing or unknown theme as system', () => {
-    assert.equal(themeModeOf('dark'), 'dark');
-    assert.equal(themeModeOf('DARK'), 'system');
-    assert.equal(themeModeOf(undefined), 'system');
+  it('reports no theme (null) until one is saved, so the device keeps its own choice', () => {
+    assert.equal(savedThemeMode('dark'), 'dark');
+    assert.equal(savedThemeMode('system'), 'system');
+    assert.equal(savedThemeMode('DARK'), null);
+    assert.equal(savedThemeMode(undefined), null);
+    assert.equal(savedThemeMode(null), null);
   });
 
   it('turns a type off only when it is stored as false', () => {
@@ -55,16 +57,32 @@ describe('preference helpers', () => {
     assert.equal(merged.inbox_message, false);
     assert.equal(merged.post_published, true);
     assert.deepEqual(Object.keys(merged).sort(), [...NOTIFICATION_TYPES].sort());
-    assert.deepEqual(preferencesView({ theme_mode: 'weird', notification_prefs: null }), { theme_mode: 'system', notification_prefs: allOn });
+    assert.deepEqual(preferencesView({ theme_mode: 'weird', notification_prefs: null }), { theme_mode: null, notification_prefs: allOn });
+    assert.deepEqual(preferencesView({ theme_mode: undefined, notification_prefs: null }), { theme_mode: null, notification_prefs: allOn });
   });
 });
 
 describe('/v1/users/me/preferences', () => {
-  it('starts at system with every notification on', async () => {
+  it('starts with no saved theme and every notification on', async () => {
     const user = await newUser();
-    const res = await fastify.inject({ method: 'GET', url: '/v1/users/me/preferences', headers: headersFor(user.id, user.dealer_id) });
+    const h = headersFor(user.id, user.dealer_id);
+    const res = await fastify.inject({ method: 'GET', url: '/v1/users/me/preferences', headers: h });
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.json(), { theme_mode: 'system', notification_prefs: allOn });
+    assert.deepEqual(res.json(), { theme_mode: null, notification_prefs: allOn });
+
+    // Once saved, even "system" is the person's choice and comes back as such.
+    await fastify.inject({ method: 'PUT', url: '/v1/users/me/preferences', headers: h, payload: { theme_mode: 'system' } });
+    const saved = await fastify.inject({ method: 'GET', url: '/v1/users/me/preferences', headers: h });
+    assert.equal(saved.json().theme_mode, 'system');
+  });
+
+  it('keeps an account saved before themes existed at null', async () => {
+    const user = await newUser();
+    // Older documents have no theme_mode field at all; the adapter must not fill a default in.
+    const stored = await prisma.dealerUser.findUnique({ where: { id: user.id } });
+    assert.equal(stored?.theme_mode, null);
+    const res = await fastify.inject({ method: 'GET', url: '/v1/users/me/preferences', headers: headersFor(user.id, user.dealer_id) });
+    assert.equal(res.json().theme_mode, null);
   });
 
   it('saves the theme and merges notification choices', async () => {

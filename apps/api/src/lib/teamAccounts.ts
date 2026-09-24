@@ -1,4 +1,8 @@
-/** Team account rules shared by /v1/users routes. We sign in by phone OTP, so an account is name, email and phone. */
+/**
+ * Team account rules shared by /v1/users routes. An account is a name, an email and a phone number.
+ * Google, Facebook and email-OTP sign-in find the account by its email (routes/auth.ts), and phone OTP
+ * by its phone number, so both must stay unique.
+ */
 
 export const ACCOUNT_NAME_MAX = 80;
 const EMAIL_MAX = 254;
@@ -6,6 +10,16 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function isValidEmail(value: string): boolean {
   return value.length <= EMAIL_MAX && EMAIL.test(value);
+}
+
+export type EmailParse = { ok: true; email: string | null } | { ok: false; message: string };
+
+/** An email as sign-in matches it: trimmed and lower-cased. Empty or null clears it (null). */
+export function parseEmail(value: unknown): EmailParse {
+  if (value !== null && typeof value !== 'string') return { ok: false, message: 'Email must be text' };
+  const clean = (value ?? '').trim().toLowerCase();
+  if (clean && !isValidEmail(clean)) return { ok: false, message: 'Enter a valid email address' };
+  return { ok: true, email: clean || null };
 }
 
 export interface AccountEdit {
@@ -28,10 +42,9 @@ export function parseAccountEdit(body: unknown): AccountEditParse {
     edit.name = name.trim();
   }
   if (email !== undefined) {
-    if (email !== null && typeof email !== 'string') return { ok: false, message: 'Email must be text' };
-    const clean = (email ?? '').trim().toLowerCase();
-    if (clean && !isValidEmail(clean)) return { ok: false, message: 'Enter a valid email address' };
-    edit.email = clean || null;
+    const parsed = parseEmail(email);
+    if (!parsed.ok) return parsed;
+    edit.email = parsed.email;
   }
   if (phone !== undefined) {
     // As on invite: required, stored as typed.
@@ -44,7 +57,7 @@ export function parseAccountEdit(body: unknown): AccountEditParse {
   return { ok: true, edit };
 }
 
-/** A Manager (admin) can't edit or re-role an Owner; an Owner can manage anyone. */
+/** A Manager (admin) can't edit, re-role, deactivate or remove an Owner; an Owner can manage anyone. */
 export function canManageMember(actorRole: string, targetRole: string): boolean {
   return targetRole !== 'owner' || actorRole === 'owner';
 }

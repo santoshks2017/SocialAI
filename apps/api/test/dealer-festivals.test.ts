@@ -36,12 +36,15 @@ describe('GET /v1/dealer/festivals', () => {
     }
   });
 
-  it('still lists upcoming festivals without a range', async () => {
+  it('still lists upcoming festivals without a range', async (t) => {
+    // "Upcoming" is relative to today: pin today so the known festivals below never pass.
+    t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-25T06:30:00.000Z') });
     const res = await get(await headersForDealerIn('Pune'), '?limit=3');
     assert.equal(res.statusCode, 200);
-    const festivals = (res.json() as { festivals: Array<{ id: string; daysRemaining: number }> }).festivals;
-    // Known, ordered upcoming festivals for a Pune dealer as of this table: catches a broken or emptied festival feed.
+    const festivals = (res.json() as { festivals: Array<{ id: string; date: string; daysRemaining: number }> }).festivals;
+    // Known, ordered upcoming festivals for a Pune dealer on 25 September 2026: catches a broken or emptied festival feed.
     assert.deepEqual(festivals.map((f) => f.id), ['dussehra', 'diwali', 'christmas']);
+    assert.equal(festivals[0]?.date.slice(0, 10), '2026-10-20');
     assert.ok(festivals.every((f) => f.daysRemaining >= 0));
   });
 });

@@ -5,8 +5,8 @@ import { validateRazorpaySignature } from '../lib/webhookSecurity.js';
 import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 import { connectedPlatformCount } from '../lib/connectionStore.js';
 import {
-  BILLING_PLANS, PAYMENTS_OFF_MESSAGE, UNLIMITED, annualDiscountPercent, isBillingCycle, isPlanTier, paymentsEnabled,
-  planLimits, razorpayPlanId, tierForRazorpayPlan,
+  ALREADY_SUBSCRIBED_MESSAGE, BILLING_PLANS, PAYMENTS_OFF_MESSAGE, UNLIMITED, annualDiscountPercent, billingCycleForPlan,
+  hasLiveSubscription, isBillingCycle, isPlanTier, paymentsEnabled, planLimits, razorpayPlanId, tierForRazorpayPlan,
 } from '../lib/billingPlans.js';
 
 export default async function billingRoutes(fastify: FastifyInstance) {
@@ -62,6 +62,10 @@ export default async function billingRoutes(fastify: FastifyInstance) {
         status: dealer.subscription.status,
         planId: dealer.subscription.planId,
         currentPeriodEnd: dealer.subscription.currentPeriodEnd?.toISOString() ?? null,
+        // live: a Razorpay subscription that can still charge (subscribe answers 409 while it is);
+        // cycle: what its plan id is configured as, or null when it isn't one of the configured ids.
+        live: hasLiveSubscription(dealer.subscription),
+        cycle: billingCycleForPlan(dealer.subscription.planId),
       } : null,
       limits: {
         postsLimit,
@@ -81,7 +85,8 @@ export default async function billingRoutes(fastify: FastifyInstance) {
   }));
 
   // POST /v1/billing/subscribe { tier, cycle } — starts a Razorpay subscription on the configured plan id.
-  // Until Razorpay is configured (paymentsEnabled) it answers 503 BILLING_NOT_CONFIGURED and creates nothing.
+  // Until Razorpay is configured (paymentsEnabled) it answers 503 BILLING_NOT_CONFIGURED and creates nothing;
+  // while the dealer has a live subscription it answers 409 ALREADY_SUBSCRIBED.
   fastify.post('/subscribe', { preHandler: [fastify.authenticate, canViewBilling] }, async (request, reply) => {
     const dealerId = request.user.dealer_id;
     if (!dealerId) {
@@ -95,6 +100,12 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     const planId = razorpayPlanId(tier, cycle);
     if (!paymentsEnabled() || !planId) {
       return reply.code(503).send({ error: { code: 'BILLING_NOT_CONFIGURED', message: PAYMENTS_OFF_MESSAGE } });
+    }
+    // A second subscription would charge alongside the first, and the upsert below would orphan the
+    // first one's webhooks. Until plan changes cancel or update the old one, they go through us.
+    const existing = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
+    if (hasLiveSubscription(existing)) {
+      return reply.code(409).send({ error: { code: 'ALREADY_SUBSCRIBED', message: ALREADY_SUBSCRIBED_MESSAGE } });
     }
 
     let subscriptionId: string;

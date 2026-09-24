@@ -2,25 +2,28 @@ import { isNotificationType, notificationPrefsOf, type NotificationPrefs } from 
 
 export const THEME_MODES = ['light', 'dark', 'system'] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
-/** Matches the web default (apps/web/src/utils/theme.ts): follow the device. */
-export const DEFAULT_THEME_MODE: ThemeMode = 'system';
 
 export function isThemeMode(value: unknown): value is ThemeMode {
   return typeof value === 'string' && (THEME_MODES as readonly string[]).includes(value);
 }
 
-export function themeModeOf(value: unknown): ThemeMode {
-  return isThemeMode(value) ? value : DEFAULT_THEME_MODE;
+/**
+ * The theme the person saved, or null when they never saved one. Before accounts carried a theme,
+ * Settings kept it on the device only: null tells the web to keep (and save) that device choice
+ * instead of replacing it with a default.
+ */
+export function savedThemeMode(value: unknown): ThemeMode | null {
+  return isThemeMode(value) ? value : null;
 }
 
 /** GET/PUT /v1/users/me/preferences */
 export interface UserPreferences {
-  theme_mode: ThemeMode;
+  theme_mode: ThemeMode | null;
   notification_prefs: NotificationPrefs;
 }
 
 export function preferencesView(user: { theme_mode: unknown; notification_prefs: unknown }): UserPreferences {
-  return { theme_mode: themeModeOf(user.theme_mode), notification_prefs: notificationPrefsOf(user.notification_prefs) };
+  return { theme_mode: savedThemeMode(user.theme_mode), notification_prefs: notificationPrefsOf(user.notification_prefs) };
 }
 
 export interface PreferencesUpdate {

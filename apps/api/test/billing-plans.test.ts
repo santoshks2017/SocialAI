@@ -7,8 +7,8 @@ import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser, type Role } from '../src/lib/permissions.js';
 import { ACCOUNT_PLATFORMS } from '../src/lib/connections.js';
 import {
-  BILLING_CYCLES, BILLING_PLANS, PLAN_LIMITS, PLAN_TIERS, UNLIMITED, annualDiscountPercent, paymentsEnabled,
-  planFeatures, planLimits, razorpayPlanEnvKey, razorpayPlanId, tierForRazorpayPlan,
+  BILLING_CYCLES, BILLING_PLANS, PLAN_LIMITS, PLAN_TIERS, UNLIMITED, annualDiscountPercent, billingCycleForPlan, hasLiveSubscription,
+  paymentsEnabled, planFeatures, planLimits, razorpayPlanEnvKey, razorpayPlanId, tierForRazorpayPlan,
 } from '../src/lib/billingPlans.js';
 
 // apps/api/.env may hold real Razorpay values: every test starts with none.
@@ -104,6 +104,26 @@ describe('billingPlans', () => {
   });
 });
 
+describe('live subscriptions', () => {
+  it('counts a Razorpay subscription as live until it ends, but not an unpaid link', () => {
+    for (const status of ['authenticated', 'active', 'pending', 'halted', 'paused']) {
+      assert.equal(hasLiveSubscription({ status, razorpaySubscriptionId: 'sub_1' }), true, status);
+    }
+    for (const status of ['created', 'cancelled', 'completed', 'expired']) {
+      assert.equal(hasLiveSubscription({ status, razorpaySubscriptionId: 'sub_1' }), false, status);
+    }
+    assert.equal(hasLiveSubscription({ status: 'active', razorpaySubscriptionId: null }), false);
+    assert.equal(hasLiveSubscription(null), false);
+  });
+
+  it('reads the cycle from the configured plan ids only', () => {
+    assert.equal(billingCycleForPlan('plan_Z10', CONFIGURED), 'monthly');
+    assert.equal(billingCycleForPlan('plan_Z11', CONFIGURED), 'annual');
+    assert.equal(billingCycleForPlan('plan_growth_monthly', CONFIGURED), null);
+    assert.equal(billingCycleForPlan(null, CONFIGURED), null);
+  });
+});
+
 describe('GET /v1/billing/plans and /status', () => {
   it('lists the plans with payments off', async () => {
     const res = await fastify.inject({ method: 'GET', url: '/v1/billing/plans', headers: headers(await newDealer()) });
@@ -165,6 +185,45 @@ describe('POST /v1/billing/subscribe', () => {
       assert.equal((calls[0]?.body as { plan_id: string }).plan_id, 'plan_Z11');
       const sub = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
       assert.deepEqual([sub?.planId, sub?.status, sub?.razorpaySubscriptionId], ['plan_Z11', 'created', 'sub_test_1']);
+    } finally {
+      axios.post = original;
+    }
+  });
+
+  it('refuses a second subscription while one is live, and reports it on /status', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer('growth');
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: `sub_${randomUUID()}`, planId: 'plan_Z10', status: 'active' } });
+    const original = axios.post;
+    let calls = 0;
+    axios.post = (async () => {
+      calls += 1;
+      return { data: { id: 'sub_second', short_url: 'https://rzp.io/i/second' } };
+    }) as unknown as typeof axios.post;
+    try {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'enterprise', cycle: 'monthly' } });
+      assert.equal(res.statusCode, 409, res.body);
+      assert.deepEqual(res.json(), { error: { code: 'ALREADY_SUBSCRIBED', message: 'You already have an active plan. Contact us to change plans.' } });
+      assert.equal(calls, 0);
+      assert.equal((await prisma.subscription.findUnique({ where: { dealer_id: dealerId } }))?.status, 'active');
+
+      const status = (await fastify.inject({ method: 'GET', url: '/v1/billing/status', headers: headers(dealerId) })).json();
+      assert.deepEqual([status.subscription.live, status.subscription.cycle], [true, 'monthly']);
+    } finally {
+      axios.post = original;
+    }
+  });
+
+  it('lets a dealer whose payment link went unpaid subscribe again', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: `sub_${randomUUID()}`, planId: 'plan_Z10', status: 'created' } });
+    const original = axios.post;
+    axios.post = (async () => ({ data: { id: 'sub_retry', short_url: 'https://rzp.io/i/retry' } })) as unknown as typeof axios.post;
+    try {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'growth', cycle: 'monthly' } });
+      assert.equal(res.statusCode, 200, res.body);
+      assert.equal((await prisma.subscription.findUnique({ where: { dealer_id: dealerId } }))?.razorpaySubscriptionId, 'sub_retry');
     } finally {
       axios.post = original;
     }

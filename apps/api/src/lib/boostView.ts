@@ -15,6 +15,17 @@ const TARGETING_RADIUS_MIN = 5;
 const TARGETING_RADIUS_MAX = 50;
 const TARGETING_CITY_MAX_LEN = 100;
 
+const LIST_PAGE_SIZE_DEFAULT = 20;
+const LIST_PAGE_SIZE_MAX = 100;
+
+/** GET /v1/boost paging: pageSize from 1 to 100 (20 when it isn't a number), page from 1. */
+export function boostListPaging(query: { page?: unknown; pageSize?: unknown }): { skip: number; take: number } {
+  const size = Number.parseInt(String(query.pageSize ?? ''), 10);
+  const take = Number.isFinite(size) ? Math.min(LIST_PAGE_SIZE_MAX, Math.max(1, size)) : LIST_PAGE_SIZE_DEFAULT;
+  const page = Number.parseInt(String(query.page ?? ''), 10);
+  return { skip: (Number.isFinite(page) && page > 1 ? page - 1 : 0) * take, take };
+}
+
 export type BoostPostSource = Pick<Post, 'id' | 'prompt_text' | 'thumbnail_url' | 'creative_urls'>;
 
 export interface BoostPostSummary {
