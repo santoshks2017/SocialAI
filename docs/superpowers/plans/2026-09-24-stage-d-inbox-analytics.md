@@ -194,7 +194,7 @@
 |---|---|---|---|
 | `InboxMessage.rating`, `InboxMessage.needs_classification`, `Event`, `FollowerSnapshot`, `prisma.event`, `prisma.followerSnapshot` | schema / `db/prisma.ts` | 1 | 2, 3, 4, 5, 6, 7 |
 | `MetricsBag`, `MetricPlatform`, `METRIC_PLATFORMS`, `isMetricPlatform`, `emptyBag`, `addBags`, `platformBag`, `postMetricsBags`, `totalReach` | `lib/postMetrics.ts` | 1 | 5, 6 |
-| `isMockId`, `isMockConnection` | `lib/platformMock.ts` | 2 | 2, 3, 4, 5 |
+| `isMockId`, `isMockConnection` | `lib/platformMock.ts` | 2 | 2, 4, 5 |
 | `geminiJson`, `parseJsonText` | `lib/geminiJson.ts` | 2 | 2, 3 |
 | `truncateText`, `firstCreativeUrl`, `mapMessage`, `mapMessages`, `InboxMessageView` | `lib/inboxView.ts` | 2 | 2, 3, 6 |
 | `toneFor`, `dealerReplyContext`, `inboxReplyType`, `parseReplies`, `suggestReplies`, `parseTestimonial`, `draftTestimonial` | `lib/inboxReplies.ts` | 2 | 2 |
