@@ -149,6 +149,38 @@ export function buildPublishData(
   };
 }
 
+export interface PublishJob {
+  name: string;
+  data: PublishDirectData;
+}
+
+/**
+ * Queue path: one job per target account that doesn't have the post yet. Platforms with no account to target
+ * are returned as skipped. Media a platform can't take is still queued, so the worker records the failure.
+ */
+export function publishJobs(
+  post: PublishablePost & Pick<Post, 'publish_results'>,
+  platforms: readonly string[],
+  connections: readonly PlatformConnection[],
+): { jobs: PublishJob[]; skipped: string[] } {
+  const previous = toJsonObject(post.publish_results);
+  const jobs: PublishJob[] = [];
+  const skipped: string[] = [];
+  for (const plan of resolveTargets({ platforms, connection_ids: post.connection_ids ?? [] }, connections)) {
+    if (plan.error) {
+      skipped.push(plan.platform);
+      continue;
+    }
+    const entry: unknown = previous[plan.platform];
+    if (isLegacySuccess(entry)) continue;
+    for (const conn of plan.targets) {
+      if (storedOutcome(entry, conn.id)) continue;
+      jobs.push({ name: `publish-${plan.platform}-${post.id}-${conn.id}`, data: buildPublishData(post, plan.platform, conn) });
+    }
+  }
+  return { jobs, skipped };
+}
+
 async function sendVideoToPlatform(data: PublishDirectData): Promise<{ platform_post_id: string; url: string }> {
   const { platform, video_url, caption, access_token } = data;
   if (!video_url) throw new Error('This post has no video to publish.');

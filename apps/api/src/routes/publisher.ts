@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { prisma } from "../db/prisma.js"
 import { publishQueue, isQueueAvailable } from "../queues/index.js"
-import type { PublishJobData } from "../queues/index.js"
-import { buildPublishData, platformLabel, publishPost } from "../lib/publishDirect.js"
+import { platformLabel, publishJobs, publishPost } from "../lib/publishDirect.js"
+import { CONNECTION_IDS_MESSAGE, parseConnectionIds } from "../lib/connections.js"
+import { ownConnectionIds } from "../lib/connectionStore.js"
 import { deletePostIf, transitionPost } from "../lib/publishClaim.js"
 import { spendApprovalLinks } from "../lib/approvals.js"
 import { PERMISSIONS } from "../lib/permissions.js"
@@ -44,6 +45,22 @@ async function removeQueuedJobs(postId: string) {
   }
 }
 
+// Target accounts from a request body: the dealer's own ids only. undefined = not sent; null = invalid.
+async function targetAccounts(dealerId: string, value: unknown): Promise<string[] | null | undefined> {
+  if (value === undefined) return undefined
+  const ids = parseConnectionIds(value)
+  return ids ? ownConnectionIds(dealerId, ids) : null
+}
+
+// Whether a publish request should go through the queue: a queue must be configured, some target
+// platform must still be reachable, and there must be an actual job to run. Without the jobsLength
+// check, a publish where every named account already has the post (nothing to enqueue) would still
+// take the queue path, enqueue nothing, and leave the post stuck in "publishing" forever — this falls
+// it through to the inline publishPost() call instead, which records the already-known outcome.
+export function useQueueFor(queueAvailable: boolean, jobsLength: number, skippedLength: number, platformsLength: number): boolean {
+  return queueAvailable && jobsLength > 0 && skippedLength < platformsLength
+}
+
 export default async function publisherRoutes(fastify: FastifyInstance) {
   // POST /v1/publisher/posts — create a draft post
   fastify.post(
@@ -62,6 +79,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         mediaType?: string
         videoUrl?: string
         thumbnailUrl?: string
+        connectionIds?: unknown
       }
 
       if (!body.promptText || !body.platforms?.length) {
@@ -84,6 +102,11 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "thumbnailUrl must be a media URL" } })
       }
 
+      const connectionIds = await targetAccounts(dealer_id, body.connectionIds)
+      if (connectionIds === null) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: CONNECTION_IDS_MESSAGE } })
+      }
+
       const post = await prisma.post.create({
         data: {
           dealer_id,
@@ -92,6 +115,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
           caption_hashtags: body.captionHashtags ?? [],
           ...(body.creativeUrls ? { creative_urls: body.creativeUrls } : {}),
           platforms: body.platforms,
+          connection_ids: connectionIds ?? [],
           status: "draft",
           created_by: request.user.dealer_user_id ?? null,
           media_type: isVideo ? "video" : "image",
@@ -219,6 +243,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         mediaType: string
         videoUrl: string
         thumbnailUrl: string
+        connectionIds: unknown
       }>
 
       if (body.status !== undefined && APPROVAL_STATUSES.has(body.status)) {
@@ -244,6 +269,11 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "thumbnailUrl must be a media URL" } })
       }
 
+      const connectionIds = await targetAccounts(dealer_id, body.connectionIds)
+      if (connectionIds === null) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: CONNECTION_IDS_MESSAGE } })
+      }
+
       const existing = await prisma.post.findFirst({ where: { id, dealer_id } })
       if (!existing)
         return reply
@@ -264,6 +294,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         body.captionHashtags !== undefined ||
         body.creativeUrls !== undefined ||
         body.platforms !== undefined ||
+        body.connectionIds !== undefined ||
         body.mediaType !== undefined ||
         body.videoUrl !== undefined ||
         body.thumbnailUrl !== undefined
@@ -278,6 +309,7 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
       if (body.creativeUrls !== undefined)
         updateData.creative_urls = body.creativeUrls
       if (body.platforms !== undefined) updateData.platforms = body.platforms
+      if (connectionIds !== undefined) updateData.connection_ids = connectionIds
       if (body.videoUrl !== undefined) updateData.video_url = body.videoUrl
       if (body.thumbnailUrl !== undefined) updateData.thumbnail_url = body.thumbnailUrl
       // mediaType: 'image' ignores any videoUrl/thumbnailUrl sent in the same request and clears
@@ -421,27 +453,22 @@ export default async function publisherRoutes(fastify: FastifyInstance) {
         })
       }
 
-      // Load platform connections for this dealer
-      const connections = await prisma.platformConnection.findMany({
-        where: { dealer_id, is_connected: true },
-      })
-      const connMap = new Map(connections.map((c) => [c.platform, c]))
-      const skipped = platforms.filter((platform) => !connMap.has(platform))
-      const useQueue = isQueueAvailable() && !!publishQueue && skipped.length < platforms.length
+      // All the dealer's accounts, connected or not: the post may name one that was disconnected since.
+      const connections = await prisma.platformConnection.findMany({ where: { dealer_id } })
+      const queued = publishJobs(post, platforms, connections)
+      const skipped = queued.skipped
+      const useQueue = useQueueFor(isQueueAvailable() && !!publishQueue, queued.jobs.length, skipped.length, platforms.length)
 
-      // BullMQ path: one job per connected platform, delayed for scheduled posts
+      // BullMQ path: one job per target account, delayed for scheduled posts
       const enqueue = async (delay: number) => {
         const jobIds: string[] = []
-        for (const platform of platforms) {
-          const conn = connMap.get(platform)
-          if (!conn) continue
-          const jobData: PublishJobData = buildPublishData(post, platform, conn)
-          const job = await publishQueue!.add(`publish-${platform}-${post_id}`, jobData, {
+        for (const job of queued.jobs) {
+          const added = await publishQueue!.add(job.name, job.data, {
             delay,
             attempts: 3,
             backoff: { type: "exponential", delay: 60_000 },
           })
-          if (job.id) jobIds.push(job.id)
+          if (added.id) jobIds.push(added.id)
         }
         return jobIds
       }

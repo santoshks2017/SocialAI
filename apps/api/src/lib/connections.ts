@@ -76,3 +76,12 @@ export function resolveTargets<T extends ConnectionRef>(post: TargetPost, conns:
       : { platform, targets: [], error: noConnectedAccountMessage(platform) };
   });
 }
+
+export const CONNECTION_IDS_MESSAGE = `connectionIds must be a list of up to ${MAX_CONNECTED_ACCOUNTS} account ids`;
+
+/** A post's target account ids from a request body: distinct non-empty strings, at most 30; null when invalid. */
+export function parseConnectionIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > MAX_CONNECTED_ACCOUNTS) return null;
+  if (!value.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 128)) return null;
+  return [...new Set(value as string[])];
+}

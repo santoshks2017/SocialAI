@@ -111,3 +111,10 @@ export async function connectedPlatformCount(dealerId: string): Promise<number> 
   const rows = await prisma.platformConnection.findMany({ where: { dealer_id: dealerId, is_connected: true } });
   return new Set(rows.map((r) => r.platform)).size;
 }
+
+/** The ids that are this dealership's own accounts (connected or not), in the order given. */
+export async function ownConnectionIds(dealerId: string, ids: readonly string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const mine = new Set((await prisma.platformConnection.findMany({ where: { dealer_id: dealerId } })).map((c) => c.id));
+  return ids.filter((id) => mine.has(id));
+}
