@@ -14,8 +14,19 @@ export interface Audience {
 export const BUDGET_PRESETS = [500, 1000, 2500, 5000] as const;
 export const DURATION_PRESETS = [3, 7, 14, 30] as const;
 export const MIN_DAILY_BUDGET = 200;
+// Same as the API's BOOST_MAX_DAILY_BUDGET (apps/api/src/lib/boostView.ts) — ₹10,00,000.
+export const MAX_DAILY_BUDGET = 1_000_000;
 export const WIZARD_STEPS = ['Post', 'Budget', 'Duration', 'Audience', 'Confirm'] as const;
 export const DEFAULT_AUDIENCE: Audience = { radius: 25, ageMin: 25, ageMax: 55, gender: 'all' };
+
+export type PostsLoadState = 'loading' | 'error' | 'empty' | 'ready';
+
+/** What step 1 of the wizard shows, from the load outcome alone. */
+export function postsLoadState(loaded: boolean, failed: boolean, count: number): PostsLoadState {
+  if (!loaded) return 'loading';
+  if (failed) return 'error';
+  return count === 0 ? 'empty' : 'ready';
+}
 
 const DAY_MS = 86_400_000;
 
@@ -65,7 +76,8 @@ export function campaignsLine(count: number): string {
   return `across ${count} campaign${count === 1 ? '' : 's'}`;
 }
 
-export function reachLine(r: { minReach: number; maxReach: number }): string {
+export function reachLine(r: { minReach: number; maxReach: number } | null | undefined): string {
+  if (!r || !Number.isFinite(r.minReach) || !Number.isFinite(r.maxReach)) return '—';
   return `~${r.minReach.toLocaleString('en-IN')}–${r.maxReach.toLocaleString('en-IN')} people/day`;
 }
 
@@ -85,7 +97,15 @@ export function effectiveBudget(preset: number, custom: string): number {
 }
 
 export function budgetValid(amount: number): boolean {
-  return Number.isInteger(amount) && amount >= MIN_DAILY_BUDGET;
+  return budgetError(amount) === null;
+}
+
+/** null when the amount is a valid whole-rupee budget; otherwise the reason to show inline. */
+export function budgetError(amount: number): string | null {
+  if (!Number.isInteger(amount)) return 'Enter a whole number of rupees.';
+  if (amount < MIN_DAILY_BUDGET) return `Minimum budget is ${rupees(MIN_DAILY_BUDGET)}/day.`;
+  if (amount > MAX_DAILY_BUDGET) return `Maximum budget is ${rupees(MAX_DAILY_BUDGET)}/day.`;
+  return null;
 }
 
 export function targetingFor(city: string | undefined, a: Audience): TargetingSpec {

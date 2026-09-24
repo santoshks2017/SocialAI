@@ -53,8 +53,28 @@ describe('boostView', () => {
       { postId: 'p1', dailyBudget: 500, durationDays: 0 },
       { postId: 'p1', dailyBudget: 500, durationDays: 91 },
       { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: [] },
+      // targeting content, not just its shape:
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { gender: 'robot' } },
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { ageMin: 90, ageMax: 95 } },
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { ageMin: 17, ageMax: 40 } },
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { ageMin: 40, ageMax: 30 } },
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { location: { city: 'Pune', radius: -3 } } },
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { location: { city: 'Pune', radius: 100 } } },
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { location: { radius: 25 } } },
+      { postId: 'p1', dailyBudget: 500, durationDays: 7, targeting: { location: 'Pune' } },
     ];
     for (const body of bad) assert.equal(parseBoostCreate(body).ok, false, JSON.stringify(body));
+  });
+
+  it('drops unknown targeting keys and keeps only the validated fields', () => {
+    const result = parseBoostCreate({
+      postId: 'p1', dailyBudget: 500, durationDays: 7,
+      targeting: { gender: 'female', ageMin: 25, ageMax: 55, location: { city: 'Pune', radius: 25, latitude: 18.5, longitude: 73.8 }, interests: ['cars'], evil: '<script>' },
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.ok && result.value.targeting, {
+      gender: 'female', ageMin: 25, ageMax: 55, location: { city: 'Pune', radius: 25 },
+    });
   });
 });
 
@@ -79,6 +99,18 @@ describe('GET /v1/boost', () => {
     await prisma.boostCampaign.create({ data: { dealer_id: dealerId, post_id: foreign.id, daily_budget: 500, duration_days: 3, status: 'active' } });
     const body = (await fastify.inject({ method: 'GET', url: '/v1/boost', headers: headers(dealerId) })).json() as { items: Array<{ post?: unknown }> };
     assert.equal(body.items[0]?.post, undefined);
+  });
+});
+
+describe('GET /v1/boost/:id', () => {
+  it('carries the boosted post', async () => {
+    const dealerId = await newDealer();
+    const post = await newPost(dealerId, { facebook: 'https://cdn.example/creta.png' });
+    const campaign = await prisma.boostCampaign.create({ data: { dealer_id: dealerId, post_id: post.id, daily_budget: 500, duration_days: 3, status: 'active' } });
+    const res = await fastify.inject({ method: 'GET', url: `/v1/boost/${campaign.id}`, headers: headers(dealerId) });
+    assert.equal(res.statusCode, 200);
+    const { item } = res.json() as { item: { post?: unknown } };
+    assert.deepEqual(item.post, { id: post.id, title: 'Creta festive offer', thumbnail: 'https://cdn.example/creta.png' });
   });
 });
 
@@ -109,6 +141,90 @@ describe('POST /v1/boost', () => {
       assert.equal(res.json().error.code, 'POST_NOT_FOUND');
     }
   });
+
+  it('refuses a non-object targeting at the route level', async () => {
+    const dealerId = await newDealer();
+    const post = await newPost(dealerId);
+    const res = await create(dealerId, { postId: post.id, dailyBudget: 500, durationDays: 3, targeting: 'female' });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.json().error.code, 'INVALID_INPUT');
+  });
+
+  it('refuses targeting values outside the wizard bounds', async () => {
+    const dealerId = await newDealer();
+    const post = await newPost(dealerId);
+    const res = await create(dealerId, { postId: post.id, dailyBudget: 500, durationDays: 3, targeting: { gender: 'robot' } });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.json().error.code, 'INVALID_INPUT');
+  });
+});
+
+describe('campaign status transitions', () => {
+  const campaignWith = (dealerId: string, postId: string, status: string) =>
+    prisma.boostCampaign.create({ data: { dealer_id: dealerId, post_id: postId, daily_budget: 500, duration_days: 3, status } });
+
+  it('pauses only an active campaign', async () => {
+    const dealerId = await newDealer();
+    const post = await newPost(dealerId);
+    const active = await campaignWith(dealerId, post.id, 'active');
+    const ok = await fastify.inject({ method: 'POST', url: `/v1/boost/${active.id}/pause`, headers: headers(dealerId) });
+    assert.equal(ok.statusCode, 200);
+    assert.equal(ok.json().item.status, 'paused');
+
+    const draft = await campaignWith(dealerId, post.id, 'draft');
+    const badFromDraft = await fastify.inject({ method: 'POST', url: `/v1/boost/${draft.id}/pause`, headers: headers(dealerId) });
+    assert.equal(badFromDraft.statusCode, 409);
+    assert.equal(badFromDraft.json().error.code, 'INVALID_STATE');
+
+    const completed = await campaignWith(dealerId, post.id, 'completed');
+    const badFromCompleted = await fastify.inject({ method: 'POST', url: `/v1/boost/${completed.id}/pause`, headers: headers(dealerId) });
+    assert.equal(badFromCompleted.statusCode, 409);
+  });
+
+  it('resumes only a paused campaign', async () => {
+    const dealerId = await newDealer();
+    const post = await newPost(dealerId);
+    const paused = await campaignWith(dealerId, post.id, 'paused');
+    const ok = await fastify.inject({ method: 'POST', url: `/v1/boost/${paused.id}/resume`, headers: headers(dealerId) });
+    assert.equal(ok.statusCode, 200);
+    assert.equal(ok.json().item.status, 'active');
+
+    const draft = await campaignWith(dealerId, post.id, 'draft');
+    const bad = await fastify.inject({ method: 'POST', url: `/v1/boost/${draft.id}/resume`, headers: headers(dealerId) });
+    assert.equal(bad.statusCode, 409);
+    assert.equal(bad.json().error.code, 'INVALID_STATE');
+  });
+
+  it('stops anything that has not already finished', async () => {
+    const dealerId = await newDealer();
+    const post = await newPost(dealerId);
+    for (const status of ['draft', 'active', 'paused']) {
+      const c = await campaignWith(dealerId, post.id, status);
+      const res = await fastify.inject({ method: 'POST', url: `/v1/boost/${c.id}/stop`, headers: headers(dealerId) });
+      assert.equal(res.statusCode, 200, status);
+      assert.equal(res.json().item.status, 'completed');
+    }
+    const completed = await campaignWith(dealerId, post.id, 'completed');
+    const bad = await fastify.inject({ method: 'POST', url: `/v1/boost/${completed.id}/stop`, headers: headers(dealerId) });
+    assert.equal(bad.statusCode, 409);
+    assert.equal(bad.json().error.code, 'INVALID_STATE');
+  });
+
+  it("404s pause, resume and stop for another dealership's campaign", async () => {
+    const ownerId = await newDealer();
+    const post = await newPost(ownerId);
+    const active = await campaignWith(ownerId, post.id, 'active');
+    const paused = await campaignWith(ownerId, post.id, 'paused');
+    const stoppable = await campaignWith(ownerId, post.id, 'active');
+    const outsider = headers(await newDealer());
+
+    const pause = await fastify.inject({ method: 'POST', url: `/v1/boost/${active.id}/pause`, headers: outsider });
+    assert.equal(pause.statusCode, 404);
+    const resume = await fastify.inject({ method: 'POST', url: `/v1/boost/${paused.id}/resume`, headers: outsider });
+    assert.equal(resume.statusCode, 404);
+    const stop = await fastify.inject({ method: 'POST', url: `/v1/boost/${stoppable.id}/stop`, headers: outsider });
+    assert.equal(stop.statusCode, 404);
+  });
 });
 
 describe('POST /v1/boost/reach-estimate', () => {
@@ -118,5 +234,15 @@ describe('POST /v1/boost/reach-estimate', () => {
     assert.deepEqual((await estimate({ dailyBudget: 1000 })).json(), { minReach: 12000, maxReach: 20000 });
     assert.equal((await estimate({ dailyBudget: 0 })).statusCode, 400);
     assert.equal((await estimate({})).statusCode, 400);
+  });
+
+  it('refuses budgets above the cap and non-finite values', async () => {
+    const dealerId = await newDealer();
+    const estimate = (payload: object) => fastify.inject({ method: 'POST', url: '/v1/boost/reach-estimate', headers: headers(dealerId), payload });
+    for (const dailyBudget of [1_000_001, 1e308, Infinity, NaN]) {
+      const res = await estimate({ dailyBudget });
+      assert.equal(res.statusCode, 400, String(dailyBudget));
+      assert.equal(res.json().error.code, 'INVALID_INPUT');
+    }
   });
 });

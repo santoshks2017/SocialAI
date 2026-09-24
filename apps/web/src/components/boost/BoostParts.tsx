@@ -36,10 +36,11 @@ export function BoostStatCards({ stats }: { stats: BoostStats }) {
   );
 }
 
-export function CampaignCard({ campaign, now, canResume, onTogglePause, onStop }: {
+export function CampaignCard({ campaign, now, canResume, busy, onTogglePause, onStop }: {
   campaign: BoostCampaign;
   now: Date;
   canResume: boolean;
+  busy?: boolean;
   onTogglePause: (c: BoostCampaign) => void;
   onStop: (c: BoostCampaign) => void;
 }) {
@@ -48,6 +49,8 @@ export function CampaignCard({ campaign, now, canResume, onTogglePause, onStop }
   const metrics = campaignMetrics(campaign);
   const status = STATUS[campaign.status] ?? STATUS.draft;
   const running = campaign.status === 'active';
+  // A draft has no start/end date; resuming it would leave daysLeft frozen at durationDays forever.
+  const showToggle = running || (canResume && campaign.status === 'paused');
   const tiles: Array<[string, string]> = [['Reach', metrics.reach], ['Clicks', metrics.clicks], ['CTR', metrics.ctr], ['CPC', metrics.cpc]];
   return (
     <div className="group bg-white rounded-2xl border border-zinc-200/80 shadow-sm transition-all duration-200 hover:shadow-md hover:border-zinc-300 overflow-hidden">
@@ -83,15 +86,19 @@ export function CampaignCard({ campaign, now, canResume, onTogglePause, onStop }
         </div>
         {campaign.status !== 'completed' && (
           <div className="flex flex-col gap-2 flex-shrink-0">
-            {(running || canResume) && (
+            {showToggle && (
               <button
                 type="button"
                 onClick={() => onTogglePause(campaign)}
+                disabled={busy}
                 title={running ? 'Pause campaign' : 'Resume campaign'}
                 aria-label={running ? 'Pause campaign' : 'Resume campaign'}
-                className={cn('p-2 rounded-lg border border-zinc-200 transition-all duration-150', running ? 'hover:bg-amber-50 hover:border-amber-200' : 'hover:bg-emerald-50 hover:border-emerald-200')}
+                className={cn(
+                  'p-2 rounded-lg border border-zinc-200 transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none',
+                  running ? 'hover:bg-amber-50 hover:border-amber-200' : 'hover:bg-emerald-50 hover:border-emerald-200',
+                )}
               >
-                {running ? <Pause className="w-4 h-4 text-zinc-600" /> : <Play className="w-4 h-4 text-emerald-600" />}
+                {busy ? <Loader2 className="w-4 h-4 animate-spin text-zinc-400" /> : running ? <Pause className="w-4 h-4 text-zinc-600" /> : <Play className="w-4 h-4 text-emerald-600" />}
               </button>
             )}
             <button
@@ -130,8 +137,8 @@ export function EmptyCampaigns({ tab, onBoost }: { tab: BoostTab; onBoost?: () =
       <p className="text-sm font-semibold text-zinc-800">{tab === 'active' ? 'No active campaigns' : 'No completed campaigns'}</p>
       <p className="text-xs text-zinc-500 mt-1 max-w-sm">
         {tab === 'active'
-          ? 'Boost a post to start reaching more customers across Facebook and Instagram.'
-          : 'Completed campaigns will appear here once they finish running.'}
+          ? 'Record a boost to plan and track spend for a post.'
+          : 'Stopped and finished boosts appear here.'}
       </p>
       {tab === 'active' && onBoost && <Button className="mt-4" onClick={onBoost}>Launch Your First Boost</Button>}
     </div>
@@ -151,7 +158,7 @@ export function StopCampaignModal({ campaign, busy, onClose, onConfirm }: { camp
       closeOnEscape={!busy}
       footer={(
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>Keep running</Button>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Keep campaign</Button>
           <Button variant="danger" onClick={onConfirm} disabled={busy}>
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             Stop campaign

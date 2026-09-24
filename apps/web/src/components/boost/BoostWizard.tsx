@@ -1,13 +1,14 @@
-import { Fragment, useEffect, useState } from 'react';
-import { ChevronRight, Loader2, Zap } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
+import { ChevronRight, Loader2, RefreshCw, Zap } from 'lucide-react';
 import { Button, cn } from '../ui/Button';
 import { Modal } from '../ui/Modal';
+import { useToast } from '../ui/Toast';
 import { boostService } from '../../services/boost';
 import { postService, type Post } from '../../services/creative';
 import { rupees } from '../../utils/billing';
 import {
-  BUDGET_PRESETS, DEFAULT_AUDIENCE, DURATION_PRESETS, MIN_DAILY_BUDGET, WIZARD_STEPS, audienceSummary, budgetValid, effectiveBudget, reachLine,
-  type Audience,
+  BUDGET_PRESETS, DEFAULT_AUDIENCE, DURATION_PRESETS, MIN_DAILY_BUDGET, WIZARD_STEPS, audienceSummary, budgetError, budgetValid, effectiveBudget,
+  postsLoadState, reachLine, type Audience,
 } from '../../utils/boost';
 
 export interface BoostLaunch {
@@ -62,9 +63,11 @@ function SummaryRow({ label, value, strong }: { label: string; value: string; st
 }
 
 export function BoostWizard({ launching, onClose, onLaunch }: { launching: boolean; onClose: () => void; onLaunch: (data: BoostLaunch) => void }) {
+  const { addToast } = useToast();
   const [step, setStep] = useState(1);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoaded, setPostsLoaded] = useState(false);
+  const [postsFailed, setPostsFailed] = useState(false);
   const [postId, setPostId] = useState('');
   const [preset, setPreset] = useState<number>(1000);
   const [custom, setCustom] = useState('');
@@ -72,18 +75,31 @@ export function BoostWizard({ launching, onClose, onLaunch }: { launching: boole
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [audience, setAudience] = useState<Audience>(DEFAULT_AUDIENCE);
   const [estimate, setEstimate] = useState<{ budget: number; minReach: number; maxReach: number } | null>(null);
+  const [postsRetryKey, setPostsRetryKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     postService.list({ pageSize: 20 })
       .then((res) => { if (!cancelled) setPosts(res.data); })
-      .catch(() => { /* step 1 then says there are no posts */ })
+      .catch(() => {
+        if (cancelled) return;
+        setPostsFailed(true);
+        addToast({ type: 'error', title: 'Could not load posts', message: 'Please try again.' });
+      })
       .finally(() => { if (!cancelled) setPostsLoaded(true); });
     return () => { cancelled = true; };
+  }, [addToast, postsRetryKey]);
+
+  const retryPosts = useCallback(() => {
+    setPostsLoaded(false);
+    setPostsFailed(false);
+    setPostsRetryKey((k) => k + 1);
   }, []);
 
+  const state = postsLoadState(postsLoaded, postsFailed, posts.length);
   const budget = effectiveBudget(preset, custom);
   const total = budget * duration;
+  const budgetErrorMessage = custom.trim() ? budgetError(budget) : null;
 
   // One reach figure for the budget and confirm steps: POST /v1/boost/reach-estimate.
   useEffect(() => {
@@ -131,11 +147,17 @@ export function BoostWizard({ launching, onClose, onLaunch }: { launching: boole
       {step === 1 && (
         <div className="space-y-3">
           <h4 className="text-sm font-semibold text-zinc-900">Select a post to boost</h4>
-          {!postsLoaded ? (
-            <p className="text-sm text-zinc-400 py-6 text-center">Loading posts…</p>
-          ) : posts.length === 0 ? (
-            <p className="text-sm text-zinc-400 py-6 text-center">No posts yet. Create a post first.</p>
-          ) : (
+          {state === 'loading' && <p className="text-sm text-zinc-400 py-6 text-center">Loading posts…</p>}
+          {state === 'error' && (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <p className="text-sm text-zinc-500">Couldn{'’'}t load your posts.</p>
+              <Button type="button" variant="secondary" onClick={retryPosts}>
+                <RefreshCw className="w-4 h-4" /> Retry
+              </Button>
+            </div>
+          )}
+          {state === 'empty' && <p className="text-sm text-zinc-400 py-6 text-center">No posts yet. Create a post first.</p>}
+          {state === 'ready' && (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {posts.map((p) => (
                 <button
@@ -181,6 +203,7 @@ export function BoostWizard({ launching, onClose, onLaunch }: { launching: boole
                 className="h-9 w-full rounded-lg border border-zinc-200 bg-white pl-7 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:ring-2 focus:ring-orange-500/30"
               />
             </div>
+            {budgetErrorMessage && <p className="text-xs text-red-600 mt-1.5">{budgetErrorMessage}</p>}
           </div>
           {reach && (
             <div className="rounded-lg bg-orange-50 px-3 py-2.5 text-sm text-orange-800">

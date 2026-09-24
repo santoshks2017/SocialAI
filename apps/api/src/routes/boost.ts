@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import { Prisma } from '../generated/client/index.js';
 import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
-import { boostPostSummary, mapCampaign, parseBoostCreate, reachEstimate, type BoostPostSummary } from '../lib/boostView.js';
+import { BOOST_MAX_DAILY_BUDGET, boostPostSummary, mapCampaign, parseBoostCreate, reachEstimate, type BoostPostSummary } from '../lib/boostView.js';
 
 const invalid = (message: string) => ({ error: { code: 'INVALID_INPUT', message } });
 
@@ -15,6 +15,18 @@ async function postSummaries(dealerId: string, postIds: string[]): Promise<Map<s
     select: { id: true, prompt_text: true, thumbnail_url: true, creative_urls: true },
   });
   return new Map(posts.map((p) => [p.id, boostPostSummary(p)]));
+}
+
+const invalidState = (message: string) => ({ error: { code: 'INVALID_STATE', message } });
+
+// A pause/resume/stop click can race a teammate's tab, or replay against a campaign that already
+// moved on. Only flip status from an allowed starting state; 404 when the campaign isn't the
+// dealer's, 409 when it exists but isn't in a state this action allows.
+async function transitionStatus(dealerId: string, id: string, fromStatus: string | { not: string }, toStatus: string) {
+  const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id: dealerId, status: fromStatus }, data: { status: toStatus } });
+  if (result.count > 0) return { ok: true as const };
+  const exists = await prisma.boostCampaign.findFirst({ where: { id, dealer_id: dealerId } });
+  return exists ? { ok: false as const, code: 409 as const } : { ok: false as const, code: 404 as const };
 }
 
 export default async function boostRoutes(fastify: FastifyInstance) {
@@ -111,32 +123,44 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     return { item: mapCampaign(campaign, posts.get(campaign.post_id)) };
   });
 
-  // POST /v1/boost/:id/pause — pause campaign (frontend uses POST)
+  // POST /v1/boost/:id/pause — pause an active campaign (frontend uses POST)
   fastify.post('/:id/pause', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
     const { id } = request.params as { id: string };
-    const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id }, data: { status: 'paused' } });
-    if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
+    const result = await transitionStatus(dealer_id, id, 'active', 'paused');
+    if (!result.ok) {
+      return result.code === 404
+        ? reply.code(404).send({ error: 'Not found' })
+        : reply.code(409).send(invalidState('Only an active campaign can be paused'));
+    }
     const updated = await prisma.boostCampaign.findFirst({ where: { id } });
     return { item: mapCampaign(updated!) };
   });
 
-  // POST /v1/boost/:id/resume — resume campaign (frontend uses POST)
+  // POST /v1/boost/:id/resume — resume a paused campaign (frontend uses POST)
   fastify.post('/:id/resume', { preHandler: [fastify.authenticate, canRunBoost] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
     const { id } = request.params as { id: string };
-    const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id }, data: { status: 'active' } });
-    if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
+    const result = await transitionStatus(dealer_id, id, 'paused', 'active');
+    if (!result.ok) {
+      return result.code === 404
+        ? reply.code(404).send({ error: 'Not found' })
+        : reply.code(409).send(invalidState('Only a paused campaign can be resumed'));
+    }
     const updated = await prisma.boostCampaign.findFirst({ where: { id } });
     return { item: mapCampaign(updated!) };
   });
 
-  // POST /v1/boost/:id/stop — stop campaign (frontend uses POST)
+  // POST /v1/boost/:id/stop — stop any campaign that hasn't already finished (frontend uses POST)
   fastify.post('/:id/stop', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
     const { id } = request.params as { id: string };
-    const result = await prisma.boostCampaign.updateMany({ where: { id, dealer_id }, data: { status: 'completed' } });
-    if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
+    const result = await transitionStatus(dealer_id, id, { not: 'completed' }, 'completed');
+    if (!result.ok) {
+      return result.code === 404
+        ? reply.code(404).send({ error: 'Not found' })
+        : reply.code(409).send(invalidState('This campaign already finished'));
+    }
     const updated = await prisma.boostCampaign.findFirst({ where: { id } });
     return { item: mapCampaign(updated!) };
   });
@@ -153,8 +177,8 @@ export default async function boostRoutes(fastify: FastifyInstance) {
   // POST /v1/boost/reach-estimate { dailyBudget } — people per day; the wizard's only reach figure
   fastify.post('/reach-estimate', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { dailyBudget } = (request.body ?? {}) as { dailyBudget?: unknown };
-    if (typeof dailyBudget !== 'number' || !Number.isFinite(dailyBudget) || dailyBudget <= 0) {
-      return reply.code(400).send(invalid('dailyBudget must be a positive number'));
+    if (typeof dailyBudget !== 'number' || !Number.isFinite(dailyBudget) || dailyBudget <= 0 || dailyBudget > BOOST_MAX_DAILY_BUDGET) {
+      return reply.code(400).send(invalid(`dailyBudget must be a positive number up to ${BOOST_MAX_DAILY_BUDGET}`));
     }
     return reachEstimate(dailyBudget);
   });

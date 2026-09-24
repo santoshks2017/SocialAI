@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { BoostCampaign, BoostStats } from '../services/boost';
 import {
-  DEFAULT_AUDIENCE, audienceSummary, avgCtr, budgetValid, campaignMetrics, campaignsLine, daysLeft, effectiveBudget, inTab, reachLine,
-  scheduleLine, spendBar, targetingFor, totalBudget,
+  DEFAULT_AUDIENCE, MAX_DAILY_BUDGET, audienceSummary, avgCtr, budgetError, budgetValid, campaignMetrics, campaignsLine, daysLeft, effectiveBudget,
+  inTab, postsLoadState, reachLine, scheduleLine, spendBar, targetingFor, totalBudget,
 } from './boost.js';
 
 const NOW = new Date('2026-09-24T10:00:00Z');
@@ -58,6 +58,13 @@ describe('boost helpers', () => {
     assert.equal(audienceSummary({ radius: 10, ageMin: 30, ageMax: 45, gender: 'female' }), '30–45, 10 km, Female');
   });
 
+  it('never throws on a missing or broken reach estimate', () => {
+    assert.equal(reachLine(null), '—');
+    assert.equal(reachLine(undefined), '—');
+    assert.equal(reachLine({ minReach: Infinity, maxReach: Infinity }), '—');
+    assert.equal(reachLine({ minReach: NaN, maxReach: 20000 }), '—');
+  });
+
   it('reads the budget and builds the targeting the API stores', () => {
     assert.equal(effectiveBudget(1000, ''), 1000);
     assert.equal(effectiveBudget(1000, '750'), 750);
@@ -65,9 +72,27 @@ describe('boost helpers', () => {
     assert.equal(budgetValid(200), true);
     assert.equal(budgetValid(199), false);
     assert.equal(budgetValid(250.5), false);
+    assert.equal(budgetValid(MAX_DAILY_BUDGET), true);
+    assert.equal(budgetValid(MAX_DAILY_BUDGET + 1), false);
     assert.deepEqual(targetingFor('Pune', { radius: 10, ageMin: 30, ageMax: 45, gender: 'male' }), {
       location: { city: 'Pune', radius: 10 }, ageMin: 30, ageMax: 45, gender: 'male',
     });
     assert.equal(targetingFor(undefined, DEFAULT_AUDIENCE).location.city, 'India');
+  });
+
+  it('gives a clear reason a budget is invalid', () => {
+    assert.equal(budgetError(1000), null);
+    assert.equal(budgetError(199), 'Minimum budget is ₹200/day.');
+    assert.equal(budgetError(MAX_DAILY_BUDGET + 1), 'Maximum budget is ₹10,00,000/day.');
+    assert.equal(budgetError(250.5), 'Enter a whole number of rupees.');
+  });
+
+  it('decides what step 1 of the wizard shows for the posts load', () => {
+    assert.equal(postsLoadState(false, false, 0), 'loading');
+    assert.equal(postsLoadState(true, true, 0), 'error');
+    assert.equal(postsLoadState(true, false, 0), 'empty');
+    assert.equal(postsLoadState(true, false, 3), 'ready');
+    // A failed load takes priority even if a stale post list is still around.
+    assert.equal(postsLoadState(true, true, 3), 'error');
   });
 });

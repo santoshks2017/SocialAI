@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Info, Zap } from 'lucide-react';
 import { Button, cn } from '../components/ui/Button';
@@ -35,7 +35,12 @@ export default function BoostPage() {
   const [launched, setLaunched] = useState(false);
   const [stopTarget, setStopTarget] = useState<BoostCampaign | null>(null);
   const [stopping, setStopping] = useState(false);
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const togglingRef = useRef<Set<string>>(new Set());
   const [now] = useState(() => new Date());
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +66,11 @@ export default function BoostPage() {
     setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
 
   const togglePause = async (campaign: BoostCampaign) => {
+    // A ref guards synchronously so two rapid clicks on the same card can't both fire before
+    // the busy state re-renders; the state copy is only what drives the disabled/spinner UI.
+    if (togglingRef.current.has(campaign.id)) return;
+    togglingRef.current.add(campaign.id);
+    setTogglingIds(new Set(togglingRef.current));
     const pausing = campaign.status === 'active';
     setStatus(campaign.id, pausing ? 'paused' : 'active');
     try {
@@ -68,6 +78,9 @@ export default function BoostPage() {
     } catch (err) {
       setStatus(campaign.id, campaign.status);
       addToast({ type: 'error', title: pausing ? 'Could not pause campaign' : 'Could not resume campaign', message: errorText(err) });
+    } finally {
+      togglingRef.current.delete(campaign.id);
+      setTogglingIds(new Set(togglingRef.current));
     }
   };
 
@@ -96,7 +109,8 @@ export default function BoostPage() {
       });
       setShowWizard(false);
       setLaunched(true);
-      setTimeout(() => setLaunched(false), 4000);
+      if (bannerTimer.current) clearTimeout(bannerTimer.current);
+      bannerTimer.current = setTimeout(() => { setLaunched(false); bannerTimer.current = null; }, 4000);
       setReloadKey((k) => k + 1);
     } catch (err) {
       addToast({
@@ -167,7 +181,7 @@ export default function BoostPage() {
       ) : (
         <div className="space-y-3">
           {visible.map((c) => (
-            <CampaignCard key={c.id} campaign={c} now={now} canResume={canRun} onTogglePause={(x) => void togglePause(x)} onStop={setStopTarget} />
+            <CampaignCard key={c.id} campaign={c} now={now} canResume={canRun} busy={togglingIds.has(c.id)} onTogglePause={(x) => void togglePause(x)} onStop={setStopTarget} />
           ))}
         </div>
       )}
