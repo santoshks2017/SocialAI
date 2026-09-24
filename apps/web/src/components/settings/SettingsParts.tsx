@@ -4,6 +4,10 @@ import { Button, cn } from '../ui/Button';
 
 // The reference's Settings building blocks: cards, section header, label, toggle, stat pill and sticky save bar.
 
+// Shared with Team (Task 11) and Inspiration (Task 12): a small status pill and a bare icon button.
+export const PILL = 'inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap';
+export const ICON = 'grid place-items-center w-8 h-8 rounded-lg transition-colors';
+
 export function SettingsCard({ className, children }: { className?: string; children: ReactNode }) {
   return <div className={cn('bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-5 sm:p-6', className)}>{children}</div>;
 }

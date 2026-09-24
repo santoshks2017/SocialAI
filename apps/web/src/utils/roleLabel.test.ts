@@ -1,9 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { roleLabel } from './roleLabel';
+import { ROLE_LABELS, roleLabel } from './roleLabel.js';
 
 describe('roleLabel', () => {
-  it('uses the reference badge copy', () => {
+  it('uses one vocabulary everywhere: Owner, Manager, Creator', () => {
+    assert.deepEqual(ROLE_LABELS, { owner: 'Owner', admin: 'Manager', user: 'Creator' });
     assert.equal(roleLabel('user'), 'Creator');
     assert.equal(roleLabel('admin'), 'Manager');
     assert.equal(roleLabel('owner'), 'Owner');
