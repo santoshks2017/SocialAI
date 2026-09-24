@@ -6,7 +6,7 @@ import axios from 'axios';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
-import { signOAuthState } from '../src/lib/oauthState.js';
+import { signOAuthState, verifyOAuthState } from '../src/lib/oauthState.js';
 import { ACCOUNT_LIMIT_MESSAGE, MAX_CONNECTED_ACCOUNTS } from '../src/lib/connections.js';
 
 before(async () => { await fastify.ready(); });
@@ -94,7 +94,6 @@ describe('Meta callback', () => {
   });
 
   it('reads every managed Page across result pages, each with its own Page token', async (t) => {
-    setEnv(t, { META_APP_ID: 'meta-app', META_APP_SECRET: 'meta-secret' });
     const dealerId = await newDealer();
     const calls: Array<{ url: string; params: Record<string, string> }> = [];
     t.mock.method(axios, 'get', async (url: string, config: { params?: Record<string, string> } = {}) => {
@@ -121,6 +120,35 @@ describe('Meta callback', () => {
     assert.deepEqual([token('page-1'), token('page-2'), token('ig-1')], ['page-token-1', 'page-token-2', 'page-token-1']);
     assert.equal(calls.find((c) => c.url.endsWith('/me/accounts'))?.params['fields'], 'id,name,access_token');
     assert.equal(calls.find((c) => c.url.endsWith('/page-1'))?.params['fields'], 'instagram_business_account{id,username,name}');
+  });
+
+  it("still saves a Page whose Instagram lookup throws", async (t) => {
+    const dealerId = await newDealer();
+    t.mock.method(axios, 'get', async (url: string, config: { params?: Record<string, string> } = {}) => {
+      const params = config.params ?? {};
+      if (url.endsWith('/oauth/access_token')) {
+        return { data: params['grant_type'] === 'fb_exchange_token' ? { access_token: 'long-token', expires_in: 5_184_000 } : { access_token: 'short-token' } };
+      }
+      if (url.endsWith('/v19.0/me')) return { data: { id: 'fb-user-3', name: 'Owner' } };
+      if (url.endsWith('/me/accounts')) {
+        return { data: { data: [
+          { id: 'page-a', name: 'Apex North', access_token: 'token-a' },
+          { id: 'page-b', name: 'Apex South', access_token: 'token-b' },
+        ] } };
+      }
+      if (url.endsWith('/page-a')) return { data: { instagram_business_account: { id: 'ig-a', username: 'apexnorth', name: 'Apex North' } } };
+      if (url.endsWith('/page-b')) throw new Error('Request failed with status code 500');
+      throw new Error(`unexpected GET ${url}`);
+    });
+
+    const target = redirect(await metaCallback(dealerId, 'real-code-3'));
+
+    assert.equal(target.searchParams.get('success'), '1');
+    const saved = await rows(dealerId);
+    assert.deepEqual(
+      saved.map((c) => `${c.platform}:${c.platform_account_id}`).sort(),
+      ['facebook:page-a', 'facebook:page-b', 'instagram:ig-a'],
+    );
   });
 });
 
@@ -185,6 +213,21 @@ describe('Google Business Profile callback', () => {
     );
     assert.equal((await rows(dealerId)).length, 0);
   });
+
+  it('stops at 30 connected accounts and says so', async (t) => {
+    mockGoogle(t);
+    const dealerId = await newDealer();
+    for (let i = 0; i < MAX_CONNECTED_ACCOUNTS - 1; i++) {
+      await prisma.platformConnection.create({
+        data: { dealer_id: dealerId, platform: 'facebook', platform_account_id: `page-${i}`, access_token: 'mock_fb', is_connected: true },
+      });
+    }
+
+    const target = redirect(await googleCallback(dealerId));
+
+    assert.equal(target.searchParams.get('error'), ACCOUNT_LIMIT_MESSAGE);
+    assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId, is_connected: true } }), MAX_CONNECTED_ACCOUNTS);
+  });
 });
 
 describe('POST /v1/platforms/sync-instagram', () => {
@@ -225,10 +268,43 @@ describe('POST /v1/platforms/sync-instagram', () => {
     await page(dealerId, 'mock_fb_page_id', 'mock_fb_page_token');
     assert.deepEqual((await sync(dealerId)).json(), { found: 1, accountName: '@mock_dealership_instagram' });
   });
+
+  it('answers 502 when every Page lookup fails', async (t) => {
+    const dealerId = await newDealer();
+    await page(dealerId, 'page-fail-1', 'token-fail-1');
+    await page(dealerId, 'page-fail-2', 'token-fail-2');
+    t.mock.method(axios, 'get', async () => {
+      throw new Error('Request failed with status code 500');
+    });
+
+    const res = await sync(dealerId);
+
+    assert.equal(res.statusCode, 502);
+    assert.deepEqual((res.json() as { error: unknown }).error, {
+      code: 'INSTAGRAM_LOOKUP_FAILED',
+      message: 'Couldn\u2019t reach Facebook to check your Pages. Try again, or reconnect Facebook if this keeps happening.',
+    });
+  });
+
+  it('answers 409 when the account limit blocks every found account', async () => {
+    const dealerId = await newDealer();
+    await page(dealerId, 'mock_fb_page_id', 'mock_fb_page_token');
+    for (let i = 0; i < MAX_CONNECTED_ACCOUNTS - 1; i++) {
+      await prisma.platformConnection.create({
+        data: { dealer_id: dealerId, platform: 'gmb', platform_account_id: `accounts/1/locations/${i}`, access_token: 'mock_g', is_connected: true },
+      });
+    }
+
+    const res = await sync(dealerId);
+
+    assert.equal(res.statusCode, 409);
+    assert.deepEqual((res.json() as { error: unknown }).error, { code: 'ACCOUNT_LIMIT', message: ACCOUNT_LIMIT_MESSAGE });
+  });
 });
 
 describe('GET /v1/platforms/connect/:platform', () => {
-  it('maps google to gmb, so a google connect starts the same Google OAuth flow', async () => {
+  it('maps google to gmb, so a google connect starts the same Google OAuth flow', async (t) => {
+    setEnv(t, { GOOGLE_CLIENT_ID: 'test-google-client', GOOGLE_CLIENT_SECRET: 'test-google-secret' });
     const dealerId = await newDealer();
 
     const res = await fastify.inject({ method: 'GET', url: '/v1/platforms/connect/google', headers: headers(dealerId) });
@@ -238,6 +314,9 @@ describe('GET /v1/platforms/connect/:platform', () => {
     assert.equal(body.success, true);
     const url = new URL(body.redirect_url);
     assert.equal(url.hostname, 'accounts.google.com');
+    assert.equal(url.searchParams.get('client_id'), 'test-google-client');
     assert.equal(url.searchParams.get('scope'), 'https://www.googleapis.com/auth/business.manage email profile');
+    const stateData = verifyOAuthState<{ platform?: string }>(fastify, url.searchParams.get('state'), 'platform_oauth');
+    assert.equal(stateData?.platform, 'gmb');
   });
 });

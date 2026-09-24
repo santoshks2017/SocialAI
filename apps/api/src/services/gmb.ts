@@ -48,12 +48,22 @@ export interface GmbLocation {
 
 const GBP_MAX_PAGES = 20; // result pages read per list, a guard against endless paging
 
-/** Every location across the user's Business Profile accounts (v4 API, following nextPageToken), up to `max`. */
-export async function fetchGmbLocations(accessToken: string, max: number): Promise<GmbLocation[]> {
+export interface GmbLocationsResult {
+  items: GmbLocation[];
+  /** True when the account has more than `max` locations, so the caller knows the list was cut. */
+  truncated: boolean;
+}
+
+/**
+ * Every location across the user's Business Profile accounts (v4 API, following nextPageToken), up to `max`.
+ * Reads one location past `max` (instead of paging through everything) so `truncated` can be reported without
+ * an unbounded fetch.
+ */
+export async function fetchGmbLocations(accessToken: string, max: number): Promise<GmbLocationsResult> {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const locations: GmbLocation[] = [];
   let accountsToken: string | undefined;
-  for (let accountPage = 0; accountPage < GBP_MAX_PAGES; accountPage++) {
+  accounts: for (let accountPage = 0; accountPage < GBP_MAX_PAGES; accountPage++) {
     const accountsRes = await axios.get<{ accounts?: Array<{ name?: string; accountName?: string }>; nextPageToken?: string }>(
       `${GMB_BASE}/accounts`,
       { headers, params: accountsToken ? { pageToken: accountsToken } : {}, timeout: READ_TIMEOUT_MS },
@@ -69,7 +79,7 @@ export async function fetchGmbLocations(accessToken: string, max: number): Promi
         for (const location of locationsRes.data.locations ?? []) {
           if (!location.name) continue;
           locations.push({ name: location.name, title: location.locationName || account.accountName || location.name });
-          if (locations.length >= max) return locations;
+          if (locations.length > max) break accounts;
         }
         locationsToken = locationsRes.data.nextPageToken;
         if (!locationsToken) break;
@@ -78,7 +88,7 @@ export async function fetchGmbLocations(accessToken: string, max: number): Promi
     accountsToken = accountsRes.data.nextPageToken;
     if (!accountsToken) break;
   }
-  return locations;
+  return { items: locations.slice(0, max), truncated: locations.length > max };
 }
 
 export async function fetchGmbPostMetrics(

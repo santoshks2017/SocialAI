@@ -203,23 +203,33 @@ export interface ManagedPage {
   access_token: string;
 }
 
-/** Every Facebook Page the user manages, each with its Page token (me/accounts, following paging.next), up to `max`. */
-export async function fetchManagedPages(userAccessToken: string, max: number): Promise<ManagedPage[]> {
+export interface ManagedPagesResult {
+  items: ManagedPage[];
+  /** True when the user manages more than `max` Pages, so the caller knows the list was cut. */
+  truncated: boolean;
+}
+
+/**
+ * Every Facebook Page the user manages, each with its Page token (me/accounts, following paging.next), up to
+ * `max`. Reads one Page past `max` (instead of paging through the whole list) so `truncated` can be reported
+ * without an unbounded fetch.
+ */
+export async function fetchManagedPages(userAccessToken: string, max: number): Promise<ManagedPagesResult> {
   const pages: ManagedPage[] = [];
   let url: string | undefined = `${META_GRAPH_BASE}/me/accounts`;
   let params: Record<string, string> | undefined = { fields: 'id,name,access_token', limit: '100', access_token: userAccessToken };
-  for (let hop = 0; url && hop < 20 && pages.length < max; hop++) {
+  for (let hop = 0; url && hop < 20 && pages.length <= max; hop++) {
     const res: { data: { data?: Array<Partial<ManagedPage>>; paging?: { next?: string } } } =
       await axios.get(url, { ...(params ? { params } : {}), timeout: 15_000 });
     for (const page of res.data.data ?? []) {
       if (page.id && page.name && page.access_token) pages.push({ id: page.id, name: page.name, access_token: page.access_token });
-      if (pages.length >= max) break;
+      if (pages.length > max) break;
     }
     // paging.next is a full URL that already carries the query, token included
     url = res.data.paging?.next;
     params = undefined;
   }
-  return pages;
+  return { items: pages.slice(0, max), truncated: pages.length > max };
 }
 
 // ─── Post metrics ─────────────────────────────────────────────────────────────

@@ -30,6 +30,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const NO_GBP_LOCATIONS = 'No Google Business locations found on this account. Make sure you have a verified Business Profile, then try again.';
 const GBP_READ_FAILED = 'Could not read your Google Business Profile. Please try again, or contact support if it persists.';
 const NO_INSTAGRAM = 'No Instagram Business account is linked to your Facebook Pages. Link one in Meta Business Suite, then try again.';
+const INSTAGRAM_LOOKUP_FAILED = 'Couldn\u2019t reach Facebook to check your Pages. Try again, or reconnect Facebook if this keeps happening.';
+
+// Instagram discovery calls one Graph endpoint per Page; running several in flight keeps a dealer with many
+// Pages from stalling the OAuth redirect while staying well under Meta's rate limits.
+const DISCOVERY_CONCURRENCY = 5;
 
 // Local and demo connects: two Pages; lib/instagramDiscovery.ts links a mock Instagram account to the first.
 const MOCK_PAGES: ManagedPage[] = [
@@ -38,6 +43,23 @@ const MOCK_PAGES: ManagedPage[] = [
 ];
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** Runs `fn` over `items` with at most `concurrency` in flight, returning results in the same order as `items`. */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    for (let index = next++; index < items.length; index = next++) {
+      results[index] = await fn(items[index] as T, index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
 
 // Page and OAuth tokens never leave the server.
 function publicConnection(conn: Record<string, any>) {
@@ -313,6 +335,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       let expiresAt: Date;
       let fbUser: { id: string; name: string; email?: string };
       let pages: ManagedPage[];
+      let pagesTruncated = false;
 
       if (process.env['NODE_ENV'] !== 'production' && (code.startsWith('mock_') || code === 'test')) {
         expiresAt = new Date(Date.now() + 60 * DAY_MS);
@@ -339,7 +362,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
           fetchManagedPages(longLivedToken, MAX_CONNECTED_ACCOUNTS),
         ]);
         fbUser = meRes.data;
-        pages = managed;
+        pages = managed.items;
+        pagesTruncated = managed.truncated;
       }
 
       const firstPage = pages[0];
@@ -405,9 +429,20 @@ export default async function platformRoutes(fastify: FastifyInstance) {
 
       if (!dealerId) return fail('Session expired. Please try again.');
 
-      // 3. Every Page, and the Instagram Business account linked to each
+      // 3. Every Page, and the Instagram Business account linked to each. Pages beyond the cap can never be
+      // saved, so their Instagram lookup is skipped; the rest run with bounded concurrency (a browser is
+      // waiting on this redirect) but stay in Page order in the saved list.
+      const pagesForDiscovery = pages.slice(0, MAX_CONNECTED_ACCOUNTS);
+      const instagrams = await mapWithConcurrency(pagesForDiscovery, DISCOVERY_CONCURRENCY, async (page) => {
+        try {
+          return await discoverInstagram(page.id, page.access_token);
+        } catch (err) {
+          fastify.log.warn({ message: errorText(err) }, 'Could not read the Instagram account linked to a Facebook Page');
+          return null;
+        }
+      });
       const accounts: ConnectionInput[] = [];
-      for (const page of pages) {
+      pages.forEach((page, index) => {
         accounts.push({
           platform: 'facebook',
           platform_account_id: page.id,
@@ -415,13 +450,9 @@ export default async function platformRoutes(fastify: FastifyInstance) {
           access_token: page.access_token,
           token_expires_at: expiresAt,
         });
-        try {
-          const ig = await discoverInstagram(page.id, page.access_token);
-          if (ig) accounts.push(instagramConnection(ig, page.access_token, expiresAt));
-        } catch (err) {
-          fastify.log.warn({ message: errorText(err) }, 'Could not read the Instagram account linked to a Facebook Page');
-        }
-      }
+        const ig = instagrams[index];
+        if (ig) accounts.push(instagramConnection(ig, page.access_token, expiresAt));
+      });
       const { saved, limitReached } = await saveConnections(dealerId, accounts);
       const connected = [...new Set(saved.map((c) => c.platform))].join(',') || 'facebook';
 
@@ -437,7 +468,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         );
       }
 
-      if (limitReached) return fail(ACCOUNT_LIMIT_MESSAGE);
+      if (limitReached || pagesTruncated) return fail(ACCOUNT_LIMIT_MESSAGE);
       return reply.redirect(
         `${frontendCallback}?success=1&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(firstPage.name)}&${savedCountQuery(saved)}`
       );
@@ -478,9 +509,12 @@ export default async function platformRoutes(fastify: FastifyInstance) {
 
       // Every location across the user's Business Profile accounts
       let locations: GmbLocation[] = [];
+      let locationsTruncated = false;
       let lookupFailed = false;
       try {
-        locations = await fetchGmbLocations(access_token, MAX_CONNECTED_ACCOUNTS);
+        const result = await fetchGmbLocations(access_token, MAX_CONNECTED_ACCOUNTS);
+        locations = result.items;
+        locationsTruncated = result.truncated;
       } catch (err) {
         lookupFailed = true;
         fastify.log.warn({ message: errorText(err) }, 'Could not list Google Business Profile locations');
@@ -560,7 +594,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
 
       if (lookupFailed) return fail(GBP_READ_FAILED);
       if (locations.length === 0) return fail(NO_GBP_LOCATIONS);
-      if (limitReached) return fail(ACCOUNT_LIMIT_MESSAGE);
+      if (limitReached || locationsTruncated) return fail(ACCOUNT_LIMIT_MESSAGE);
       return reply.redirect(
         `${frontendCallback}?success=1&platform=google&page_name=${encodeURIComponent(displayName)}&${savedCountQuery(saved)}`
       );
@@ -581,15 +615,23 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       where: { dealer_id: dealerId, platform: 'facebook', is_connected: true },
     })).sort(byAge);
     const found: ConnectionInput[] = [];
+    let failures = 0;
     for (const page of pages) {
       try {
         const ig = await discoverInstagram(page.platform_account_id, page.access_token);
         if (ig) found.push(instagramConnection(ig, page.access_token, page.token_expires_at));
       } catch (err) {
+        failures++;
         request.log.warn({ message: errorText(err) }, '[platforms] Instagram discovery failed for a Page');
       }
     }
-    if (found.length === 0) return reply.code(404).send({ error: { code: 'NO_INSTAGRAM', message: NO_INSTAGRAM } });
+    if (found.length === 0) {
+      // Every lookup threw (a bad Page token, a Graph outage): say so, rather than the wrong "not linked".
+      if (pages.length > 0 && failures === pages.length) {
+        return reply.code(502).send({ error: { code: 'INSTAGRAM_LOOKUP_FAILED', message: INSTAGRAM_LOOKUP_FAILED } });
+      }
+      return reply.code(404).send({ error: { code: 'NO_INSTAGRAM', message: NO_INSTAGRAM } });
+    }
 
     // Instagram found here rides along with its already-connected Facebook Page, the same as the Meta
     // connect callback's auto-link above; no plan-limit check (only MAX_CONNECTED_ACCOUNTS applies).
