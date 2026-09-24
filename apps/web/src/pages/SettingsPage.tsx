@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { isAtLeast } from '../lib/permissions';
-import type { SettingsTab } from '../utils/settings';
+import { PERMISSIONS, can, isAtLeast } from '../lib/permissions';
+import { cn } from '../components/ui/Button';
+import { PageCard } from '../components/ui/PageCard';
+import { resolveSettingsTab, visibleSettingsTabs, type SettingsTabId } from '../utils/settings';
 import { useProfileForm } from '../components/settings/useProfileForm';
 import { ProfileTab } from '../components/settings/ProfileTab';
 import { PreferencesTab } from '../components/settings/PreferencesTab';
@@ -12,16 +14,16 @@ import { TeamTab } from '../components/settings/TeamTab';
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const form = useProfileForm();
 
-  // Read initial tab from URL and handle OAuth callbacks
-  const rawTab = searchParams.get('tab');
-  const initialTab = (rawTab && rawTab !== 'platforms' ? rawTab : 'profile') as SettingsTab;
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const tabs = visibleSettingsTabs({ manageTeam: isAtLeast(user, 'admin'), viewBilling: can(user, PERMISSIONS.VIEW_BILLING) });
+  // The tab lives in the URL (/settings?tab=billing), so links and refreshes land on it.
+  const activeTab = resolveSettingsTab(searchParams.get('tab'), tabs);
+  const selectTab = (id: SettingsTabId) => setSearchParams({ tab: id }, { replace: true });
 
-  // Redirect legacy ?tab=platforms or OAuth redirects to /accounts
+  // Legacy links: ?tab=platforms and old OAuth returns still go to /accounts.
   useEffect(() => {
     const tab = searchParams.get('tab');
     const success = searchParams.get('oauth_success') || searchParams.get('success');
@@ -33,43 +35,40 @@ export default function SettingsPage() {
     }
   }, [searchParams, navigate]);
 
-  const tabs: { id: SettingsTab; label: string }[] = [
-    { id: 'profile', label: 'Dealer Profile' },
-    { id: 'preferences', label: 'Preferences' },
-    { id: 'model_library', label: 'Model Library' },
-    { id: 'inspiration', label: 'Inspiration' },
-    ...(isAtLeast(user, 'admin') ? [{ id: 'team' as SettingsTab, label: 'Team' }] : []),
-  ];
-
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
-        <p className="text-sm text-slate-500 mt-0.5">Manage your dealership profile and preferences</p>
+    <PageCard>
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Settings</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">Manage your dealership profile and connected platforms</p>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-200">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-200 -mb-px cursor-pointer ${
-              activeTab === t.id
-                ? 'border-orange-500 text-orange-600 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex mb-6 overflow-x-auto">
+        <div role="tablist" aria-label="Settings sections" className="inline-flex gap-1 bg-zinc-100/80 rounded-xl p-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.id}
+              onClick={() => selectTab(t.id)}
+              className={cn(
+                'inline-flex items-center px-3.5 py-1.5 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-all flex-shrink-0',
+                activeTab === t.id ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeTab === 'profile' && <ProfileTab form={form} />}
       {activeTab === 'preferences' && <PreferencesTab form={form} />}
-      {activeTab === 'model_library' && <ModelLibraryTab brands={form.selectedBrands} />}
       {activeTab === 'inspiration' && <InspirationTab />}
       {activeTab === 'team' && <TeamTab />}
-    </div>
+      {activeTab === 'model_library' && <ModelLibraryTab brands={form.selectedBrands} />}
+    </PageCard>
   );
 }

@@ -25,7 +25,39 @@ export const NOTIFICATION_KEYS = [
   { key: 'monthly_report', label: 'Monthly performance report', defaultOn: true },
 ];
 
-export type SettingsTab = 'profile' | 'preferences' | 'inspiration' | 'team' | 'model_library';
+export type SettingsTabId = 'profile' | 'platforms' | 'preferences' | 'billing' | 'inspiration' | 'team' | 'model_library';
+
+export interface SettingsAccess {
+  /** manage_users: Managers and Owners (isAtLeast(user, 'admin')). */
+  manageTeam: boolean;
+  /** view_billing: the billing API answers 403 without it. */
+  viewBilling: boolean;
+}
+
+export interface SettingsTabDef {
+  id: SettingsTabId;
+  label: string;
+  /** Hidden unless the viewer has this access. */
+  requires?: keyof SettingsAccess;
+}
+
+// Reference order, with our Model Library last.
+export const SETTINGS_TABS: readonly SettingsTabDef[] = [
+  { id: 'profile', label: 'Business Profile' },
+  { id: 'preferences', label: 'Preferences' },
+  { id: 'inspiration', label: 'Inspiration' },
+  { id: 'team', label: 'Team', requires: 'manageTeam' },
+  { id: 'model_library', label: 'Model Library' },
+];
+
+export function visibleSettingsTabs(access: SettingsAccess): SettingsTabDef[] {
+  return SETTINGS_TABS.filter((tab) => !tab.requires || access[tab.requires]);
+}
+
+/** The tab named in ?tab= when this viewer can see it; otherwise Business Profile. */
+export function resolveSettingsTab(raw: string | null, tabs: readonly SettingsTabDef[]): SettingsTabId {
+  return tabs.find((tab) => tab.id === raw)?.id ?? 'profile';
+}
 
 export interface InspirationHandle {
   id: string;

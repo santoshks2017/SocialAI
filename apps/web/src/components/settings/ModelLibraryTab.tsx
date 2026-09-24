@@ -121,7 +121,7 @@ export function ModelLibraryTab({ brands: selectedBrands }: { brands: string[] }
         setSyncedModels(res.models || []);
       })
       .catch((err) => {
-        console.error(err);
+        console.error(err instanceof Error ? err.message : String(err));
         addToast({ type: 'error', title: 'Error', message: 'Failed to load model library' });
       })
       .finally(() => setLoadingModels(false));
@@ -146,7 +146,7 @@ export function ModelLibraryTab({ brands: selectedBrands }: { brands: string[] }
           if (res.syncJob.status === 'completed') loadModels();
         }
       })
-      .catch((err) => console.error(err));
+      .catch((err) => console.error(err instanceof Error ? err.message : String(err)));
   }, [loadModels]);
 
   // Opening the tab loads the repository and resumes watching a sync that is still running.

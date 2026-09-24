@@ -1,0 +1,24 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { resolveSettingsTab, visibleSettingsTabs } from './settings.js';
+
+const everyone = { manageTeam: true, viewBilling: true };
+
+describe('settings tabs', () => {
+  it('follows the reference order with Model Library last', () => {
+    assert.deepEqual(visibleSettingsTabs(everyone).map((t) => t.id), ['profile', 'preferences', 'inspiration', 'team', 'model_library']);
+    assert.deepEqual(visibleSettingsTabs(everyone).map((t) => t.label), ['Business Profile', 'Preferences', 'Inspiration', 'Team', 'Model Library']);
+  });
+
+  it('shows Team only to people who manage the team', () => {
+    assert.ok(!visibleSettingsTabs({ ...everyone, manageTeam: false }).some((t) => t.id === 'team'));
+  });
+
+  it('opens the tab named in the URL only when the viewer can see it', () => {
+    const tabs = visibleSettingsTabs({ manageTeam: false, viewBilling: false });
+    assert.equal(resolveSettingsTab('inspiration', tabs), 'inspiration');
+    assert.equal(resolveSettingsTab('team', tabs), 'profile');
+    assert.equal(resolveSettingsTab('nonsense', tabs), 'profile');
+    assert.equal(resolveSettingsTab(null, tabs), 'profile');
+  });
+});
