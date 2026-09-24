@@ -6,6 +6,7 @@ import { generateMockEmails } from "../services/emailMock.js"
 import { replyToGmbReview } from "../services/gmb.js"
 import { dealerReplyContext, draftTestimonial, suggestReplies } from "../lib/inboxReplies.js"
 import { mapMessages, truncateText } from "../lib/inboxView.js"
+import { ingestInboxMessage, resolvePostId } from "../lib/inboxIngest.js"
 import { can, PERMISSIONS, requirePermissionHook } from "../lib/permissions.js"
 import { isMockConnection, isMockId } from "../lib/platformMock.js"
 import { resolveAccessToken } from "../lib/publishDirect.js"
@@ -15,54 +16,6 @@ const INBOX_TAGS = new Set(["lead", "complaint", "general", "spam"])
 const AI_NOT_CONFIGURED = { error: { code: "AI_NOT_CONFIGURED", message: "AI replies are not set up yet." } }
 const AI_FAILED = { error: { code: "AI_FAILED", message: "The AI request failed. Please try again." } }
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
-
-async function upsertInboxMessage(params: {
-  dealer_id: string
-  platform: string
-  message_type: string
-  platform_message_id: string
-  message_text: string
-  customer_name?: string
-  customer_platform_id?: string
-  customer_avatar_url?: string
-  post_id?: string
-}) {
-  const {
-    dealer_id,
-    platform,
-    message_type,
-    platform_message_id,
-    message_text,
-    customer_name,
-    customer_platform_id,
-    customer_avatar_url,
-    post_id,
-  } = params
-
-  return prisma.inboxMessage.upsert({
-    where: { platform_message_id },
-    update: {
-      message_text,
-      customer_name: customer_name ?? "Customer",
-      customer_platform_id: customer_platform_id ?? null,
-      customer_avatar_url: customer_avatar_url ?? null,
-      post_id: post_id ?? null,
-      received_at: new Date(),
-    },
-    create: {
-      dealer_id,
-      platform,
-      message_type,
-      platform_message_id,
-      message_text,
-      customer_name: customer_name ?? "Customer",
-      customer_platform_id: customer_platform_id ?? null,
-      customer_avatar_url: customer_avatar_url ?? null,
-      post_id: post_id ?? null,
-      received_at: new Date(),
-    },
-  })
-}
 
 function extractTextFromMetaMessage(event: any): string | null {
   if (typeof event.message?.text === "string") return event.message.text
@@ -314,6 +267,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
 
       if (Array.isArray(entry.messaging)) {
         for (const event of entry.messaging) {
+          if (event.message?.is_echo) continue // the Page's own outgoing message
           const text = extractTextFromMetaMessage(event)
           const messageId =
             event.message?.mid ||
@@ -321,13 +275,13 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
             event.standby?.[0]?.message?.mid
           if (!text || !messageId) continue
 
-          await upsertInboxMessage({
+          await ingestInboxMessage({
             dealer_id,
             platform,
             message_type: "dm",
             platform_message_id: messageId,
             message_text: text,
-            customer_name: event.sender?.name ?? "Customer",
+            customer_name: event.sender?.name,
             customer_platform_id: event.sender?.id,
             customer_avatar_url: event.sender?.profile_pic,
           })
@@ -337,25 +291,25 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
 
       if (Array.isArray(entry.changes)) {
         for (const change of entry.changes) {
+          const value = change.value ?? {}
+          // Facebook "feed" events also cover new posts, reactions and edits; only comments belong in the inbox.
+          if (change.field === "feed" && value.item && value.item !== "comment") continue
+          if (value.verb === "remove") continue
           const text = extractTextFromMetaChange(change)
-          const messageId =
-            change.value?.comment_id ||
-            change.value?.message_id ||
-            change.value?.id
+          const messageId = value.comment_id || value.message_id || value.id
           if (!text || !messageId) continue
+          const customerId = value.from?.id ?? value.sender_id
+          if (customerId && customerId === connection.platform_account_id) continue // the Page's own comment
 
-          const customerName =
-            change.value?.from?.name ?? change.value?.sender_name ?? "Customer"
-          const customerId = change.value?.from?.id ?? change.value?.sender_id
-          await upsertInboxMessage({
+          await ingestInboxMessage({
             dealer_id,
             platform,
             message_type: "comment",
             platform_message_id: messageId,
             message_text: text,
-            customer_name: customerName,
+            customer_name: value.from?.name ?? value.from?.username ?? value.sender_name,
             customer_platform_id: customerId,
-            post_id: change.value?.post_id ?? undefined,
+            post_id: await resolvePostId(dealer_id, platform, value.post_id ?? value.media?.id),
           })
           imported += 1
         }
