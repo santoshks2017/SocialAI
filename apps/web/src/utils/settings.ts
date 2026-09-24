@@ -44,6 +44,7 @@ export interface SettingsTabDef {
 // Reference order, with our Model Library last.
 export const SETTINGS_TABS: readonly SettingsTabDef[] = [
   { id: 'profile', label: 'Business Profile' },
+  { id: 'platforms', label: 'Platforms' },
   { id: 'preferences', label: 'Preferences' },
   { id: 'inspiration', label: 'Inspiration' },
   { id: 'team', label: 'Team', requires: 'manageTeam' },

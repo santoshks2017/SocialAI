@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS, can, isAtLeast } from '../lib/permissions';
 import { cn } from '../components/ui/Button';
@@ -7,6 +6,7 @@ import { PageCard } from '../components/ui/PageCard';
 import { resolveSettingsTab, visibleSettingsTabs, type SettingsTabId } from '../utils/settings';
 import { useProfileForm } from '../components/settings/useProfileForm';
 import { ProfileTab } from '../components/settings/ProfileTab';
+import { PlatformsTab } from '../components/settings/PlatformsTab';
 import { PreferencesTab } from '../components/settings/PreferencesTab';
 import { ModelLibraryTab } from '../components/settings/ModelLibraryTab';
 import { InspirationTab } from '../components/settings/InspirationTab';
@@ -15,25 +15,12 @@ import { TeamTab } from '../components/settings/TeamTab';
 export default function SettingsPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const form = useProfileForm();
 
   const tabs = visibleSettingsTabs({ manageTeam: isAtLeast(user, 'admin'), viewBilling: can(user, PERMISSIONS.VIEW_BILLING) });
   // The tab lives in the URL (/settings?tab=billing), so links and refreshes land on it.
   const activeTab = resolveSettingsTab(searchParams.get('tab'), tabs);
   const selectTab = (id: SettingsTabId) => setSearchParams({ tab: id }, { replace: true });
-
-  // Legacy links: ?tab=platforms and old OAuth returns still go to /accounts.
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    const success = searchParams.get('oauth_success') || searchParams.get('success');
-    const error = searchParams.get('oauth_error') || searchParams.get('error');
-    if (tab === 'platforms' || success || error) {
-      const targetParams = new URLSearchParams(searchParams);
-      targetParams.delete('tab');
-      navigate(`/accounts?${targetParams.toString()}`, { replace: true });
-    }
-  }, [searchParams, navigate]);
 
   return (
     <PageCard>
@@ -65,6 +52,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === 'profile' && <ProfileTab form={form} />}
+      {activeTab === 'platforms' && <PlatformsTab />}
       {activeTab === 'preferences' && <PreferencesTab form={form} />}
       {activeTab === 'inspiration' && <InspirationTab />}
       {activeTab === 'team' && <TeamTab />}
