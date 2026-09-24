@@ -45,6 +45,7 @@ async function importReview(conn: PlatformConnection, review: GmbReview, initial
   const { created } = await ingestInboxMessage({
     dealer_id: conn.dealer_id,
     platform: 'gmb',
+    connection_id: conn.id,
     message_type: 'review',
     platform_message_id: review.name,
     message_text: review.comment ?? '',

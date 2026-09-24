@@ -3,13 +3,15 @@ import type { InboxMessage } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
 import { classifyFromRating } from './inboxClassifier.js';
 import { notifyInboxMessage } from './inboxNotifications.js';
-import { isSuccessfulResult } from './publishDirect.js';
+import { successfulPostRefs } from './publishResults.js';
 
 export interface InboxIngestInput {
   dealer_id: string;
   platform: string;
   message_type: 'comment' | 'dm' | 'review';
   platform_message_id: string;
+  /** The PlatformConnection that received it; set once and never moved. */
+  connection_id?: string | null | undefined;
   message_text: string;
   customer_name?: string | undefined;
   customer_platform_id?: string | undefined;
@@ -46,6 +48,7 @@ function refreshPatch(existing: InboxMessage, input: InboxIngestInput): Record<s
   if (name && name !== existing.customer_name) patch['customer_name'] = name;
   if (input.customer_platform_id && input.customer_platform_id !== existing.customer_platform_id) patch['customer_platform_id'] = input.customer_platform_id;
   if (input.customer_avatar_url && input.customer_avatar_url !== existing.customer_avatar_url) patch['customer_avatar_url'] = input.customer_avatar_url;
+  if (input.connection_id && !existing.connection_id) patch['connection_id'] = input.connection_id;
   // An event whose post can't be resolved sends null — never clears an already-resolved post_id.
   if (input.post_id != null && input.post_id !== existing.post_id) patch['post_id'] = input.post_id;
   if (input.reply_text) {
@@ -104,6 +107,7 @@ export async function ingestInboxMessage(input: InboxIngestInput, options: Inges
         platform: input.platform,
         message_type: input.message_type,
         platform_message_id: input.platform_message_id,
+        ...(input.connection_id ? { connection_id: input.connection_id } : {}),
         message_text: input.message_text,
         customer_name: input.customer_name?.trim() || 'Customer',
         customer_platform_id: input.customer_platform_id ?? null,
@@ -128,8 +132,8 @@ export async function ingestInboxMessage(input: InboxIngestInput, options: Inges
 
 /**
  * Our Post.id for a platform post/media id from a webhook: the dealership's published post whose
- * publish result has that id. Facebook comment events use "<pageId>_<postId>", so the part after
- * the last underscore is matched too.
+ * publish result (any account) has that id. Facebook comment events use "<pageId>_<postId>", so
+ * the part after the last underscore is matched too.
  */
 export async function resolvePostId(dealerId: string, platform: string, platformPostId: string | undefined): Promise<string | null> {
   if (!platformPostId) return null;
@@ -137,9 +141,11 @@ export async function resolvePostId(dealerId: string, platform: string, platform
   const posts = await prisma.post.findMany({ where: { dealer_id: dealerId, status: 'published' } });
   for (const post of posts) {
     const entry = ((post.publish_results ?? {}) as Record<string, unknown>)[platform];
-    if (!isSuccessfulResult(entry)) continue;
-    const id = (entry as { post_id: string }).post_id;
-    if (id === platformPostId || id === tail || id.endsWith(`_${tail}`)) return post.id;
+    // Every account's post: a comment on the second Page matches that Page's post id, not the summary's.
+    for (const ref of successfulPostRefs(entry)) {
+      const id = ref.post_id;
+      if (id === platformPostId || id === tail || id.endsWith(`_${tail}`)) return post.id;
+    }
   }
   return null;
 }

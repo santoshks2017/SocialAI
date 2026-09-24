@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
-import { MAX_CONNECTED_ACCOUNTS } from './connections.js';
+import { MAX_CONNECTED_ACCOUNTS, primaryConnection } from './connections.js';
 
 export interface ConnectionInput {
   platform: string;
@@ -117,4 +117,14 @@ export async function ownConnectionIds(dealerId: string, ids: readonly string[])
   if (ids.length === 0) return [];
   const mine = new Set((await prisma.platformConnection.findMany({ where: { dealer_id: dealerId } })).map((c) => c.id));
   return ids.filter((id) => mine.has(id));
+}
+
+/** The account a reply goes out from: the one that received the message while it is connected, else the platform's primary. */
+export async function replyConnection(
+  dealerId: string,
+  message: { platform: string; connection_id?: string | null },
+): Promise<PlatformConnection | null> {
+  const conns = await prisma.platformConnection.findMany({ where: { dealer_id: dealerId, platform: message.platform } });
+  const receiving = message.connection_id ? conns.find((c) => c.id === message.connection_id && c.is_connected) : undefined;
+  return receiving ?? primaryConnection(conns, message.platform);
 }
