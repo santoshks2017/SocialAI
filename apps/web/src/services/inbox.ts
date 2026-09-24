@@ -1,26 +1,7 @@
 import api from './api';
+import type { ApiInboxMessage, ApiPlatform, InboxTag } from '../utils/inbox';
 
-export interface InboxMessage {
-  id: string;
-  dealerId: string;
-  platform: 'facebook' | 'instagram' | 'gmb' | 'email';
-  messageType: 'comment' | 'dm' | 'review' | 'email';
-  platformMessageId: string;
-  postId?: string;
-  customerName: string;
-  customerAvatarUrl?: string;
-  customerPlatformId?: string;
-  emailSubject?: string;
-  messageText: string;
-  sentiment?: 'positive' | 'neutral' | 'negative';
-  tag?: 'lead' | 'complaint' | 'general' | 'spam';
-  aiSuggestedReply?: string;
-  replyText?: string;
-  repliedAt?: string;
-  isRead: boolean;
-  requiresApproval: boolean;
-  receivedAt: string;
-}
+export type InboxMessage = ApiInboxMessage;
 
 export interface AutoReplyTemplate {
   id: string;
@@ -52,7 +33,7 @@ export interface Lead {
   dealerId: string;
   customerName?: string;
   customerPhone?: string;
-  sourcePlatform?: 'facebook' | 'instagram' | 'gmb' | 'email';
+  sourcePlatform?: ApiPlatform;
   sourceType?: 'post' | 'campaign' | 'inbox';
   sourcePostId?: string;
   sourceCampaignId?: string;
@@ -65,7 +46,7 @@ export interface Lead {
 export interface CreateLeadRequest {
   customerName: string;
   customerPhone?: string;
-  sourcePlatform: 'facebook' | 'instagram' | 'gmb' | 'email';
+  sourcePlatform: ApiPlatform;
   sourceMessageId?: string;
   vehicleInterest?: string;
   notes?: string;
@@ -81,24 +62,27 @@ export const inboxService = {
     search?: string;
   }) =>
     api.get<{ items: InboxMessage[]; total: number; unreadCount: number }>('/inbox', params),
-  
+
+  pendingCount: () =>
+    api.get<{ pending: number }>('/inbox/pending-count'),
+
   get: (id: string) =>
     api.get<{ item: InboxMessage }>(`/inbox/${id}`),
-  
+
   markRead: (id: string) =>
     api.patch<{ item: InboxMessage }>(`/inbox/${id}`, { isRead: true }),
-  
+
   markAllRead: () =>
     api.post<{ success: boolean }>('/inbox/mark-all-read'),
-  
-  updateTag: (id: string, tag: InboxMessage['tag']) =>
+
+  updateTag: (id: string, tag: InboxTag | null) =>
     api.patch<{ item: InboxMessage }>(`/inbox/${id}`, { tag }),
-  
+
   sendReply: (id: string, replyText: string) =>
     api.post<{ item: InboxMessage; delivered?: boolean }>(`/inbox/${id}/reply`, { replyText }),
-  
+
   generateReply: (id: string, tone?: string) =>
-    api.post<{ suggestedReply: string }>(`/inbox/${id}/suggest-reply`, { tone }),
+    api.post<{ suggestedReply: string; suggestions?: string[] }>(`/inbox/${id}/suggest-reply`, tone ? { tone } : {}),
 
   getSettings: () =>
     api.get<{ autoReplyEnabled: boolean }>('/inbox/settings'),

@@ -108,7 +108,8 @@ async function request<T>(
       }
     }
 
-    const data = await response.json();
+    // 204 No Content (e.g. POST /events) has no body to parse.
+    const data = response.status === 204 ? undefined : await response.json();
 
     if (!response.ok) {
       const errorMessage = typeof data.message === 'string'
