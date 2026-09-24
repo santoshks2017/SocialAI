@@ -63,8 +63,8 @@
 - **Copy:**
   - Reference copy is verbatim, including — – … ’ → · ₹ × “ ” and emoji.
   - Tasks whose code contains these characters say so. After those tasks, byte-check the characters in the diff (`git diff | grep -nP '[^\x00-\x7F]'`).
-  - If an editor flattens them, write them as escapes: — `—`, – `–`, … `…`, ’ `’`, → `→`, · `·`, ₹ `₹`, × `×`, “ `“`, ” `”`, ë `ë`, 🎉 `\u{1F389}`.
-  - In JSX text, use `{'—'}`.
+  - If an editor flattens them, write them as escapes: — `\u2014`, – `\u2013`, … `\u2026`, ’ `\u2019`, → `\u2192`, · `\u00b7`, ₹ `\u20b9`, × `\u00d7`, “ `\u201c`, ” `\u201d`, ë `\u00eb`, 🎉 `\u{1F389}`.
+  - In JSX text, use `{'\u2014'}`.
 - **Nothing fabricated:**
   - Boost only records campaigns: there are no Meta Ads calls, and the copy says so.
   - Reach estimates come only from `POST /v1/boost/reach-estimate`.
