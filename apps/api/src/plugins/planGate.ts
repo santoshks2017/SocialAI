@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import { connectedPlatformCount } from '../lib/connectionStore.js';
-import { planLimits } from '../lib/billingPlans.js';
+import { planLimits, planName, resolvePlanTier } from '../lib/billingPlans.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -29,14 +29,16 @@ export async function registerPlanGate(fastify: FastifyInstance) {
       }
 
       // The same table GET /billing/status reports (lib/billingPlans.ts).
+      const tier = resolvePlanTier(dealer.plan);
       const limits = planLimits(dealer.plan);
+      const name = planName(tier);
 
       // 1. Features the plan doesn't include (Starter: inbox, boost, inventory)
       if ((limits.blockedFeatures as readonly string[]).includes(feature)) {
         return reply.code(403).send({
           error: {
             code: 'PLAN_GATED',
-            message: `The ${feature} feature is not available on the Starter plan. Please upgrade to Growth or Enterprise.`,
+            message: `The ${feature} feature is not available on the ${name} plan. Please upgrade to Growth or Enterprise.`,
           },
         });
       }
@@ -58,7 +60,7 @@ export async function registerPlanGate(fastify: FastifyInstance) {
           return reply.code(403).send({
             error: {
               code: 'PLAN_LIMIT_REACHED',
-              message: `You have reached the monthly limit of ${limits.postsPerMonth} posts for the Starter plan. Please upgrade to publish more.`,
+              message: `You have reached the monthly limit of ${limits.postsPerMonth} posts for the ${name} plan. Please upgrade to publish more.`,
             },
           });
         }

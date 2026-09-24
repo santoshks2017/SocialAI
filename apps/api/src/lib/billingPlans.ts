@@ -5,6 +5,8 @@
  * - the Razorpay plan ids that decide whether online payment is available.
  */
 
+import { ACCOUNT_PLATFORMS } from './connections.js';
+
 export const PLAN_TIERS = ['starter', 'growth', 'enterprise'] as const;
 export type PlanTier = (typeof PLAN_TIERS)[number];
 export const BILLING_CYCLES = ['monthly', 'annual'] as const;
@@ -15,9 +17,6 @@ export type GatedFeature = 'inbox' | 'boost' | 'inventory';
 export const UNLIMITED = 999_999;
 
 export const PAYMENTS_OFF_MESSAGE = 'Online payments are being set up. Contact us to change your plan.';
-
-/** The four platforms a dealership can ever connect (lib/connections.ts ACCOUNT_PLATFORMS). */
-const ALL_PLATFORMS_COUNT = 4;
 
 export interface PlanLimits {
   /** Posts created per calendar month; null means no limit. */
@@ -31,10 +30,11 @@ export interface PlanLimits {
   blockedFeatures: readonly GatedFeature[];
 }
 
+// Growth and Enterprise both get every connectable platform; only Starter is actually capped below that.
 export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
   starter: { postsPerMonth: 30, platforms: 2, blockedFeatures: ['inbox', 'boost', 'inventory'] },
-  growth: { postsPerMonth: null, platforms: 5, blockedFeatures: [] },
-  enterprise: { postsPerMonth: null, platforms: 4, blockedFeatures: [] },
+  growth: { postsPerMonth: null, platforms: ACCOUNT_PLATFORMS.length, blockedFeatures: [] },
+  enterprise: { postsPerMonth: null, platforms: ACCOUNT_PLATFORMS.length, blockedFeatures: [] },
 };
 
 export function isPlanTier(value: unknown): value is PlanTier {
@@ -45,9 +45,14 @@ export function isBillingCycle(value: unknown): value is BillingCycle {
   return typeof value === 'string' && (BILLING_CYCLES as readonly string[]).includes(value);
 }
 
-/** The dealer's limits; an empty or unknown plan counts as Starter, as the gate always did. */
+/** The tier an arbitrary stored plan value maps to; an empty or unknown plan counts as Starter, as GET /billing/status always defaulted. */
+export function resolvePlanTier(plan: string | null | undefined): PlanTier {
+  return isPlanTier(plan) ? plan : 'starter';
+}
+
+/** The dealer's limits; an empty or unknown plan counts as Starter, as GET /billing/status always defaulted. */
 export function planLimits(plan: string | null | undefined): PlanLimits {
-  return isPlanTier(plan) ? PLAN_LIMITS[plan] : PLAN_LIMITS.starter;
+  return PLAN_LIMITS[resolvePlanTier(plan)];
 }
 
 export interface PlanFeature {
@@ -99,6 +104,11 @@ const PLAN_COPY: Record<PlanTier, { name: string; description: string; monthlyPr
   },
 };
 
+/** The plan's display name ("Starter", "Growth", "Enterprise"), the same names GET /billing/plans returns. */
+export function planName(tier: PlanTier): string {
+  return PLAN_COPY[tier].name;
+}
+
 const GATED_FEATURES: readonly GatedFeature[] = ['inbox', 'boost', 'inventory'];
 const FEATURE_LABELS: Record<GatedFeature, string> = {
   inbox: 'AI Auto-Reply Review Inbox',
@@ -116,7 +126,7 @@ export function planFeatures(tier: PlanTier): PlanFeature[] {
   const limits = PLAN_LIMITS[tier];
   return [
     { label: limits.postsPerMonth === null ? 'Unlimited posts' : `Up to ${limits.postsPerMonth} posts / month`, included: true },
-    { label: limits.platforms >= ALL_PLATFORMS_COUNT ? 'All platforms' : `Up to ${limits.platforms} platforms`, included: true },
+    { label: limits.platforms >= ACCOUNT_PLATFORMS.length ? 'All platforms' : `Up to ${limits.platforms} platforms`, included: true },
     ...PLAN_COPY[tier].highlights.map((label) => ({ label, included: true })),
     ...GATED_FEATURES.map((feature) => ({ label: FEATURE_LABELS[feature], included: !limits.blockedFeatures.includes(feature) })),
   ];
@@ -163,14 +173,24 @@ export function paymentsEnabled(env: Env = process.env): boolean {
   return keys && PLAN_TIERS.every((tier) => BILLING_CYCLES.every((cycle) => razorpayPlanId(tier, cycle, env) !== null));
 }
 
-/** The tier a webhook's plan id pays for: the configured Razorpay ids first, then the old "plan_growth_monthly" style. */
-export function tierForRazorpayPlan(planId: string | null | undefined, env: Env = process.env): PlanTier {
+/**
+ * The tier a webhook's plan id pays for: an exact match against the configured Razorpay ids first.
+ *
+ * When no configured id matches:
+ * - payments are configured (paymentsEnabled): the id is unresolved (null) rather than guessed. A plan id
+ *   that doesn't match any of the current six is more likely a since-rotated RAZORPAY_PLAN_* value than a
+ *   real downgrade, and the caller must not use null to change the dealer's plan (see billing.ts's webhook).
+ * - payments aren't configured (dev/test, no real plan ids set): fall back to the old "plan_growth_monthly"
+ *   substring style, defaulting to starter, exactly as before this tier resolution had a config-aware mode.
+ */
+export function tierForRazorpayPlan(planId: string | null | undefined, env: Env = process.env): PlanTier | null {
   const id = planId ?? '';
   if (id) {
     for (const tier of PLAN_TIERS) {
       if (BILLING_CYCLES.some((cycle) => razorpayPlanId(tier, cycle, env) === id)) return tier;
     }
   }
+  if (paymentsEnabled(env)) return null;
   if (id.includes('growth') || id.includes('premium')) return 'growth';
   if (id.includes('enterprise')) return 'enterprise';
   return 'starter';

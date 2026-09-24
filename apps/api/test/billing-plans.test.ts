@@ -1,10 +1,11 @@
 import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import axios from 'axios';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser, type Role } from '../src/lib/permissions.js';
+import { ACCOUNT_PLATFORMS } from '../src/lib/connections.js';
 import {
   BILLING_CYCLES, BILLING_PLANS, PLAN_LIMITS, PLAN_TIERS, UNLIMITED, annualDiscountPercent, paymentsEnabled,
   planFeatures, planLimits, razorpayPlanEnvKey, razorpayPlanId, tierForRazorpayPlan,
@@ -48,7 +49,9 @@ describe('billingPlans', () => {
   it('holds the limits the gate enforces', () => {
     assert.deepEqual(PLAN_LIMITS.starter, { postsPerMonth: 30, platforms: 2, blockedFeatures: ['inbox', 'boost', 'inventory'] });
     assert.equal(PLAN_LIMITS.growth.postsPerMonth, null);
-    assert.equal(PLAN_LIMITS.enterprise.platforms, 4);
+    // Growth and Enterprise both get every connectable platform — neither is capped below the other.
+    assert.equal(PLAN_LIMITS.growth.platforms, ACCOUNT_PLATFORMS.length);
+    assert.equal(PLAN_LIMITS.enterprise.platforms, ACCOUNT_PLATFORMS.length);
     assert.equal(planLimits('mystery'), PLAN_LIMITS.starter);
     assert.equal(planLimits(null), PLAN_LIMITS.starter);
   });
@@ -83,10 +86,21 @@ describe('billingPlans', () => {
   it('maps a webhook plan id to its tier', () => {
     assert.equal(tierForRazorpayPlan('plan_Z11', CONFIGURED), 'growth');
     assert.equal(tierForRazorpayPlan('plan_Z20', CONFIGURED), 'enterprise');
+    // No real plan ids configured: the old "plan_growth_monthly" substring guess still applies.
     assert.equal(tierForRazorpayPlan('plan_growth_monthly', {}), 'growth');
     assert.equal(tierForRazorpayPlan('plan_enterprise_annual', {}), 'enterprise');
     assert.equal(tierForRazorpayPlan('something-else', {}), 'starter');
     assert.equal(tierForRazorpayPlan(null, {}), 'starter');
+  });
+
+  it('leaves an unmatched plan id unresolved once real plan ids are configured, instead of guessing', () => {
+    // The substring guess is a dev/test convenience for when no real plan ids exist. Once payments are
+    // configured, a plan id that isn't one of the six configured ones is unresolved (null), not Starter —
+    // it's more likely a since-rotated RAZORPAY_PLAN_* value than an actual downgrade.
+    assert.equal(tierForRazorpayPlan('plan_growth_monthly', CONFIGURED), null);
+    assert.equal(tierForRazorpayPlan('plan_enterprise_annual', CONFIGURED), null);
+    assert.equal(tierForRazorpayPlan('something-else', CONFIGURED), null);
+    assert.equal(tierForRazorpayPlan(null, CONFIGURED), null);
   });
 });
 
@@ -112,7 +126,7 @@ describe('GET /v1/billing/plans and /status', () => {
     const starter = await status('starter');
     assert.deepEqual([starter.postsLimit, starter.platformsLimit, starter.featuresBlocked], [30, 2, ['inbox', 'boost', 'inventory']]);
     const enterprise = await status('enterprise');
-    assert.deepEqual([enterprise.postsLimit, enterprise.platformsLimit, enterprise.featuresBlocked], [UNLIMITED, 4, []]);
+    assert.deepEqual([enterprise.postsLimit, enterprise.platformsLimit, enterprise.featuresBlocked], [UNLIMITED, ACCOUNT_PLATFORMS.length, []]);
   });
 });
 
@@ -155,6 +169,25 @@ describe('POST /v1/billing/subscribe', () => {
       axios.post = original;
     }
   });
+
+  it('creates no subscription record when the payment gateway call fails', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const original = axios.post;
+    axios.post = (async () => {
+      const err = new Error('Request failed with status code 400') as Error & { response?: { data?: { error?: { description?: string } } } };
+      err.response = { data: { error: { description: 'The plan_id provided does not exist' } } };
+      throw err;
+    }) as unknown as typeof axios.post;
+    try {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'growth', cycle: 'monthly' } });
+      assert.equal(res.statusCode, 502, res.body);
+      assert.equal(res.json().error.code, 'PAYMENT_GATEWAY_ERROR');
+      assert.equal(await prisma.subscription.findUnique({ where: { dealer_id: dealerId } }), null);
+    } finally {
+      axios.post = original;
+    }
+  });
 });
 
 describe('POST /v1/billing/webhook', () => {
@@ -172,5 +205,72 @@ describe('POST /v1/billing/webhook', () => {
 
     assert.equal(res.statusCode, 200, res.body);
     assert.equal((await prisma.dealer.findUnique({ where: { id: dealerId } }))?.plan, 'enterprise');
+  });
+
+  it('accepts a correctly signed body with no signature bypass', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const subId = `sub_${randomUUID()}`;
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: subId, planId: 'plan_Z20', status: 'created' } });
+    const now = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      event: 'subscription.activated',
+      payload: { subscription: { entity: { id: subId, plan_id: 'plan_Z20', status: 'active', current_start: now, current_end: now + 30 * 86400 } } },
+    });
+    // A real, correctly-computed signature — supplying it takes the route past the (!signature || !secret)
+    // dev bypass and into validateRazorpaySignature itself, unlike the other tests in this file.
+    const signature = createHmac('sha256', CONFIGURED['RAZORPAY_WEBHOOK_SECRET']!).update(body).digest('hex');
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/billing/webhook',
+      headers: { 'content-type': 'application/json', 'x-razorpay-signature': signature },
+      payload: body,
+    });
+
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal((await prisma.dealer.findUnique({ where: { id: dealerId } }))?.plan, 'enterprise');
+  });
+
+  it('rejects a body whose signature does not match', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const subId = `sub_${randomUUID()}`;
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: subId, planId: 'plan_Z20', status: 'created' } });
+    const now = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      event: 'subscription.activated',
+      payload: { subscription: { entity: { id: subId, plan_id: 'plan_Z20', status: 'active', current_start: now, current_end: now + 30 * 86400 } } },
+    });
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/billing/webhook',
+      headers: { 'content-type': 'application/json', 'x-razorpay-signature': createHmac('sha256', 'wrong-secret').update(body).digest('hex') },
+      payload: body,
+    });
+
+    assert.equal(res.statusCode, 400, res.body);
+    assert.equal((await prisma.dealer.findUnique({ where: { id: dealerId } }))?.plan, 'starter');
+  });
+
+  it('keeps the dealer on their current plan when a charged webhook carries an unconfigured plan id', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer('growth');
+    const subId = `sub_${randomUUID()}`;
+    // planId no longer matches any of the six currently-configured RAZORPAY_PLAN_* values (e.g. rotated).
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: subId, planId: 'plan_since_rotated', status: 'active' } });
+    const now = Math.floor(Date.now() / 1000);
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/billing/webhook',
+      payload: { event: 'subscription.charged', payload: { subscription: { entity: { id: subId, plan_id: 'plan_since_rotated', status: 'active', current_start: now, current_end: now + 30 * 86400 } } } },
+    });
+
+    assert.equal(res.statusCode, 200, res.body);
+    const dealer = await prisma.dealer.findUnique({ where: { id: dealerId } });
+    assert.equal(dealer?.plan, 'growth');
+    // The renewal still records: the subscription's period rolls forward even though the tier is unresolved.
+    const sub = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
+    assert.equal(sub?.status, 'active');
+    assert.equal(sub?.currentPeriodEnd?.toISOString(), new Date((now + 30 * 86400) * 1000).toISOString());
   });
 });

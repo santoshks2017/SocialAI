@@ -108,16 +108,17 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       subscriptionId = response.data.id;
       paymentLink = response.data.short_url;
     } catch (err) {
-      fastify.log.error(`[billing] Razorpay subscription failed: ${err instanceof Error ? err.message : String(err)}`);
+      // Razorpay's error.description is the actionable detail (e.g. a misconfigured plan id); include it when present.
+      const description = (err as { response?: { data?: { error?: { description?: unknown } } } } | null)?.response?.data?.error?.description;
+      const detail = typeof description === 'string' ? ` (${description})` : '';
+      fastify.log.error(`[billing] Razorpay subscription failed: ${err instanceof Error ? err.message : String(err)}${detail}`);
       return reply.code(502).send({
         error: { code: 'PAYMENT_GATEWAY_ERROR', message: 'Could not start the subscription with the payment gateway. Please try again.' },
       });
     }
 
-    const existing = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
     const data = { razorpaySubscriptionId: subscriptionId, planId, status: 'created' };
-    if (existing) await prisma.subscription.update({ where: { dealer_id: dealerId }, data });
-    else await prisma.subscription.create({ data: { dealer_id: dealerId, ...data } });
+    await prisma.subscription.upsert({ where: { dealer_id: dealerId }, create: { dealer_id: dealerId, ...data }, update: data });
 
     return { success: true, subscriptionId, paymentLink };
   });
@@ -158,7 +159,8 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     const planId = subscriptionEntity.plan_id;
     const status = subscriptionEntity.status; // authenticated, active, cancelled, expired, etc.
 
-    // Configured Razorpay plan ids first, then the old "plan_growth_monthly" style.
+    // The configured Razorpay plan id first; null when payments are configured but this id isn't one of
+    // them (e.g. a since-rotated RAZORPAY_PLAN_* value) — that must not downgrade the dealer to Starter.
     const planTier = tierForRazorpayPlan(planId);
 
     const currentPeriodStart = subscriptionEntity.current_start ? new Date(subscriptionEntity.current_start * 1000) : null;
@@ -187,12 +189,14 @@ export default async function billingRoutes(fastify: FastifyInstance) {
         prisma.dealer.update({
           where: { id: sub.dealer_id },
           data: {
-            plan: planTier,
+            // planTier is null only when this id isn't one of the configured plan ids; keep the dealer's
+            // current plan rather than resetting a paying subscriber to Starter.
+            ...(planTier ? { plan: planTier } : {}),
             plan_expires_at: currentPeriodEnd,
           },
         }),
       ]);
-      fastify.log.info({ dealer_id: sub.dealer_id, planTier }, 'Subscription activated / updated successfully');
+      fastify.log.info({ dealer_id: sub.dealer_id, planTier: planTier ?? '(unresolved plan id; plan unchanged)' }, 'Subscription activated / updated successfully');
     } else if (event === 'subscription.cancelled' || event === 'subscription.expired' || status === 'cancelled' || status === 'expired') {
       await prisma.$transaction([
         prisma.subscription.update({
