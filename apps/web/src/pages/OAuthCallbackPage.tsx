@@ -1,61 +1,28 @@
-import { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Car, RefreshCw } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '../components/ui/Toast';
+import { oauthToast, readOAuthReturn } from '../utils/connectPlatform';
 
+// Where Meta and Google send the browser after a connect: shows the outcome, then returns to the page that
+// started it (Accounts, Onboarding or Settings, stored by startConnect before the redirect).
 export default function OAuthCallbackPage() {
-  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const handled = useRef(false);
 
   useEffect(() => {
-    const success = searchParams.get('success');
-    const error = searchParams.get('error');
-    const platform = searchParams.get('platform');
-    const pageName = searchParams.get('page_name');
-    // One-time code for the Page list from GET /v1/auth/facebook/callback. The opener
-    // redeems it; keep it out of this window's address bar and history entry.
-    const code = searchParams.get('code');
-    window.history.replaceState(window.history.state, '', window.location.pathname);
-
-    // Build the message to send to the opener (AccountsPage popup flow)
-    const message = success
-      ? { type: 'oauth_success', platform, pageName, code }
-      : { type: 'oauth_error', error, platform };
-
-    // Popup mode: post message to the opener window and close
-    if (window.opener && !window.opener.closed) {
-      try {
-        window.opener.postMessage(message, window.location.origin);
-      } catch {
-        // opener may be from a cross-origin navigation or already closed
-      }
-      window.close();
-      return;
-    }
-
-    // Direct navigation fallback — redirect to /accounts with status params
-    const params = new URLSearchParams();
-    if (success) {
-      params.set('connected', 'true');
-      if (platform) params.set('platform', platform);
-      if (pageName) params.set('page_name', pageName);
-    }
-    if (error) {
-      params.set('error', error);
-      if (platform) params.set('platform', platform);
-    }
-    window.location.replace(`/accounts?${params}`);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (handled.current) return; // StrictMode runs effects twice in development
+    handled.current = true;
+    const toast = oauthToast(new URLSearchParams(window.location.search));
+    if (toast) addToast(toast);
+    navigate(readOAuthReturn(), { replace: true });
+  }, [addToast, navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f1117] via-[#141824] to-[#1a1f2e] flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-orange-500/30">
-          <Car className="w-8 h-8 text-white" />
-        </div>
-        <div className="flex items-center gap-2 text-white/60 text-sm">
-          <RefreshCw className="w-4 h-4 animate-spin" />
-          Completing connection…
-        </div>
+    <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3 text-sm text-zinc-500">
+        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        {'Completing connection\u2026'}
       </div>
     </div>
   );
