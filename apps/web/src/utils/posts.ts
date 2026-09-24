@@ -140,6 +140,16 @@ export function platformResults(results: unknown): PlatformResult[] {
     });
 }
 
+/**
+ * Whether the post detail shows a platform's own status beside its accounts: always when there are no
+ * per-account rows, and when no account has the post and the platform has an error, since that error is the
+ * latest attempt's reason (e.g. the selected account is no longer connected) and the account rows may be older.
+ */
+export function showPlatformStatus(result: PlatformResult): boolean {
+  if (!result.accounts) return true;
+  return !!result.error && result.accounts.every((a) => !!a.error);
+}
+
 /** Reach, likes and comments summed over platforms (`{ facebook: {...}, instagram: {...} }`), or read from a flat object. */
 export function metricTotals(metrics: unknown): { reach: number; likes: number; comments: number } {
   const totals = { reach: 0, likes: 0, comments: 0 };

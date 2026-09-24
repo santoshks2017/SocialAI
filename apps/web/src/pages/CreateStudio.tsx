@@ -112,7 +112,7 @@ function CreateStudio() {
 
   useEffect(() => {
     let cancelled = false;
-    accountsService.list()
+    accountsService.list({ verify: false })
       .then((list) => { if (!cancelled) setAccounts(list); })
       .catch(() => {});
     createStudioService.platformSpecs()

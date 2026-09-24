@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { approvalRemark, firstCreative, metricTotals, pageList, parsePostTab, platformResults, postMediaLink, postThumbnail, postTimeline, toLocalInput } from './posts.js';
+import {
+  approvalRemark, firstCreative, metricTotals, pageList, parsePostTab, platformResults, postMediaLink, postThumbnail, postTimeline, showPlatformStatus, toLocalInput,
+} from './posts.js';
 
 describe('parsePostTab', () => {
   it('accepts known statuses and falls back to all', () => {
@@ -100,6 +102,26 @@ describe('platformResults', () => {
         { id: 'c2', name: 'Apex Used', error: 'Token expired' },
       ],
     }]);
+  });
+});
+
+describe('showPlatformStatus', () => {
+  const ok = { id: 'c1', name: 'Apex Motors', url: 'https://fb.test/a' };
+  const failed = { id: 'c2', name: 'Apex Used', error: 'Token expired' };
+
+  it('shows the platform status when there are no per-account rows', () => {
+    assert.equal(showPlatformStatus({ platform: 'facebook', url: 'https://fb.test/1' }), true);
+    assert.equal(showPlatformStatus({ platform: 'instagram', error: 'Token expired' }), true);
+  });
+
+  it('shows the platform error when no account has the post', () => {
+    const gone = 'The selected Facebook account is no longer connected. Reconnect it or pick another account, then publish again.';
+    assert.equal(showPlatformStatus({ platform: 'facebook', error: gone, accounts: [failed] }), true);
+  });
+
+  it('leaves it to the account rows when an account has the post, or there is no platform error', () => {
+    assert.equal(showPlatformStatus({ platform: 'facebook', url: 'https://fb.test/a', accounts: [ok, failed] }), false);
+    assert.equal(showPlatformStatus({ platform: 'facebook', accounts: [failed] }), false);
   });
 });
 

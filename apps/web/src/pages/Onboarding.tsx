@@ -103,7 +103,7 @@ export default function Onboarding() {
   const [selectedPostIdx, setSelectedPostIdx] = useState(0);
 
   useEffect(() => {
-    api.get<{ accounts?: Array<{ platform: string }> }>('/platform-accounts')
+    api.get<{ accounts?: Array<{ platform: string }> }>('/platform-accounts', { verify: 0 })
       .then((res) => setConnectedPlatforms((res.accounts ?? []).map((a) => (a.platform === 'google' ? 'gmb' : a.platform))))
       .catch(() => setConnectedPlatforms([]));
   }, []);

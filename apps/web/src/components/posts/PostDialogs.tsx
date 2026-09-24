@@ -3,7 +3,7 @@ import { ExternalLink, LoaderCircle } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import type { Post } from '../../services/creative';
-import { metricTotals, platformResults, postTimeline, toLocalInput } from '../../utils/posts';
+import { metricTotals, platformResults, postTimeline, showPlatformStatus, toLocalInput } from '../../utils/posts';
 import { platformName } from '../../utils/publishResult';
 import { PostStatusBadge } from './PostStatusBadge';
 import { PlatformList } from './PlatformList';
@@ -217,7 +217,7 @@ export function PostDetailDialog({ post, onClose }: { post: Post | null; onClose
                 <div key={r.platform} className="text-xs border border-zinc-100 rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-zinc-700">{platformName(r.platform)}</span>
-                    {!r.accounts && <ResultStatus url={r.url} error={r.error} />}
+                    {showPlatformStatus(r) && <ResultStatus url={r.url} error={r.error} />}
                   </div>
                   {r.accounts && (
                     <div className="mt-1.5 space-y-1">
