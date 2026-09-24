@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma.js';
+import { saveConnection } from '../lib/connectionStore.js';
 
 export type Platform = 'facebook' | 'instagram' | 'google';
 
@@ -17,32 +18,15 @@ export async function saveAccount(input: SaveAccountInput) {
     return null;
   }
 
-  return prisma.platformConnection.upsert({
-    where: {
-      dealer_id_platform: {
-        dealer_id: input.userId,
-        platform: input.platform,
-      },
-    },
-    update: {
-      platform_account_id: input.accountId,
-      platform_account_name: input.accountName,
-      access_token: input.accessToken,
-      refresh_token: input.refreshToken ?? null,
-      token_expires_at: input.tokenExpiry ?? null,
-      is_connected: true,
-    },
-    create: {
-      dealer_id: input.userId,
-      platform: input.platform,
-      platform_account_id: input.accountId,
-      platform_account_name: input.accountName,
-      access_token: input.accessToken,
-      refresh_token: input.refreshToken ?? null,
-      token_expires_at: input.tokenExpiry ?? null,
-      is_connected: true,
-    },
+  const outcome = await saveConnection(input.userId, {
+    platform: input.platform,
+    platform_account_id: input.accountId,
+    platform_account_name: input.accountName,
+    access_token: input.accessToken,
+    refresh_token: input.refreshToken ?? null,
+    token_expires_at: input.tokenExpiry ?? null,
   });
+  return outcome.status === 'saved' ? outcome.connection : null;
 }
 
 export async function getAccountsByUser(userId: string, platform?: string) {

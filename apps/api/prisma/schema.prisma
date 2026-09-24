@@ -91,7 +91,8 @@ model PlatformConnection {
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
 
-  @@unique([dealer_id, platform])
+  // One row per connected account: a dealership may connect several accounts per platform.
+  @@unique([dealer_id, platform, platform_account_id])
 }
 
 model Template {
@@ -144,6 +145,7 @@ model Post {
   template               Template? @relation(fields: [template_id], references: [id])
   inventory_item_ids     String[]
   platforms              String[]
+  connection_ids         String[] @default([]) // PlatformConnection ids this post targets; none named = each platform's primary account
   status                 String   @default("draft")
   requires_approval      Boolean  @default(false)
   approved_by            String?  // DealerUser.id
@@ -187,6 +189,7 @@ model InboxMessage {
   message_type         String
   platform_message_id  String   @unique
   post_id              String?
+  connection_id        String?   // PlatformConnection that received it (webhook, review sync); null for email samples and older messages
   customer_name        String
   customer_avatar_url  String?
   customer_platform_id String?

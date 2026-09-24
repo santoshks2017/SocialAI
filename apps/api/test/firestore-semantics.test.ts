@@ -209,7 +209,9 @@ describe('unique lookups', () => {
     assert.equal(await prisma.dealer.findUnique({ where: { id: undefined } as any }), null);
     assert.equal(await prisma.dealer.findUnique({ where: {} }), null);
     assert.equal(
-      await prisma.platformConnection.findUnique({ where: { dealer_id_platform: { dealer_id: undefined, platform: 'facebook' } } as any }),
+      await prisma.platformConnection.findUnique({
+        where: { dealer_id_platform_platform_account_id: { dealer_id: undefined, platform: 'facebook', platform_account_id: 'page-1' } } as any,
+      }),
       null,
     );
   });
