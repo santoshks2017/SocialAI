@@ -10,7 +10,7 @@ import type { JwtUser } from './lib/permissions.js';
 import { registerActivityLog } from './plugins/activityLog.js';
 import { registerPlanGate } from './plugins/planGate.js';
 import { createOriginChecker } from './lib/corsOrigins.js';
-import { redactApprovalToken } from './lib/logRedaction.js';
+import { redactRequestUrl } from './lib/logRedaction.js';
 import { installHttpErrorRedaction, serializeError } from './lib/httpErrorRedaction.js';
 import { startWorkers } from './workers/index.js';
 
@@ -54,14 +54,15 @@ installHttpErrorRedaction();
 // Cloud Run's front end proxies every request, so the socket address is its own
 // (169.254.169.126); trustProxy makes req.ip the client from X-Forwarded-For.
 // The req serializer mirrors Fastify's default, but keeps the raw approval-link token
-// (a bearer credential in the URL) out of the logs. The err serializer redacts HTTP client
-// errors (keys in request headers, tokens in query strings) before the standard one runs.
+// (a bearer credential in the URL) and the OAuth callbacks' code and state out of the
+// logs. The err serializer redacts HTTP client errors (keys in request headers, tokens
+// in query strings) before the standard one runs.
 const fastify = Fastify({
   logger: {
     serializers: {
       req: (req) => ({
         method: req.method,
-        url: redactApprovalToken(req.url),
+        url: redactRequestUrl(req.url),
         host: req.host,
         remoteAddress: req.ip,
         ...(req.socket?.remotePort !== undefined ? { remotePort: req.socket.remotePort } : {}),
