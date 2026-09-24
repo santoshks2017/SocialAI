@@ -79,8 +79,13 @@ export async function generateMockEmails(dealerId: string) {
       },
     });
 
-    // Run the newly created mock email through the auto reply engine
-    await processIncomingMessage(msg.id);
+    // Run the newly created mock email through the auto reply engine.
+    // Auto-reply needs an AI provider; seeding sample messages must work without one.
+    try {
+      await processIncomingMessage(msg.id);
+    } catch (err) {
+      console.warn("[emailMock] Auto-reply skipped for a sample email:", err instanceof Error ? err.message : String(err));
+    }
 
     // Fetch the updated message with reply status / suggested reply
     const updatedMsg = await prisma.inboxMessage.findUnique({
