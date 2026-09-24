@@ -77,6 +77,9 @@ describe('connectionIds on posts', () => {
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.json().item.connection_ids, [b.id]);
+
+    const cleared = await app.inject({ method: 'PATCH', url: `/v1/publisher/posts/${id}`, headers: auth(dealerId), payload: { connectionIds: [] } });
+    assert.deepEqual([cleared.statusCode, (await prisma.post.findUnique({ where: { id } }))?.connection_ids], [200, []]);
   });
 });
 

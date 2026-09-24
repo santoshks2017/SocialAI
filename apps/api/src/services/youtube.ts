@@ -47,14 +47,24 @@ export async function fetchYouTubeVideoMetrics(videoId: string, accessToken: str
   return { views, reach: views, likes: youtubeCount(stats?.likeCount) ?? 0, comments: youtubeCount(stats?.commentCount) ?? 0 };
 }
 
-/** A channel's subscribers; null when the channel hides the count. */
-export async function fetchYouTubeSubscribers(channelId: string, accessToken: string): Promise<number | null> {
+/** The answer for a channel whose owner hides its subscriber count: a real answer, but no number to add up. */
+export const HIDDEN_SUBSCRIBER_COUNT = 'hidden';
+
+/**
+ * A channel's subscribers; HIDDEN_SUBSCRIBER_COUNT when the channel hides the count; null when there is no
+ * usable answer (the channel isn't in the response, or the count isn't a number).
+ */
+export async function fetchYouTubeSubscribers(
+  channelId: string,
+  accessToken: string,
+): Promise<number | typeof HIDDEN_SUBSCRIBER_COUNT | null> {
   if (isMockId(channelId) || isMockId(accessToken)) return null;
   const res = await axios.get<{ items?: Array<{ statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean } }> }>(
     `${YOUTUBE_API_BASE}/channels`,
     { params: { part: 'statistics', id: channelId }, headers: bearer(accessToken), timeout: TIMEOUT_MS },
   );
   const stats = res.data.items?.[0]?.statistics;
-  if (!stats || stats.hiddenSubscriberCount) return null;
+  if (!stats) return null;
+  if (stats.hiddenSubscriberCount) return HIDDEN_SUBSCRIBER_COUNT;
   return youtubeCount(stats.subscriberCount);
 }

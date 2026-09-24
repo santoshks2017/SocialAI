@@ -15,9 +15,8 @@ export interface GoogleTokenConnection {
 }
 
 function wording(platform: string | undefined): { label: string; hint: string } {
-  return platform === 'youtube'
-    ? { label: 'YouTube', hint: 'Reconnect YouTube on Accounts, then publish again.' }
-    : { label: 'Google Business Profile', hint: 'Reconnect Google Business Profile in Settings, then publish again.' };
+  const label = platform === 'youtube' ? 'YouTube' : 'Google Business Profile';
+  return { label, hint: `Reconnect ${label} on Accounts, then publish again.` };
 }
 
 export function googleTokenNeedsRefresh(expiresAt: Date | string | null | undefined, now = Date.now()): boolean {
@@ -62,7 +61,7 @@ export async function getFreshGoogleAccessToken(conn: GoogleTokenConnection): Pr
   };
   if (!res.ok || !body.access_token) {
     if (body.error === 'invalid_grant') {
-      await disconnectRevokedConnection(conn.id).catch((err: unknown) => {
+      await disconnectRevokedConnection(conn.id, conn.refresh_token).catch((err: unknown) => {
         console.error('[google-token] Could not record the revoked connection:', err instanceof Error ? err.message : String(err));
       });
     }

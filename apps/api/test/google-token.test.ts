@@ -40,7 +40,7 @@ describe('revoked Google access', () => {
     t.mock.method(globalThis, 'fetch', googleAnswer({ error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }, 400));
 
     await assert.rejects(getFreshGoogleAccessToken(conn), {
-      message: 'Could not renew Google Business Profile access (Token has been expired or revoked.). Reconnect Google Business Profile in Settings, then publish again.',
+      message: 'Could not renew Google Business Profile access (Token has been expired or revoked.). Reconnect Google Business Profile on Accounts, then publish again.',
     });
 
     assert.equal((await prisma.platformConnection.findUnique({ where: { id: conn.id } }))?.is_connected, false);
@@ -52,6 +52,62 @@ describe('revoked Google access', () => {
 
     await assert.rejects(getFreshGoogleAccessToken(conn));
     assert.equal((await prisma.notification.findMany({ where: { user_id: admin.id } })).length, 1);
+  });
+
+  it('disconnects every account on the revoked grant at once and tells the team once, with the count', async (t) => {
+    setGoogleEnv(t);
+    const { dealerId, admin } = await team();
+    const location = (n: number, refresh: string) => prisma.platformConnection.create({
+      data: {
+        dealer_id: dealerId, platform: 'gmb', platform_account_id: `accounts/1/locations/${n}`, platform_account_name: `Apex ${n}`,
+        access_token: 'ya29.old', refresh_token: refresh, token_expires_at: new Date(Date.now() - HOUR), is_connected: true,
+      },
+    });
+    const [a, b, c] = [await location(1, '1//shared'), await location(2, '1//shared'), await location(3, '1//shared')];
+    const other = await location(4, '1//other-grant');
+    const elsewhere = await (async () => {
+      const { dealerId: otherDealer } = await team();
+      return prisma.platformConnection.create({
+        data: {
+          dealer_id: otherDealer, platform: 'gmb', platform_account_id: 'accounts/9/locations/1', access_token: 'ya29.x',
+          refresh_token: '1//shared', token_expires_at: new Date(Date.now() + HOUR), is_connected: true,
+        },
+      });
+    })();
+    t.mock.method(globalThis, 'fetch', googleAnswer({ error: 'invalid_grant' }, 400));
+
+    // Two locations of the grant renew at the same moment (cron publishing, follower sync): still one notice.
+    await Promise.all([assert.rejects(getFreshGoogleAccessToken(a)), assert.rejects(getFreshGoogleAccessToken(b))]);
+    await assert.rejects(getFreshGoogleAccessToken(c));
+
+    const connected = async (id: string) => (await prisma.platformConnection.findUnique({ where: { id } }))?.is_connected;
+    assert.deepEqual(
+      [await connected(a.id), await connected(b.id), await connected(c.id), await connected(other.id), await connected(elsewhere.id)],
+      [false, false, false, true, true],
+    );
+    const notices = await prisma.notification.findMany({ where: { user_id: admin.id } });
+    assert.deepEqual(
+      notices.map((n) => [n.title, n.body]),
+      [['Google Business Profile disconnected', '3 Google Business Profile accounts need reconnecting \u2014 access was revoked or expired.']],
+    );
+  });
+
+  it('leaves an account alone when it was reconnected with a new token after the refresh started', async (t) => {
+    setGoogleEnv(t);
+    const { dealerId, admin } = await team();
+    const conn = await prisma.platformConnection.create({
+      data: {
+        dealer_id: dealerId, platform: 'youtube', platform_account_id: 'UC-re', platform_account_name: 'Apex TV',
+        access_token: 'ya29.old', refresh_token: '1//old-grant', token_expires_at: new Date(Date.now() - HOUR), is_connected: true,
+      },
+    });
+    await prisma.platformConnection.update({ where: { id: conn.id }, data: { refresh_token: '1//new-grant' } });
+    t.mock.method(globalThis, 'fetch', googleAnswer({ error: 'invalid_grant' }, 400));
+
+    await assert.rejects(getFreshGoogleAccessToken(conn));
+
+    assert.equal((await prisma.platformConnection.findUnique({ where: { id: conn.id } }))?.is_connected, true);
+    assert.equal((await prisma.notification.findMany({ where: { user_id: admin.id } })).length, 0);
   });
 
   it('words YouTube failures for YouTube and keeps the account on other errors', async (t) => {

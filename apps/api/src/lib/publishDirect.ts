@@ -86,7 +86,7 @@ export async function resolveAccessToken(conn: PlatformConnection): Promise<stri
   if (conn.platform === 'gmb' || conn.platform === 'youtube') return getFreshGoogleAccessToken(conn);
   if (conn.token_expires_at && new Date(conn.token_expires_at).getTime() <= Date.now()) {
     const label = platformLabel(conn.platform);
-    throw new Error(`${label} access expired. Reconnect ${label} in Settings, then publish again.`);
+    throw new Error(`${label} access expired. Reconnect ${label} on Accounts, then publish again.`);
   }
   return conn.access_token;
 }

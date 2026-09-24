@@ -36,7 +36,7 @@ export function primaryConnection<T extends ConnectionRef>(conns: readonly T[], 
 }
 
 export function noConnectedAccountMessage(platform: string): string {
-  return `No connected ${platformLabel(platform)} account. Connect it in Settings, then publish again.`;
+  return `No connected ${platformLabel(platform)} account. Connect it on Accounts, then publish again.`;
 }
 
 export function selectedAccountGoneMessage(platform: string): string {

@@ -7,6 +7,7 @@ import { NO_YOUTUBE_CHANNEL, bearer } from '../services/youtube.js';
 const UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status';
 const INIT_TIMEOUT_MS = 30_000;
 const UPLOAD_TIMEOUT_MS = 120_000;
+const STATUS_TIMEOUT_MS = 15_000;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 const VIDEO_MAX_BYTES = 256 * 1024 * 1024;
 const TITLE_MAX = 100;
@@ -17,6 +18,7 @@ const AUTOS_AND_VEHICLES = '2';
 export const SHORTS_TAG = '#Shorts';
 export const YOUTUBE_LIMIT_MESSAGE = "YouTube's daily upload limit was reached. Try again tomorrow.";
 export const YOUTUBE_EXPIRED_MESSAGE = 'YouTube access expired. Reconnect YouTube on Accounts.';
+export const YOUTUBE_UNCONFIRMED_MESSAGE = 'YouTube didn\u2019t confirm the upload. Check the channel before publishing again.';
 const LIMIT_REASONS = new Set(['quotaExceeded', 'uploadLimitExceeded', 'dailyLimitExceeded']);
 
 const stripAngles = (text: string) => text.replace(/[<>]/g, '');
@@ -104,6 +106,46 @@ function headerValue(headers: unknown, name: string): string | null {
   return typeof value === 'string' && value ? value : null;
 }
 
+/** Asks the resumable session whether it holds the whole video: the video id when it does, otherwise null. */
+async function uploadedVideoId(location: string, length: number, accessToken: string): Promise<string | null> {
+  try {
+    const res = await axios.put<{ id?: unknown }>(location, Buffer.alloc(0), {
+      headers: { ...bearer(accessToken), 'Content-Range': `bytes */${length}` },
+      timeout: STATUS_TIMEOUT_MS,
+      validateStatus: () => true,
+    });
+    const id = res.data?.id;
+    return (res.status === 200 || res.status === 201) && typeof id === 'string' && id ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * PUTs the bytes and returns the video id. A PUT that gets no answer (a timeout or a dropped connection) may
+ * still have finished on YouTube's side, so the session is asked once; an upload it can't confirm fails with
+ * copy that says to check the channel, since publishing again could post the Short twice.
+ */
+async function putVideo(location: string, video: Buffer, accessToken: string): Promise<string> {
+  let id: unknown;
+  try {
+    const done = await axios.put<{ id?: unknown }>(location, video, {
+      headers: { ...bearer(accessToken), 'Content-Type': 'video/mp4' },
+      timeout: UPLOAD_TIMEOUT_MS,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+    id = done.data.id;
+  } catch (err) {
+    if (!axios.isAxiosError(err) || err.response) throw err;
+    const confirmed = await uploadedVideoId(location, video.length, accessToken);
+    if (!confirmed) throw new Error(YOUTUBE_UNCONFIRMED_MESSAGE);
+    return confirmed;
+  }
+  if (typeof id !== 'string' || !id) throw new Error('YouTube did not return a video id.');
+  return id;
+}
+
 /** Uploads a reel as a public Short. A mock channel (local and demo) gets a mock Short and no API call. */
 export async function uploadShort(input: ShortUpload): Promise<{ platform_post_id: string; url: string }> {
   if (isMockId(input.accessToken)) {
@@ -130,14 +172,7 @@ export async function uploadShort(input: ShortUpload): Promise<{ platform_post_i
     );
     const location = headerValue(session.headers, 'location');
     if (!location) throw new Error('YouTube did not return an upload address.');
-    const done = await axios.put<{ id?: string }>(location, video, {
-      headers: { ...bearer(input.accessToken), 'Content-Type': 'video/mp4' },
-      timeout: UPLOAD_TIMEOUT_MS,
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-    });
-    const id = done.data.id;
-    if (!id) throw new Error('YouTube did not return a video id.');
+    const id = await putVideo(location, video, input.accessToken);
     return { platform_post_id: id, url: `https://youtube.com/shorts/${id}` };
   } catch (err) {
     throw new Error(youtubeErrorMessage(err));

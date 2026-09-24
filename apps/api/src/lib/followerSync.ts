@@ -1,7 +1,7 @@
 import type { PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
 import { fetchInstagramFollowers, fetchPageFollowers } from '../services/meta.js';
-import { fetchYouTubeSubscribers } from '../services/youtube.js';
+import { HIDDEN_SUBSCRIBER_COUNT, fetchYouTubeSubscribers } from '../services/youtube.js';
 import { forEachLimited } from './concurrency.js';
 import { isMockConnection } from './platformMock.js';
 import { resolveAccessToken } from './publishDirect.js';
@@ -21,7 +21,7 @@ export function snapshotId(dealerId: string, platform: string, day: string): str
   return `${dealerId}_${platform}_${day}`;
 }
 
-function fetchFollowers(conn: PlatformConnection, token: string): Promise<number | null> {
+function fetchFollowers(conn: PlatformConnection, token: string): Promise<number | typeof HIDDEN_SUBSCRIBER_COUNT | null> {
   if (conn.platform === 'facebook') return fetchPageFollowers(conn.platform_account_id, token);
   if (conn.platform === 'instagram') return fetchInstagramFollowers(conn.platform_account_id, token);
   return fetchYouTubeSubscribers(conn.platform_account_id, token);
@@ -45,8 +45,9 @@ interface FollowerGroup {
 /**
  * Cron step: today's audience for up to 5 dealer + platform pairs that have none yet, summed over the
  * platform's live accounts (Pages, Instagram accounts, YouTube channels), each read with its own token.
- * A pair's snapshot is saved only once every one of its live accounts answers with a count; if any of them
- * fails (or, for YouTube, hides its count), nothing is saved for that pair today, so a later run retries it.
+ * A pair's snapshot is saved only once every one of its live accounts answers; if any of them fails, nothing
+ * is saved for that pair today, so a later run retries it. A YouTube channel that hides its subscriber count
+ * has answered but is left out of the sum; a pair where no account gave a number saves nothing.
  * Every account is claimed (last_sync_at stamped) before it is asked, and the pairs tried least recently go
  * first, so a failing or hanging account cannot starve the others. A group's own accounts are asked with
  * bounded concurrency (5 at a time), so a dealership with many accounts on one platform can't alone eat the
@@ -75,6 +76,7 @@ export async function syncFollowerSnapshots(now: Date): Promise<number> {
   let saved = 0;
   for (const group of due) {
     let followers = 0;
+    let answered = 0;
     let counted = 0;
     // Each account's own claim-then-fetch stays in order; up to 5 accounts run at once so the sum stays
     // deterministic (addition doesn't care which finishes first) while a large group can't run unbounded.
@@ -87,8 +89,11 @@ export async function syncFollowerSnapshots(now: Date): Promise<number> {
       }
       try {
         const count = await fetchFollowers(conn, await resolveAccessToken(conn));
-        if (count !== null) {
+        if (count === HIDDEN_SUBSCRIBER_COUNT) {
+          answered++;
+        } else if (count !== null) {
           followers += count;
+          answered++;
           counted++;
         }
       } catch (err) {
@@ -96,8 +101,9 @@ export async function syncFollowerSnapshots(now: Date): Promise<number> {
       }
     });
     // Every live account of this platform must have answered; a partial sum would misreport the day's audience,
-    // and leaving the snapshot unwritten lets the next run retry (the row stays out of `taken`).
-    if (counted !== group.conns.length) continue;
+    // and leaving the snapshot unwritten lets the next run retry (the row stays out of `taken`). With no number
+    // at all (every channel hides its count) there is nothing true to save.
+    if (answered !== group.conns.length || counted === 0) continue;
     await prisma.followerSnapshot.upsert({
       where: { id: group.id },
       create: {

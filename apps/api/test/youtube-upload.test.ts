@@ -1,11 +1,13 @@
 import { describe, it } from 'node:test';
+import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 import { prisma } from '../src/db/prisma.js';
 import { publishPost } from '../src/lib/publishDirect.js';
 import {
-  YOUTUBE_EXPIRED_MESSAGE, YOUTUBE_LIMIT_MESSAGE, reelSource, shortsDescription, shortsTags, shortsTitle, uploadShort, youtubeErrorMessage,
+  YOUTUBE_EXPIRED_MESSAGE, YOUTUBE_LIMIT_MESSAGE, YOUTUBE_UNCONFIRMED_MESSAGE, reelSource, shortsDescription, shortsTags, shortsTitle, uploadShort,
+  youtubeErrorMessage,
 } from '../src/lib/youtubeUpload.js';
 
 const apiError = (status: number, reason: string, message = 'Request failed') =>
@@ -118,6 +120,58 @@ describe('uploadShort', () => {
     t.mock.method(axios, 'put', async () => ({ data: {} }));
 
     await assert.rejects(uploadShort(UPLOAD), { message: 'YouTube did not return a video id.' });
+  });
+});
+
+describe('uploadShort when the bytes PUT gets no answer', () => {
+  const SESSION = 'https://upload.test/session-9';
+  const timedOut = () => new AxiosError('timeout of 120000ms exceeded', 'ECONNABORTED');
+
+  function stubUpload(t: TestContext, statusCheck: () => Promise<unknown>) {
+    t.mock.method(reelSource, 'load', async () => Buffer.from('mp4-bytes'));
+    t.mock.method(axios, 'post', async () => ({ headers: { location: SESSION }, data: {} }));
+    let calls = 0;
+    return t.mock.method(axios, 'put', async (_url: string, _body: unknown, _config: unknown) => {
+      calls++;
+      if (calls === 1) throw timedOut();
+      return statusCheck();
+    });
+  }
+
+  it('asks the upload session once and takes the video it reports as the Short', async (t) => {
+    const put = stubUpload(t, async () => ({ status: 200, data: { id: 'short-late' } }));
+
+    const result = await uploadShort(UPLOAD);
+
+    assert.deepEqual(result, { platform_post_id: 'short-late', url: 'https://youtube.com/shorts/short-late' });
+    assert.equal(put.mock.callCount(), 2);
+    const [url, body, config] = put.mock.calls[1]!.arguments;
+    const headers = (config as { headers: Record<string, string> }).headers;
+    assert.equal(url, SESSION);
+    assert.equal((body as Buffer).length, 0);
+    assert.deepEqual([headers['Content-Range'], headers['Authorization']], [`bytes */${Buffer.from('mp4-bytes').length}`, 'Bearer ya29.token']);
+  });
+
+  it('fails with check-the-channel copy when the session has not got the whole video', async (t) => {
+    assert.equal(YOUTUBE_UNCONFIRMED_MESSAGE, 'YouTube didn\u2019t confirm the upload. Check the channel before publishing again.');
+
+    const incomplete = stubUpload(t, async () => ({ status: 308, headers: { range: 'bytes=0-3' }, data: '' }));
+    await assert.rejects(uploadShort(UPLOAD), { message: YOUTUBE_UNCONFIRMED_MESSAGE });
+    assert.equal(incomplete.mock.callCount(), 2);
+
+    t.mock.restoreAll();
+    const unreachable = stubUpload(t, async () => { throw new AxiosError('socket hang up', 'ECONNRESET'); });
+    await assert.rejects(uploadShort(UPLOAD), { message: YOUTUBE_UNCONFIRMED_MESSAGE });
+    assert.equal(unreachable.mock.callCount(), 2);
+  });
+
+  it('does not ask the session when YouTube answered the PUT with an error', async (t) => {
+    t.mock.method(reelSource, 'load', async () => Buffer.from('x'));
+    t.mock.method(axios, 'post', async () => ({ headers: { location: SESSION }, data: {} }));
+    const put = t.mock.method(axios, 'put', async () => { throw apiError(403, 'quotaExceeded'); });
+
+    await assert.rejects(uploadShort(UPLOAD), { message: YOUTUBE_LIMIT_MESSAGE });
+    assert.equal(put.mock.callCount(), 1);
   });
 });
 

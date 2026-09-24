@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
 import { ACCOUNT_PLATFORMS, MAX_CONNECTED_ACCOUNTS, platformLabel, primaryConnection } from './connections.js';
-import { guardedWrite } from './guardedWrite.js';
+import { guardedWriteGroup } from './guardedWrite.js';
 import { notify } from './notifications.js';
 
 export interface ConnectionInput {
@@ -150,29 +150,37 @@ export async function replyConnection(
 }
 
 /**
- * Google answered invalid_grant for this account: access was revoked, or the refresh token expired.
- * Soft-disconnects it and, only on that first flip, tells the dealership's team (bell, linking to Accounts).
- * Returns whether this call disconnected it.
+ * Google answered invalid_grant for this account's refresh token: access was revoked, or the token expired.
+ * Every location or channel of one Google sign-in shares that token, so this soft-disconnects the account and
+ * the dealership's other connected accounts on it in one step, then tells the team once (bell, linking to
+ * Accounts). Nothing happens when the account is already disconnected or has since been reconnected with a
+ * new token. Returns whether this call disconnected it.
  */
-export async function disconnectRevokedConnection(connectionId: string): Promise<boolean> {
-  const flipped = await guardedWrite(
+export async function disconnectRevokedConnection(connectionId: string, revokedRefreshToken: string): Promise<boolean> {
+  const conn = await prisma.platformConnection.findUnique({ where: { id: connectionId } });
+  if (!conn) return false;
+  const siblings = (await prisma.platformConnection.findMany({ where: { dealer_id: conn.dealer_id, is_connected: true } }))
+    .filter((c) => c.id !== conn.id && c.refresh_token === revokedRefreshToken)
+    .map((c) => c.id);
+  const flipped = await guardedWriteGroup(
     'platform_connections',
     prisma.platformConnection,
-    connectionId,
-    (doc) => doc['is_connected'] !== false,
+    conn.id,
+    siblings,
+    (doc) => doc['is_connected'] !== false && doc['refresh_token'] === revokedRefreshToken,
     { is_connected: false },
   );
-  if (!flipped) return false;
-  const conn = await prisma.platformConnection.findUnique({ where: { id: connectionId } });
-  if (conn) {
-    const label = platformLabel(conn.platform);
-    await notify({
-      dealerId: conn.dealer_id,
-      type: 'platform_disconnected',
-      title: `${label} disconnected`,
-      body: `${conn.platform_account_name || label} needs reconnecting \u2014 access was revoked or expired.`,
-      link: '/accounts',
-    });
-  }
+  if (flipped.length === 0) return false;
+
+  const label = platformLabel(conn.platform);
+  await notify({
+    dealerId: conn.dealer_id,
+    type: 'platform_disconnected',
+    title: `${label} disconnected`,
+    body: flipped.length > 1
+      ? `${flipped.length} ${label} accounts need reconnecting \u2014 access was revoked or expired.`
+      : `${conn.platform_account_name || label} needs reconnecting \u2014 access was revoked or expired.`,
+    link: '/accounts',
+  });
   return true;
 }

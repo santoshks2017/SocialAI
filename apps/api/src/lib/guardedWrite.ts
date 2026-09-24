@@ -59,3 +59,46 @@ export async function guardedWrite(
     return true;
   });
 }
+
+// Applies `patch` to `leadId` and to each of `otherIds` whose document `guard` accepts, all at once, but only
+// when `guard` accepts the lead; otherwise nothing is written. Atomic with respect to other guarded writes, so
+// of two concurrent calls over the same documents only the first writes. Returns the ids written, lead first
+// (empty when the lead was refused).
+export async function guardedWriteGroup(
+  collection: string,
+  delegate: GuardedDelegate,
+  leadId: string,
+  otherIds: readonly string[],
+  guard: DocGuard,
+  patch: Record<string, unknown>,
+): Promise<string[]> {
+  const ids = [leadId, ...new Set(otherIds.filter((id) => id !== leadId))];
+
+  if (isUsingMemoryStore()) {
+    return withMemoryLock(async () => {
+      const written: string[] = [];
+      for (const id of ids) {
+        const doc = (await delegate.findUnique({ where: { id } })) as Record<string, unknown> | null;
+        if (!doc || !guard(doc)) {
+          if (id === leadId) return [];
+          continue;
+        }
+        await delegate.update({ where: { id }, data: patch });
+        written.push(id);
+      }
+      return written;
+    });
+  }
+
+  const refs = ids.map((id) => firestore.collection(collection).doc(id));
+  return firestore.runTransaction(async (tx) => {
+    const snaps = await tx.getAll(...refs);
+    const accepted = snaps.map((snap) => snap.exists && guard(snap.data() ?? {}));
+    if (!accepted[0]) return [];
+    const now = new Date();
+    refs.forEach((ref, i) => {
+      if (accepted[i]) tx.update(ref, { ...patch, updated_at: now });
+    });
+    return ids.filter((_, i) => accepted[i]);
+  });
+}

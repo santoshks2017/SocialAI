@@ -62,7 +62,7 @@ describe('primary account and publish targets', () => {
     const [ig, gmb] = resolveTargets({ platforms: ['instagram', 'gmb'], connection_ids: ['gone'] }, conns);
     assert.deepEqual(ig?.targets, []);
     assert.equal(ig?.error, 'The selected Instagram account is no longer connected. Reconnect it or pick another account, then publish again.');
-    assert.equal(gmb?.error, 'No connected Google Business Profile account. Connect it in Settings, then publish again.');
+    assert.equal(gmb?.error, 'No connected Google Business Profile account. Connect it on Accounts, then publish again.');
     assert.equal(platformLabel('youtube'), 'YouTube');
   });
 });

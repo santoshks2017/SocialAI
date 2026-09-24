@@ -149,6 +149,9 @@ describe('GET /v1/dealer/analytics/posts', () => {
       const res = await fastify.inject({ method: 'GET', url, headers: h });
       assert.equal(res.statusCode, 400, url);
     }
+    const wrongPlatform = await fastify.inject({ method: 'GET', url: '/v1/dealer/analytics/posts?platform=twitter', headers: h });
+    assert.equal((wrongPlatform.json() as { error: { message: string } }).error.message, 'platform must be facebook, instagram, gmb or youtube');
+    assert.equal((await fastify.inject({ method: 'GET', url: '/v1/dealer/analytics/posts?platform=youtube', headers: h })).statusCode, 200);
   });
 
   it('needs view_reports', async () => {

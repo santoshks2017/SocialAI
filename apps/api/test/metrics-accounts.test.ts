@@ -164,6 +164,25 @@ describe('follower snapshots across accounts', () => {
     assert.deepEqual([await followers(dealerId, 'facebook'), await followers(dealerId, 'youtube'), await followers(hidden, 'youtube')], [1800, 820, null]);
   });
 
+  it('counts a channel that hides its subscribers as answered but leaves it out of the sum', async (t) => {
+    await prisma.platformConnection.deleteMany({ where: { platform: { in: ['facebook', 'instagram', 'youtube'] } } });
+    const now = new Date();
+    const dealerId = await newDealer();
+    await connect(dealerId, 'youtube', 'UC-open', 'ya29.open');
+    await connect(dealerId, 'youtube', 'UC-private', 'ya29.private');
+    t.mock.method(axios, 'get', async (url: string, config: { params: Record<string, string> }) => {
+      if (url !== 'https://www.googleapis.com/youtube/v3/channels') throw new Error(`unexpected GET ${url}`);
+      return config.params['id'] === 'UC-open'
+        ? { data: { items: [{ statistics: { subscriberCount: '640', hiddenSubscriberCount: false } }] } }
+        : { data: { items: [{ statistics: { subscriberCount: '0', hiddenSubscriberCount: true } }] } };
+    });
+
+    assert.equal(await syncFollowerSnapshots(now), 1);
+
+    const snap = await prisma.followerSnapshot.findUnique({ where: { id: snapshotId(dealerId, 'youtube', utcDay(now)) } });
+    assert.equal(snap?.followers, 640);
+  });
+
   it('saves nothing for a platform until every one of its live accounts answers, then retries and sums', async (t) => {
     await prisma.platformConnection.deleteMany({ where: { platform: { in: ['facebook', 'instagram', 'youtube'] } } });
     const dealerId = await newDealer();
