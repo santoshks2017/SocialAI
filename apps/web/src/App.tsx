@@ -11,7 +11,7 @@ import CalendarPage from './pages/Calendar';
 import InboxPage from './pages/InboxPage';
 import InventoryPage from './pages/Inventory';
 import BoostPage from './pages/Boost';
-import AnalyticsPage from './pages/Analytics';
+import AnalyticsPage from './pages/AnalyticsPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import SettingsPage from './pages/SettingsPage';
 import AccountsPage from './pages/AccountsPage';
