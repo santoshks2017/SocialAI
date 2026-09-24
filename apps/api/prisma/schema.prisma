@@ -194,6 +194,10 @@ model InboxMessage {
   message_text         String
   sentiment            String?
   tag                  String?
+  rating               Int?      // 1–5 for Google reviews (starRating); null for comments and DMs
+  // true until the cron classifies sentiment and tag. No schema default, so the pending filter is
+  // pushed down to Firestore (see pushable() in src/db/firestore.ts).
+  needs_classification Boolean?
   ai_suggested_reply   String?
   reply_text           String?
   replied_at           DateTime?
@@ -497,4 +501,30 @@ model VideoJob {
   updated_at       DateTime  @updatedAt
 
   @@index([dealer_id, created_at])
+}
+
+// Product usage events from the web app (POST /v1/events).
+model Event {
+  id         String    @id @default(uuid())
+  dealer_id  String
+  user_id    String    // DealerUser.id
+  action     String    // 'caption.accepted' | 'caption.edited' | 'caption.rejected' | 'report.downloaded'
+  meta       Json?
+  created_at DateTime  @default(now())
+  expires_at DateTime? // Firestore TTL policy on events.expires_at deletes the row after this time
+
+  @@index([dealer_id, created_at])
+}
+
+// One follower count per Facebook/Instagram connection per UTC day, for the 30-day growth figures.
+model FollowerSnapshot {
+  id          String    @id // `${dealer_id}_${platform}_${captured_on}`, so a day is written once
+  dealer_id   String
+  platform    String    // 'facebook' | 'instagram'
+  followers   Int
+  captured_on String    // YYYY-MM-DD (UTC)
+  created_at  DateTime  @default(now())
+  expires_at  DateTime? // Firestore TTL policy on follower_snapshots.expires_at deletes the row after this time
+
+  @@index([dealer_id, captured_on])
 }
