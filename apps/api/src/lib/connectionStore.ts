@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import type { PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
-import { MAX_CONNECTED_ACCOUNTS, primaryConnection } from './connections.js';
+import { MAX_CONNECTED_ACCOUNTS, platformLabel, primaryConnection } from './connections.js';
+import { guardedWrite } from './guardedWrite.js';
+import { notify } from './notifications.js';
 
 export interface ConnectionInput {
   platform: string;
@@ -127,4 +129,32 @@ export async function replyConnection(
   const conns = await prisma.platformConnection.findMany({ where: { dealer_id: dealerId, platform: message.platform } });
   const receiving = message.connection_id ? conns.find((c) => c.id === message.connection_id && c.is_connected) : undefined;
   return receiving ?? primaryConnection(conns, message.platform);
+}
+
+/**
+ * Google answered invalid_grant for this account: access was revoked, or the refresh token expired.
+ * Soft-disconnects it and, only on that first flip, tells the dealership's team (bell, linking to Accounts).
+ * Returns whether this call disconnected it.
+ */
+export async function disconnectRevokedConnection(connectionId: string): Promise<boolean> {
+  const flipped = await guardedWrite(
+    'platform_connections',
+    prisma.platformConnection,
+    connectionId,
+    (doc) => doc['is_connected'] !== false,
+    { is_connected: false },
+  );
+  if (!flipped) return false;
+  const conn = await prisma.platformConnection.findUnique({ where: { id: connectionId } });
+  if (conn) {
+    const label = platformLabel(conn.platform);
+    await notify({
+      dealerId: conn.dealer_id,
+      type: 'platform_disconnected',
+      title: `${label} disconnected`,
+      body: `${conn.platform_account_name || label} needs reconnecting \u2014 access was revoked or expired.`,
+      link: '/accounts',
+    });
+  }
+  return true;
 }
