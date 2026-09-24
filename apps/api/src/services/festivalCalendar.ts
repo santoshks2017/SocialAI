@@ -226,19 +226,69 @@ const CITY_TO_STATE: Record<string, string> = {
   new_delhi: 'Delhi',
 };
 
+/** The dealer's state: the one given, else the state their city is in; null when unknown. */
+export function resolveState(city?: string | null, state?: string | null): string | null {
+  const given = typeof state === 'string' ? state.trim() : '';
+  if (given) return given;
+  if (typeof city !== 'string') return null;
+  return CITY_TO_STATE[city.trim().toLowerCase().replace(/\s+/g, '_')] || null;
+}
+
+function appliesTo(fest: Festival, state: string | null): boolean {
+  return fest.regions.includes('Nationwide') || (!!state && fest.regions.some((r) => r.toLowerCase() === state.toLowerCase()));
+}
+
+export const FESTIVAL_RANGE_MAX_DAYS = 1100;
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A Calendar range: two real YYYY-MM-DD dates, from before to, at most FESTIVAL_RANGE_MAX_DAYS apart. */
+export function festivalRange(from: unknown, to: unknown): { from: string; to: string } | null {
+  if (typeof from !== 'string' || typeof to !== 'string' || !ISO_DAY.test(from) || !ISO_DAY.test(to)) return null;
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
+  // Refuse dates that roll over (2026-02-31): the parsed day must print back the same.
+  if (new Date(start).toISOString().slice(0, 10) !== from || new Date(end).toISOString().slice(0, 10) !== to) return null;
+  return (end - start) / 86_400_000 <= FESTIVAL_RANGE_MAX_DAYS ? { from, to } : null;
+}
+
+export interface FestivalOnDate {
+  id: string;
+  name: string;
+  name_en: string;
+  /** The festival's calendar date, YYYY-MM-DD. */
+  date: string;
+  description: string;
+  marketingIdea: string;
+  isRegional: boolean;
+}
+
+/** Every festival date in [from, to) that applies to the dealer's region, in date order (the Calendar overlay). */
+export function festivalsBetween(city: string | null | undefined, state: string | null | undefined, from: string, to: string): FestivalOnDate[] {
+  const resolved = resolveState(city, state);
+  const out: FestivalOnDate[] = [];
+  for (const fest of FESTIVALS) {
+    if (!appliesTo(fest, resolved)) continue;
+    for (const date of Object.values(fest.dates)) {
+      if (date >= from && date < to) {
+        out.push({
+          id: fest.id, name: fest.name, name_en: fest.name, date,
+          description: fest.description, marketingIdea: fest.marketingIdea, isRegional: !fest.regions.includes('Nationwide'),
+        });
+      }
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+}
+
 export function getUpcomingFestivals(
   city?: string | null,
   state?: string | null,
   limit: number = 5
 ) {
   const now = new Date();
-  
-  // Resolve target state
-  let resolvedState = typeof state === 'string' ? state.trim() : null;
-  if (!resolvedState && typeof city === 'string') {
-    const cleanCity = city.trim().toLowerCase().replace(/\s+/g, '_');
-    resolvedState = CITY_TO_STATE[cleanCity] || null;
-  }
+
+  const resolvedState = resolveState(city, state);
 
   const upcomingList: Array<{
     id: string;
@@ -274,7 +324,7 @@ export function getUpcomingFestivals(
 
       // Regional filtering: matches if nationwide, or if states list matches the dealer's resolved state
       const isNationwide = fest.regions.includes('Nationwide');
-      const matchesRegion = isNationwide || (resolvedState && fest.regions.some(r => r.toLowerCase() === resolvedState!.toLowerCase()));
+      const matchesRegion = appliesTo(fest, resolvedState);
 
       if (matchesRegion) {
         upcomingList.push({

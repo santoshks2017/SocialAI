@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { prisma } from '../db/prisma.js';
-import { getUpcomingFestivals } from '../services/festivalCalendar.js';
+import { festivalRange, festivalsBetween, getUpcomingFestivals } from '../services/festivalCalendar.js';
 import { totalReach as postReach } from '../lib/postMetrics.js';
 import { uploadFile } from '../lib/storage.js';
 import { safeFileId } from '../lib/uploadPaths.js';
@@ -228,16 +228,23 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // GET /v1/dealer/festivals — list upcoming festivals with regional filter
+  // GET /v1/dealer/festivals — upcoming festivals for the dealer's region (?limit=), or, for the Calendar,
+  // every festival date in a range (?from=YYYY-MM-DD&to=YYYY-MM-DD, end exclusive, at most 1100 days).
   fastify.get('/festivals', {
     preHandler: [fastify.authenticate],
-  }, async (request) => {
+  }, async (request, reply) => {
     const dealer_id = request.user.dealer_id!;
+    const { limit = '10', from, to } = request.query as { limit?: string; from?: string; to?: string };
+    const ranged = from !== undefined || to !== undefined;
+    const range = ranged ? festivalRange(from, to) : null;
+    if (ranged && !range) {
+      return reply.code(400).send(apiError('INVALID_INPUT', 'from and to must be YYYY-MM-DD dates, from before to, at most 1100 days apart'));
+    }
     const dealer = await prisma.dealer.findUnique({
       where: { id: dealer_id },
       select: { city: true, state: true },
     });
-    const { limit = '10' } = request.query as { limit?: string };
+    if (range) return { success: true, festivals: festivalsBetween(dealer?.city, dealer?.state, range.from, range.to) };
     const upcoming = getUpcomingFestivals(
       dealer?.city,
       dealer?.state,
