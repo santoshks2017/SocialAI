@@ -32,6 +32,7 @@ const NO_GBP_LOCATIONS = 'No Google Business locations found on this account. Ma
 const GBP_READ_FAILED = 'Could not read your Google Business Profile. Please try again, or contact support if it persists.';
 const NO_INSTAGRAM = 'No Instagram Business account is linked to your Facebook Pages. Link one in Meta Business Suite, then try again.';
 const INSTAGRAM_LOOKUP_FAILED = 'Couldn\u2019t reach Facebook to check your Pages. Try again, or reconnect Facebook if this keeps happening.';
+const YOUTUBE_UPLOAD_SCOPE_MISSING = 'YouTube upload permission wasn\u2019t granted. Connect again and allow uploading videos.';
 
 // Instagram discovery calls one Graph endpoint per Page; running several in flight keeps a dealer with many
 // Pages from stalling the OAuth redirect while staying well under Meta's rate limits.
@@ -94,9 +95,12 @@ function googleConsentUrl(clientId: string, scope: string, state: string): strin
   return url.toString();
 }
 
-async function exchangeGoogleCode(code: string): Promise<{ access_token: string; refresh_token?: string; expires_in: number }> {
+// `scope` is the space-separated set Google actually granted (Google's granular consent can drop one of the
+// scopes the dealer was asked for); it is absent on some token responses, which callers must not treat as a
+// denial.
+async function exchangeGoogleCode(code: string): Promise<{ access_token: string; refresh_token?: string; expires_in: number; scope?: string }> {
   const client = googleClient();
-  const res = await axios.post<{ access_token: string; refresh_token?: string; expires_in: number }>(
+  const res = await axios.post<{ access_token: string; refresh_token?: string; expires_in: number; scope?: string }>(
     GOOGLE_TOKEN_URL,
     { code, client_id: client?.id ?? '', client_secret: client?.secret ?? '', redirect_uri: GOOGLE_CALLBACK_URI, grant_type: 'authorization_code' },
     { timeout: GOOGLE_TIMEOUT_MS },
@@ -498,6 +502,11 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     if (!dealerId) return fail('Session expired. Please try again.');
     try {
       const tokens = await exchangeGoogleCode(code);
+      // Granular consent lets the dealer untick the upload scope and keep only youtube.readonly; a token
+      // response with no `scope` field at all is not a denial, so only a present-but-narrower scope blocks.
+      if (tokens.scope !== undefined && !tokens.scope.split(' ').includes('https://www.googleapis.com/auth/youtube.upload')) {
+        return fail(YOUTUBE_UPLOAD_SCOPE_MISSING);
+      }
       const channels = await fetchYouTubeChannels(tokens.access_token);
       const [first] = channels;
       if (!first) return fail(NO_YOUTUBE_CHANNEL);
@@ -519,7 +528,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
   }
 
   // GET /v1/platforms/callback/google
-  // Google redirects the browser here after consent: every Business Profile location is saved.
+  // Google redirects the browser here after consent: every Business Profile location is saved for a `gmb`
+  // state, or every YouTube channel for a `youtube` state (see saveYouTubeChannels above).
   fastify.get('/callback/google', async (request, reply) => {
     const { code, state, error: oauthError } = request.query as {
       code?: string;
@@ -527,12 +537,16 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       error?: string;
     };
 
+    // Verified before the error/cancel check, so a denied or cancelled consent is still labelled by the
+    // platform the dealer started (state comes back on Google's own error redirect too; verifyOAuthState
+    // is null-safe for a missing/malformed state).
+    const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
+    const platformLabel = stateData?.platform === 'youtube' ? 'youtube' : 'google';
     const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
-    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=google`);
+    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=${platformLabel}`);
 
     if (oauthError || !code || !state) return fail(oauthError ?? 'Google login cancelled');
 
-    const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
     if (!stateData || (stateData.platform !== 'gmb' && stateData.platform !== 'youtube')) return fail('Invalid state');
     if (stateData.platform === 'youtube') return saveYouTubeChannels(code, stateData.dealer_id, reply);
 

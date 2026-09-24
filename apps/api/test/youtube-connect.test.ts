@@ -7,7 +7,8 @@ import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
 import { signOAuthState, verifyOAuthState } from '../src/lib/oauthState.js';
-import { NO_YOUTUBE_CHANNEL, YOUTUBE_SCOPES } from '../src/services/youtube.js';
+import { ACCOUNT_LIMIT_MESSAGE, MAX_CONNECTED_ACCOUNTS } from '../src/lib/connections.js';
+import { NO_YOUTUBE_CHANNEL, YOUTUBE_SCOPES, youtubeCount } from '../src/services/youtube.js';
 
 before(async () => { await fastify.ready(); });
 after(async () => { await fastify.close(); });
@@ -72,11 +73,17 @@ describe('GET /v1/platforms/connect/youtube', () => {
 });
 
 describe('YouTube callback (/v1/platforms/callback/google)', () => {
-  function mockGoogle(t: TestContext, channels: Array<{ id: string; snippet: { title: string } }>, refreshToken?: string) {
+  function mockGoogle(t: TestContext, channels: Array<{ id: string; snippet: { title: string } }>, refreshToken?: string, scope?: string) {
     const gets: Array<{ url: string; params: unknown; auth: string }> = [];
     t.mock.method(axios, 'post', async (url: string) => {
       if (url === 'https://oauth2.googleapis.com/token') {
-        return { data: { access_token: 'ya29.yt', expires_in: 3599, ...(refreshToken ? { refresh_token: refreshToken } : {}) } };
+        return {
+          data: {
+            access_token: 'ya29.yt', expires_in: 3599,
+            ...(refreshToken ? { refresh_token: refreshToken } : {}),
+            ...(scope !== undefined ? { scope } : {}),
+          },
+        };
       }
       throw new Error(`unexpected POST ${url}`);
     });
@@ -109,6 +116,8 @@ describe('YouTube callback (/v1/platforms/callback/google)', () => {
       rows.map((r) => [r.platform_account_id, r.platform_account_name, r.refresh_token]).sort(),
       [['UC-1', 'Apex TV', '1//yt-refresh'], ['UC-2', 'Apex Used', '1//yt-refresh']],
     );
+    assert.ok(!target.toString().includes('ya29.yt'), 'redirect URL leaks the access token');
+    assert.ok(!target.toString().includes('1//yt-refresh'), 'redirect URL leaks the refresh token');
   });
 
   it('keeps the stored refresh token when Google sends none on a reconnect', async (t) => {
@@ -133,5 +142,95 @@ describe('YouTube callback (/v1/platforms/callback/google)', () => {
     assert.deepEqual([target.searchParams.get('error'), target.searchParams.get('platform')], [NO_YOUTUBE_CHANNEL, 'youtube']);
     assert.equal(NO_YOUTUBE_CHANNEL, 'This Google account has no YouTube channel. Create one on YouTube, then connect again.');
     assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId } }), 0);
+  });
+
+  it('labels a cancelled or denied YouTube consent with platform=youtube, not google', async () => {
+    const dealerId = await newDealer();
+    const state = signOAuthState(fastify, 'platform_oauth', { dealer_id: dealerId, platform: 'youtube' });
+
+    const res = await fastify.inject({ method: 'GET', url: `/v1/platforms/callback/google?error=access_denied&state=${state}` });
+
+    const target = redirect(res);
+    assert.deepEqual([target.searchParams.get('error'), target.searchParams.get('platform')], ['access_denied', 'youtube']);
+  });
+
+  it('fails without saving when Google grants a narrower scope than youtube.upload', async (t) => {
+    mockGoogle(t, [{ id: 'UC-1', snippet: { title: 'Apex TV' } }], undefined, 'https://www.googleapis.com/auth/youtube.readonly openid');
+    const dealerId = await newDealer();
+
+    const target = redirect(await callback(dealerId));
+
+    assert.deepEqual(
+      [target.searchParams.get('error'), target.searchParams.get('platform')],
+      ['YouTube upload permission wasn\u2019t granted. Connect again and allow uploading videos.', 'youtube'],
+    );
+    assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId } }), 0);
+  });
+
+  it('does not block when the token response omits scope entirely', async (t) => {
+    const gets = mockGoogle(t, [{ id: 'UC-1', snippet: { title: 'Apex TV' } }]); // no scope arg: field absent, as most token responses are
+    const dealerId = await newDealer();
+
+    const target = redirect(await callback(dealerId));
+
+    assert.equal(target.searchParams.get('success'), '1');
+    assert.equal(gets.length, 1);
+  });
+
+  it('stops at the account limit and says so, saving nothing', async (t) => {
+    mockGoogle(t, [{ id: 'UC-1', snippet: { title: 'Apex TV' } }]);
+    const dealerId = await newDealer();
+    for (let i = 0; i < MAX_CONNECTED_ACCOUNTS; i++) {
+      await prisma.platformConnection.create({
+        data: { dealer_id: dealerId, platform: 'facebook', platform_account_id: `page-${i}`, access_token: 'mock_fb', is_connected: true },
+      });
+    }
+
+    const target = redirect(await callback(dealerId));
+
+    assert.equal(target.searchParams.get('error'), ACCOUNT_LIMIT_MESSAGE);
+    assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId, platform: 'youtube' } }), 0);
+  });
+
+  it('fails without saving, logging only the message, when the token exchange fails', async (t) => {
+    const logs: unknown[][] = [];
+    t.mock.method(fastify.log, 'error', (...args: unknown[]) => { logs.push(args); });
+    t.mock.method(axios, 'post', async () => { throw new Error('invalid_grant'); });
+    const dealerId = await newDealer();
+
+    const target = redirect(await callback(dealerId));
+
+    assert.deepEqual([target.searchParams.get('error'), target.searchParams.get('platform')], ['YouTube connection failed', 'youtube']);
+    assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId } }), 0);
+    assert.deepEqual(logs, [[{ message: 'invalid_grant' }, 'YouTube OAuth callback failed']]);
+  });
+
+  it('fails without saving when fetching the channels fails', async (t) => {
+    t.mock.method(axios, 'post', async (url: string) => {
+      if (url === 'https://oauth2.googleapis.com/token') return { data: { access_token: 'ya29.yt', expires_in: 3599 } };
+      throw new Error(`unexpected POST ${url}`);
+    });
+    t.mock.method(axios, 'get', async () => {
+      throw new Error('Request failed with status code 403');
+    });
+    const dealerId = await newDealer();
+
+    const target = redirect(await callback(dealerId));
+
+    assert.deepEqual([target.searchParams.get('error'), target.searchParams.get('platform')], ['YouTube connection failed', 'youtube']);
+    assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId } }), 0);
+  });
+});
+
+describe('youtubeCount', () => {
+  it('parses numbers and strings, and treats blank/missing/negative values as absent', () => {
+    assert.equal(youtubeCount('1234'), 1234);
+    assert.equal(youtubeCount(42), 42);
+    assert.equal(youtubeCount(''), null);
+    assert.equal(youtubeCount('   '), null);
+    assert.equal(youtubeCount(undefined), null);
+    assert.equal(youtubeCount(null), null);
+    assert.equal(youtubeCount('not-a-number'), null);
+    assert.equal(youtubeCount(-5), null);
   });
 });

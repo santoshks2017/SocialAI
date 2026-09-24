@@ -8,8 +8,9 @@ const TIMEOUT_MS = 15_000;
 
 export const bearer = (accessToken: string) => ({ Authorization: `Bearer ${accessToken}` });
 
-/** A YouTube count (the API sends them as strings); null when absent or not a number. */
+/** A YouTube count (the API sends them as strings); null when absent, blank or not a number. */
 export function youtubeCount(value: unknown): number | null {
+  if (typeof value === 'string' && value.trim() === '') return null;
   const n = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : Number.NaN;
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
