@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { DARK_INK, DARK_SURFACE, MIN_CONTRAST, SHADES, brandPalette, brandThemeCss, contrastRatio, hexToHsl, hslToHex, parseHex } from './brandPalette.js';
+import { DARK_INK, DARK_SURFACE, MIN_CONTRAST, SHADES, brandPalette, brandThemeCss, contrastRatio, hexToHsl, hslToHex, parseHex, resolveBrandColor } from './brandPalette.js';
 
 function channels(hex: string): number[] {
   const n = parseInt(hex.slice(1), 16);
@@ -50,5 +50,24 @@ describe('brand palette', () => {
     assert.ok(!css.includes('amber'));
     assert.equal(brandThemeCss('not a colour'), null);
     assert.equal(brandThemeCss(null), null);
+  });
+});
+
+describe('resolveBrandColor', () => {
+  const profile = { id: 'dealer-a', use_brand_theme: true, primary_color: '#1877F2' };
+
+  it('applies the colour when the profile belongs to the signed-in dealer and the toggle is on', () => {
+    assert.equal(resolveBrandColor(profile, 'dealer-a'), '#1877F2');
+  });
+
+  it("ignores a profile left over from a previous dealer's session (sign-out/sign-in without a reload)", () => {
+    assert.equal(resolveBrandColor(profile, 'dealer-b'), null);
+    assert.equal(resolveBrandColor(profile, null), null);
+    assert.equal(resolveBrandColor(profile, undefined), null);
+  });
+
+  it('returns null when the toggle is off or there is no profile yet', () => {
+    assert.equal(resolveBrandColor({ ...profile, use_brand_theme: false }, 'dealer-a'), null);
+    assert.equal(resolveBrandColor(null, 'dealer-a'), null);
   });
 });

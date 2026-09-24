@@ -137,3 +137,21 @@ export function applyBrandTheme(css: string | null): void {
   }
   if (el.textContent !== css) el.textContent = css;
 }
+
+/** The minimal shape `resolveBrandColor` needs — deliberately narrower than `DealerProfile`. */
+export interface BrandProfile {
+  id: string;
+  use_brand_theme?: boolean;
+  primary_color?: string;
+}
+
+/**
+ * The colour to theme the app with for the signed-in dealer, or null.
+ * A profile whose `id` doesn't match `dealerId` belongs to a previous session — e.g. sign-out/sign-in
+ * without a full page reload resolves the new `user` before the fresh GET /dealer/profile lands — and
+ * must not be applied, or the old dealer's brand colours leak into the new one's session.
+ */
+export function resolveBrandColor(profile: BrandProfile | null, dealerId: string | null | undefined): string | null {
+  if (!profile || !dealerId || profile.id !== dealerId || !profile.use_brand_theme) return null;
+  return profile.primary_color ?? null;
+}

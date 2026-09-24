@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import api from '../services/api';
 import { useAuth } from './AuthContext';
 import { AppearanceSync } from '../components/shell/AppearanceSync';
+import { resolveBrandColor } from '../utils/brandPalette';
 
 export interface DealerProfile {
   id: string;
@@ -53,7 +54,10 @@ export function DealerProfileProvider({ children }: { children: ReactNode }) {
   useEffect(() => { load(); }, [load]);
 
   // Business Profile → "Use my brand colours as the app theme" recolours the app for the whole dealership.
-  const brandColor = user && profile?.use_brand_theme ? profile.primary_color ?? null : null;
+  // resolveBrandColor ignores a profile left over from a previous dealer's session (e.g. sign-out/sign-in
+  // without a full reload, where `user` resolves before the fresh GET /dealer/profile lands) so its
+  // brand colours never leak into the next one.
+  const brandColor = resolveBrandColor(profile, user?.dealer_id);
 
   return (
     <DealerProfileContext.Provider value={{ profile, loading, reload: load }}>
