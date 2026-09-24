@@ -59,6 +59,7 @@ export function PreferencesTab({ form, onOpenBilling }: { form: ProfileForm; onO
       setPrefs(next.notification_prefs);
       setSavedPrefs(next.notification_prefs);
     } catch {
+      setPrefs(savedPrefs);
       addToast({ type: 'error', title: 'Could not save notifications', message: 'Please try again.' });
     }
   };
