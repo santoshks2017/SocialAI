@@ -8,6 +8,7 @@ import { useProfileForm } from '../components/settings/useProfileForm';
 import { ProfileTab } from '../components/settings/ProfileTab';
 import { PlatformsTab } from '../components/settings/PlatformsTab';
 import { PreferencesTab } from '../components/settings/PreferencesTab';
+import { BillingTab } from '../components/settings/BillingTab';
 import { ModelLibraryTab } from '../components/settings/ModelLibraryTab';
 import { InspirationTab } from '../components/settings/InspirationTab';
 import { TeamTab } from '../components/settings/TeamTab';
@@ -20,7 +21,11 @@ export default function SettingsPage() {
   const tabs = visibleSettingsTabs({ manageTeam: isAtLeast(user, 'admin'), viewBilling: can(user, PERMISSIONS.VIEW_BILLING) });
   // The tab lives in the URL (/settings?tab=billing), so links and refreshes land on it.
   const activeTab = resolveSettingsTab(searchParams.get('tab'), tabs);
-  const selectTab = (id: SettingsTabId) => setSearchParams({ tab: id }, { replace: true });
+  const selectTab = (id: SettingsTabId) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    next.set('tab', id);
+    return next;
+  }, { replace: true });
 
   return (
     <PageCard>
@@ -54,6 +59,7 @@ export default function SettingsPage() {
       {activeTab === 'profile' && <ProfileTab form={form} />}
       {activeTab === 'platforms' && <PlatformsTab />}
       {activeTab === 'preferences' && <PreferencesTab form={form} />}
+      {activeTab === 'billing' && <BillingTab />}
       {activeTab === 'inspiration' && <InspirationTab />}
       {activeTab === 'team' && <TeamTab />}
       {activeTab === 'model_library' && <ModelLibraryTab brands={form.selectedBrands} />}

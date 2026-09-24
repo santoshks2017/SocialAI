@@ -411,7 +411,7 @@ export default function BoostPage() {
         type: 'error',
         title: 'Boost not launched',
         message: err instanceof Error && err.message ? err.message : 'Please try again.',
-        ...(isPlanGated(err) ? { action: { label: 'View plans', onClick: () => navigate('/billing') } } : {}),
+        ...(isPlanGated(err) ? { action: { label: 'View plans', onClick: () => navigate('/settings?tab=billing') } } : {}),
       });
     }
   };

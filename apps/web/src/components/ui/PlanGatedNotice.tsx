@@ -18,7 +18,7 @@ export function PlanGatedNotice({ feature, message }: PlanGatedNoticeProps) {
         {message || `Upgrade to the Growth or Enterprise plan to use ${feature}.`}
       </p>
       <Link
-        to="/billing"
+        to="/settings?tab=billing"
         className="inline-flex items-center gap-1.5 mt-5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm"
       >
         View plans <ArrowRight className="w-4 h-4" />

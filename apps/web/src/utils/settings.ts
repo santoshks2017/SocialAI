@@ -46,6 +46,7 @@ export const SETTINGS_TABS: readonly SettingsTabDef[] = [
   { id: 'profile', label: 'Business Profile' },
   { id: 'platforms', label: 'Platforms' },
   { id: 'preferences', label: 'Preferences' },
+  { id: 'billing', label: 'Billing', requires: 'viewBilling' },
   { id: 'inspiration', label: 'Inspiration' },
   { id: 'team', label: 'Team', requires: 'manageTeam' },
   { id: 'model_library', label: 'Model Library' },
