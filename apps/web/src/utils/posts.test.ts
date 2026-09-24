@@ -83,6 +83,24 @@ describe('platformResults', () => {
     ]);
     assert.deepEqual(platformResults(null), []);
   });
+
+  it('lists per-account results under a platform', () => {
+    assert.deepEqual(platformResults({
+      facebook: {
+        post_id: 'p-a', url: 'https://fb.test/a',
+        accounts: {
+          c1: { account_name: 'Apex Motors', post_id: 'p-a', url: 'https://fb.test/a' },
+          c2: { account_name: 'Apex Used', error: 'Token expired' },
+        },
+      },
+    }), [{
+      platform: 'facebook', url: 'https://fb.test/a',
+      accounts: [
+        { id: 'c1', name: 'Apex Motors', url: 'https://fb.test/a' },
+        { id: 'c2', name: 'Apex Used', error: 'Token expired' },
+      ],
+    }]);
+  });
 });
 
 describe('metricTotals', () => {

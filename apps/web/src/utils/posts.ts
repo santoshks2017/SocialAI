@@ -93,17 +93,49 @@ export function toLocalInput(date: Date): string {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-/** Per-platform publish results, without internal keys such as `_rejection`. */
-export function platformResults(results: unknown): Array<{ platform: string; url?: string; error?: string }> {
+export interface AccountResult {
+  id: string;
+  name: string;
+  url?: string;
+  error?: string;
+}
+
+export interface PlatformResult {
+  platform: string;
+  url?: string;
+  error?: string;
+  /** Each account's outcome, when the platform was published per account. */
+  accounts?: AccountResult[];
+}
+
+function accountResults(value: unknown): AccountResult[] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const list = Object.entries(value as Record<string, unknown>).flatMap(([id, raw]): AccountResult[] => {
+    if (!raw || typeof raw !== 'object') return [];
+    const r = raw as { account_name?: unknown; url?: unknown; error?: unknown };
+    return [{
+      id,
+      name: typeof r.account_name === 'string' && r.account_name ? r.account_name : id,
+      ...(typeof r.url === 'string' && r.url ? { url: r.url } : {}),
+      ...(typeof r.error === 'string' ? { error: r.error } : {}),
+    }];
+  });
+  return list.length > 0 ? list : undefined;
+}
+
+/** Per-platform publish results (with each account's, when stored), without internal keys such as `_rejection`. */
+export function platformResults(results: unknown): PlatformResult[] {
   if (!results || typeof results !== 'object' || Array.isArray(results)) return [];
   return Object.entries(results as Record<string, unknown>)
     .filter(([key, value]) => !key.startsWith('_') && !!value && typeof value === 'object')
     .map(([platform, value]) => {
-      const r = value as { url?: unknown; error?: unknown };
+      const r = value as { url?: unknown; error?: unknown; accounts?: unknown };
+      const accounts = accountResults(r.accounts);
       return {
         platform,
         ...(typeof r.url === 'string' ? { url: r.url } : {}),
         ...(typeof r.error === 'string' ? { error: r.error } : {}),
+        ...(accounts ? { accounts } : {}),
       };
     });
 }

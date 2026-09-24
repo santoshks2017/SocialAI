@@ -4,6 +4,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import type { Post } from '../../services/creative';
 import { metricTotals, platformResults, postTimeline, toLocalInput } from '../../utils/posts';
+import { platformName } from '../../utils/publishResult';
 import { PostStatusBadge } from './PostStatusBadge';
 import { PlatformList } from './PlatformList';
 
@@ -149,6 +150,18 @@ function RescheduleForm({ post, onClose, onReschedule }: { post: Post; onClose: 
   );
 }
 
+function ResultStatus({ url, error }: { url?: string; error?: string }) {
+  if (error) return <span className="text-red-600 truncate">{error}</span>;
+  if (url) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-emerald-700 font-medium inline-flex items-center gap-1 shrink-0">
+        <ExternalLink className="w-3 h-3" /> View post
+      </a>
+    );
+  }
+  return <span className="text-emerald-700">Published</span>;
+}
+
 export function PostDetailDialog({ post, onClose }: { post: Post | null; onClose: () => void }) {
   if (!post) return null;
   const creatives = Object.entries(post.creative_urls ?? {}).filter(([, url]) => !!url);
@@ -201,16 +214,20 @@ export function PostDetailDialog({ post, onClose }: { post: Post | null; onClose
             <p className="text-xs font-semibold text-zinc-500 mb-1.5">Per-platform result</p>
             <div className="space-y-1.5">
               {results.map((r) => (
-                <div key={r.platform} className="flex items-center justify-between gap-2 text-xs border border-zinc-100 rounded-lg px-3 py-2">
-                  <span className="font-semibold capitalize text-zinc-700">{r.platform}</span>
-                  {r.error ? (
-                    <span className="text-red-600 truncate">{r.error}</span>
-                  ) : r.url ? (
-                    <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-emerald-700 font-medium inline-flex items-center gap-1">
-                      <ExternalLink className="w-3 h-3" /> View post
-                    </a>
-                  ) : (
-                    <span className="text-emerald-700">Published</span>
+                <div key={r.platform} className="text-xs border border-zinc-100 rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-zinc-700">{platformName(r.platform)}</span>
+                    {!r.accounts && <ResultStatus url={r.url} error={r.error} />}
+                  </div>
+                  {r.accounts && (
+                    <div className="mt-1.5 space-y-1">
+                      {r.accounts.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between gap-2 pl-2">
+                          <span className="text-zinc-500 truncate">{a.name}</span>
+                          <ResultStatus url={a.url} error={a.error} />
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}
