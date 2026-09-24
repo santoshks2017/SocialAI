@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { UnrecoverableError } from 'bullmq';
 import type { Prisma, Post, PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
 import { publishToFacebook, publishToInstagram, publishReelToInstagram, publishVideoToFacebook } from '../services/meta.js';
@@ -6,6 +7,7 @@ import { publishToGmb } from '../services/gmb.js';
 import { getFreshGoogleAccessToken } from './googleToken.js';
 import { notifyPublishOutcome } from './postNotifications.js';
 import { transitionPost } from './publishClaim.js';
+import { guardedWrite } from './guardedWrite.js';
 import {
   byAge, noConnectedAccountMessage, platformLabel, primaryConnection, resolveTargets, selectedAccountGoneMessage,
 } from './connections.js';
@@ -65,6 +67,9 @@ function toJsonObject(value: Prisma.JsonValue | null | undefined): Prisma.InputJ
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Prisma.InputJsonObject;
 }
+
+// Collection backing prisma.post (see db/prisma.ts); documents are keyed by post id. Mirrors publishClaim.ts.
+const POSTS_COLLECTION = 'posts';
 
 // Graph API and Google APIs both return { error: { message } }; prefer that over axios' generic text.
 export function describePublishError(err: unknown): string {
@@ -194,6 +199,13 @@ function accountName(conn: PlatformConnection): string {
   return conn.platform_account_name ?? platformLabel(conn.platform);
 }
 
+// The outcome literal for one account, shared by the inline and queue paths so they can't drift.
+function accountOutcome(conn: PlatformConnection, sent: { platform_post_id: string; url: string } | null, failure?: unknown): AccountOutcome {
+  return sent
+    ? { connection_id: conn.id, account_name: accountName(conn), success: true, post_id: sent.platform_post_id, url: sent.url }
+    : { connection_id: conn.id, account_name: accountName(conn), success: false, error: describePublishError(failure) };
+}
+
 // One account of one platform: skipped when it already has the post, otherwise sent with that account's token.
 async function publishToAccount(post: PublishablePost, platform: string, conn: PlatformConnection, previous: unknown): Promise<AccountOutcome> {
   const stored = storedOutcome(previous, conn.id);
@@ -201,9 +213,9 @@ async function publishToAccount(post: PublishablePost, platform: string, conn: P
   try {
     const accessToken = await resolveAccessToken(conn);
     const sent = await sendToPlatform(buildPublishData(post, platform, conn, accessToken));
-    return { connection_id: conn.id, account_name: accountName(conn), success: true, post_id: sent.platform_post_id, url: sent.url };
+    return accountOutcome(conn, sent);
   } catch (err) {
-    return { connection_id: conn.id, account_name: accountName(conn), success: false, error: describePublishError(err) };
+    return accountOutcome(conn, null, err);
   }
 }
 
@@ -258,8 +270,10 @@ export async function publishPost(post: PublishablePost, platforms: string[]): P
   return { status, results };
 }
 
-// Queue worker path: one account per job. Records that account's result and derives the post status from all
-// recorded results, so one account's failure can't mask another's success.
+// Queue worker path: one account per job. Merges this account's outcome into the stored summary and derives
+// the post status from all recorded results inside one guarded write, so two account jobs for the same post
+// running at once (Task 4 queues one per account) each build on the other's committed result instead of
+// racing a separate read-modify-write and losing one of them.
 export async function publishPostToPlatform(data: PublishDirectData): Promise<{ platform_post_id: string; url: string }> {
   const { post_id, platform } = data;
   const connections = await prisma.platformConnection.findMany({ where: { dealer_id: data.dealer_id, platform } });
@@ -274,17 +288,22 @@ export async function publishPostToPlatform(data: PublishDirectData): Promise<{ 
     const entry = previous as { post_id: string; url?: unknown };
     return { platform_post_id: entry.post_id, url: typeof entry.url === 'string' ? entry.url : '' };
   }
+  // Same predicate as publishToAccount: any stored success skips a resend, even one with an empty post_id.
   const done = conn ? storedOutcome(previous, conn.id) : null;
-  if (done?.post_id) return { platform_post_id: done.post_id, url: done.url ?? '' };
+  if (done) return { platform_post_id: done.post_id ?? '', url: done.url ?? '' };
 
   let sent: { platform_post_id: string; url: string } | null = null;
   let failure: unknown = null;
   try {
     // Keeps the cron sweep from also claiming a queued scheduled post.
     await transitionPost(post_id, (p) => p.status === 'scheduled', { status: 'publishing' });
-    if (!conn) throw new Error(data.connection_id ? selectedAccountGoneMessage(platform) : noConnectedAccountMessage(platform));
+    if (!conn) {
+      // No connected account can never resolve itself; a missing primary might once the dealer connects one.
+      const message = data.connection_id ? selectedAccountGoneMessage(platform) : noConnectedAccountMessage(platform);
+      throw data.connection_id ? new UnrecoverableError(message) : new Error(message);
+    }
     const blocked = unsupportedMediaError(platform, data.media_type);
-    if (blocked) throw new Error(blocked);
+    if (blocked) throw new UnrecoverableError(blocked);
     // The account fields come from the resolved connection, so an older job reaches the primary account's Page.
     sent = await sendToPlatform({ ...data, ...accountFields(platform, conn), access_token: await resolveAccessToken(conn) });
   } catch (err) {
@@ -292,27 +311,22 @@ export async function publishPostToPlatform(data: PublishDirectData): Promise<{ 
   }
 
   const at = new Date().toISOString();
-  const existing = await prisma.post.findUnique({ where: { id: post_id } });
-  const publishResults: Record<string, unknown> = { ...toJsonObject(existing?.publish_results) };
   const order = [...connections].sort(byAge).map((c) => c.id);
-  if (conn) {
-    const outcome: AccountOutcome = sent
-      ? { connection_id: conn.id, account_name: accountName(conn), success: true, post_id: sent.platform_post_id, url: sent.url }
-      : { connection_id: conn.id, account_name: accountName(conn), success: false, error: describePublishError(failure) };
-    publishResults[platform] = mergePlatformResult(publishResults[platform], [outcome], order, at);
-  } else {
-    publishResults[platform] = mergePlatformResult(publishResults[platform], [], order, at, describePublishError(failure));
-  }
-  const targets = existing?.platforms?.length ? existing.platforms : [platform];
-  const anySucceeded = targets.some((p) => isSuccessfulResult(publishResults[p]));
+  const outcome = conn ? accountOutcome(conn, sent, failure) : null;
 
-  await prisma.post.update({
-    where: { id: post_id },
-    data: {
-      status: anySucceeded ? 'published' : 'failed',
-      publish_results: publishResults as Prisma.InputJsonObject,
+  await guardedWrite(POSTS_COLLECTION, prisma.post, post_id, () => true, (doc) => {
+    const publishResults: Record<string, unknown> = { ...toJsonObject(doc['publish_results'] as Prisma.JsonValue | null | undefined) };
+    publishResults[platform] = outcome
+      ? mergePlatformResult(publishResults[platform], [outcome], order, at)
+      : mergePlatformResult(publishResults[platform], [], order, at, describePublishError(failure));
+    const docPlatforms = Array.isArray(doc['platforms']) ? (doc['platforms'] as string[]) : [];
+    const targets = docPlatforms.length > 0 ? docPlatforms : [platform];
+    const status = targets.some((p) => isSuccessfulResult(publishResults[p])) ? 'published' : 'failed';
+    return {
+      status,
+      publish_results: publishResults,
       ...(sent ? { published_at: new Date(at) } : {}),
-    },
+    };
   });
 
   if (!sent) throw failure;
