@@ -1,6 +1,10 @@
 // Settings constants and shared types (moved from pages/SettingsPage.tsx).
 import { normaliseLanguages } from './preferences.js';
 
+// Shared by the Team and Inspiration lists: a small status pill and a bare icon button.
+export const PILL = 'inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap';
+export const ICON = 'grid place-items-center w-8 h-8 rounded-lg transition-colors';
+
 export const REGIONS = ['North India', 'South India', 'East India', 'West India', 'Maharashtra', 'Karnataka', 'Tamil Nadu', 'Kerala', 'Telangana', 'Gujarat', 'Punjab', 'Rajasthan'];
 
 export const BRANDS = ['Maruti Suzuki', 'Hyundai', 'Tata', 'Kia', 'Honda', 'Toyota', 'Mahindra', 'Renault', 'Nissan', 'MG', 'Skoda', 'Volkswagen', 'Jeep', 'Ford', 'Citroën', 'BMW', 'Mercedes-Benz', 'Audi'];

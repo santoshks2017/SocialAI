@@ -2,11 +2,7 @@ import type { ReactNode } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { Button, cn } from '../ui/Button';
 
-// The reference's Settings building blocks: cards, section header, label, toggle, stat pill and sticky save bar.
-
-// Shared with Team (Task 11) and Inspiration (Task 12): a small status pill and a bare icon button.
-export const PILL = 'inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap';
-export const ICON = 'grid place-items-center w-8 h-8 rounded-lg transition-colors';
+// The reference's Settings building blocks: cards, section header, icon tile, label, toggle, stat pill and sticky save bar.
 
 export function SettingsCard({ className, children }: { className?: string; children: ReactNode }) {
   return <div className={cn('bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-5 sm:p-6', className)}>{children}</div>;
@@ -21,16 +17,42 @@ export function SettingsListCard({ className, children }: { className?: string; 
   );
 }
 
-export function SectionHeader({ icon, title, description }: { icon: ReactNode; title: string; description?: string }) {
+/** The brand-tinted square behind a section's icon. A span, so it can sit inside a button. */
+export function IconTile({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-3 mb-5">
-      <div className="w-8 h-8 rounded-lg bg-orange-50 ring-1 ring-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0 mt-0.5">
-        {icon}
+    <span className={cn('w-8 h-8 rounded-lg bg-orange-50 ring-1 ring-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0', className)}>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Icon tile, title and description. A card section uses the default h3; a tab's own header card passes
+ * level 2, with its main `action` (a button or link) on the right and optional `stats` pills below.
+ */
+export function SectionHeader({ icon, title, description, level = 3, action, stats, className }: {
+  icon: ReactNode;
+  title: string;
+  description?: string;
+  level?: 2 | 3;
+  action?: ReactNode;
+  stats?: ReactNode;
+  className?: string;
+}) {
+  const Heading = level === 2 ? 'h2' : 'h3';
+  return (
+    <div className={cn('mb-5', className)}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <IconTile className="mt-0.5">{icon}</IconTile>
+          <div>
+            <Heading className={cn('font-semibold text-zinc-900', level === 2 ? 'text-base' : 'text-sm')}>{title}</Heading>
+            {description && <p className={cn('text-xs text-zinc-500 mt-0.5', level === 2 && 'max-w-xl')}>{description}</p>}
+          </div>
+        </div>
+        {action}
       </div>
-      <div>
-        <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
-        {description && <p className="text-xs text-zinc-500 mt-0.5">{description}</p>}
-      </div>
+      {stats && <div className="flex flex-wrap gap-2 mt-4">{stats}</div>}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { DisconnectModal } from '../accounts/DisconnectModal';
 import { accountsService } from '../../services/accounts';
 import { startConnect } from '../../utils/connectPlatform';
 import { accountLine, connectedPlatformCount, platformRows, type PlatformAccount, type PlatformRow, type RowStatus } from '../../utils/settingsPlatforms';
-import { SettingsCard, SettingsListCard, StatPill } from './SettingsParts';
+import { SectionHeader, SettingsCard, SettingsListCard, StatPill } from './SettingsParts';
 
 const STATUS: Record<RowStatus, { label: string; className: string; dot: string }> = {
   connected: { label: 'Connected', className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100', dot: 'bg-emerald-500' },
@@ -99,20 +99,20 @@ export function PlatformsTab() {
 
   return (
     <div className="space-y-4">
-      <SettingsCard className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-orange-50 ring-1 ring-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0 mt-0.5">
-            <Plug className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900">Connected platforms</h2>
-            <p className="text-xs text-zinc-500 mt-0.5 max-w-xl">Connect your accounts so the platform can publish posts and manage your inbox on your behalf.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <StatPill value={connectedPlatformCount(rows)} label={`of ${rows.length} connected`} />
-          <Link to="/accounts" className="text-xs font-semibold text-orange-600 hover:text-orange-700">Manage all accounts</Link>
-        </div>
+      <SettingsCard>
+        <SectionHeader
+          level={2}
+          className="mb-0"
+          icon={<Plug className="w-4 h-4" />}
+          title="Connected platforms"
+          description="Connect your accounts so the platform can publish posts and manage your inbox on your behalf."
+          action={(
+            <div className="flex items-center gap-3">
+              <StatPill value={connectedPlatformCount(rows)} label={`of ${rows.length} connected`} />
+              <Link to="/accounts" className="text-xs font-semibold text-orange-600 hover:text-orange-700">Manage all accounts</Link>
+            </div>
+          )}
+        />
       </SettingsCard>
 
       <SettingsListCard>

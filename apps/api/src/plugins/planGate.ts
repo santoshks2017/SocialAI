@@ -66,7 +66,7 @@ export async function registerPlanGate(fastify: FastifyInstance) {
         }
       }
 
-      // 3. Connected platforms (Starter 2, Growth 5, Enterprise 4 — all four connectable platforms)
+      // 3. Connected platforms (Starter 2; Growth and Enterprise every connectable platform, ACCOUNT_PLATFORMS.length)
       if (feature === 'platforms') {
         const limit = limits.platforms;
 

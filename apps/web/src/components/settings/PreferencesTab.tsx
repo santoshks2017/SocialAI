@@ -8,7 +8,7 @@ import { preferencesService } from '../../services/preferences';
 import { CONTENT_LANGUAGES, NOTIFICATION_OPTIONS, allNotificationsOn, type NotificationPrefs } from '../../utils/preferences';
 import { REGIONS } from '../../utils/settings';
 import type { ThemeMode } from '../../utils/theme';
-import { SaveBar, SectionHeader, SettingsCard, Toggle } from './SettingsParts';
+import { IconTile, SaveBar, SectionHeader, SettingsCard, Toggle } from './SettingsParts';
 import type { ProfileForm } from './useProfileForm';
 
 const THEME_OPTIONS: Array<{ value: ThemeMode; label: string }> = [
@@ -159,9 +159,7 @@ export function PreferencesTab({ form, onOpenBilling }: { form: ProfileForm; onO
           className="w-full bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-5 flex items-center justify-between gap-3 text-left transition-all hover:shadow-md hover:border-zinc-300"
         >
           <span className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-orange-50 ring-1 ring-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0">
-              <CreditCard className="w-4 h-4" />
-            </span>
+            <IconTile><CreditCard className="w-4 h-4" /></IconTile>
             <span>
               <span className="block text-sm font-semibold text-zinc-900">Subscription & billing</span>
               <span className="block text-xs text-zinc-500 mt-0.5">Manage your plan and billing cycle.</span>

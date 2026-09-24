@@ -198,7 +198,7 @@ export interface FestivalMark {
   idea?: string;
 }
 
-// The reference's emoji table, matched on the English name; 🎉 for anything else.
+// The reference's emoji table, matched on the English name; a party-popper emoji for anything else.
 const FESTIVAL_EMOJI: Array<[RegExp, string]> = [
   [/diwali|deepavali/i, '\u{1FA94}'], [/dhanteras/i, '\u{1FA99}'], [/holi/i, '\u{1F3A8}'], [/eid/i, '\u{1F319}'],
   [/raksha|rakhi/i, '\u{1F9E1}'], [/janmashtami|krishna/i, '\u{1FA88}'], [/ganesh/i, '\u{1F418}'], [/navratri|durga/i, '\u{1F483}'],

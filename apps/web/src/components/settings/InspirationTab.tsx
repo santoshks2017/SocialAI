@@ -7,9 +7,9 @@ import { PlatformIcon } from '../ui/PlatformIcon';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useToast } from '../ui/Toast';
 import api from '../../services/api';
-import type { InspirationHandle } from '../../utils/settings';
 import { INSPIRATION_PLATFORMS, handleTitle, inspirationStats, isHttpUrl, postsLearned, referencePlaceholder, type InspirationPlatform } from '../../utils/inspiration';
-import { FieldLabel, ICON, PILL, SettingsCard, StatPill } from './SettingsParts';
+import { ICON, PILL, type InspirationHandle } from '../../utils/settings';
+import { FieldLabel, SectionHeader, SettingsCard, StatPill } from './SettingsParts';
 
 function HandleSkeleton() {
   return (
@@ -143,29 +143,23 @@ export function InspirationTab() {
 
   return (
     <div className="space-y-4">
-      <SettingsCard className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-orange-50 ring-1 ring-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0 mt-0.5">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-zinc-900">Inspiration references</h2>
-              <p className="text-xs text-zinc-500 mt-0.5 max-w-xl">
-                Add Facebook or Instagram pages you admire. The AI studies their posts and uses them as inspiration when writing your captions and designing creatives.
-              </p>
-            </div>
-          </div>
-          <Button onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Add reference</Button>
-        </div>
-        {handles.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <StatPill value={stats.references} label="References" />
-            <StatPill value={stats.facebook} label="Facebook" />
-            <StatPill value={stats.instagram} label="Instagram" />
-            <StatPill value={stats.postsLearned} label="Posts learned" />
-          </div>
-        )}
+      <SettingsCard>
+        <SectionHeader
+          level={2}
+          className="mb-0"
+          icon={<Sparkles className="w-4 h-4" />}
+          title="Inspiration references"
+          description="Add Facebook or Instagram pages you admire. The AI studies their posts and uses them as inspiration when writing your captions and designing creatives."
+          action={<Button onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Add reference</Button>}
+          stats={handles.length > 0 && (
+            <>
+              <StatPill value={stats.references} label="References" />
+              <StatPill value={stats.facebook} label="Facebook" />
+              <StatPill value={stats.instagram} label="Instagram" />
+              <StatPill value={stats.postsLearned} label="Posts learned" />
+            </>
+          )}
+        />
       </SettingsCard>
 
       {loading ? (

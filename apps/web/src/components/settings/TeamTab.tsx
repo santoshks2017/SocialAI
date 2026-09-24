@@ -11,7 +11,8 @@ import {
   accountChanges, avatarGradient, canChangeRole, canManageMember, canRemove, canToggleActive, initialOf, isSelf, memberName, roleOptions, teamStats,
   type AccountDraft,
 } from '../../utils/team';
-import { ICON, PILL, SettingsCard, StatPill } from './SettingsParts';
+import { ICON, PILL } from '../../utils/settings';
+import { SectionHeader, SettingsCard, StatPill } from './SettingsParts';
 import { ChangeRoleModal, EditAccountModal, InviteModal, RemoveMemberModal } from './TeamModals';
 
 const ROLE_BADGE: Record<Role, string> = {
@@ -165,23 +166,24 @@ export function TeamTab() {
 
   return (
     <div className="space-y-4">
-      <SettingsCard className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900">Team</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">Manage who can access your dealership and what they can do.</p>
-          </div>
-          <Button onClick={() => setShowInvite(true)}><UserPlus className="w-4 h-4" /> Invite member</Button>
-        </div>
-        {members.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <StatPill value={stats.members} label="Members" />
-            <StatPill value={stats.owners} label="Owners" />
-            <StatPill value={stats.managers} label="Managers" />
-            <StatPill value={stats.creators} label="Creators" />
-            <StatPill value={stats.active} label="Active" />
-          </div>
-        )}
+      <SettingsCard>
+        <SectionHeader
+          level={2}
+          className="mb-0"
+          icon={<Users className="w-4 h-4" />}
+          title="Team"
+          description="Manage who can access your dealership and what they can do."
+          action={<Button onClick={() => setShowInvite(true)}><UserPlus className="w-4 h-4" /> Invite member</Button>}
+          stats={members.length > 0 && (
+            <>
+              <StatPill value={stats.members} label="Members" />
+              <StatPill value={stats.owners} label="Owners" />
+              <StatPill value={stats.managers} label="Managers" />
+              <StatPill value={stats.creators} label="Creators" />
+              <StatPill value={stats.active} label="Active" />
+            </>
+          )}
+        />
       </SettingsCard>
 
       {loading ? (
