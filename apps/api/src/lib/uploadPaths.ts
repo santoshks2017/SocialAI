@@ -1,7 +1,7 @@
 import path from 'path';
 import { readStoredFile } from './storage.js';
 import { safeFetchBuffer, type SafeFetchOptions, type SafeFetchResult } from './safeUrl.js';
-import { ORIGINALS_DIR, CREATIVES_DIR } from '../routes/upload.js';
+import { ORIGINALS_DIR, CREATIVES_DIR, LOGOS_DIR } from '../routes/upload.js';
 
 export class InvalidFileIdError extends Error {
   readonly code = 'INVALID_FILE_ID';
@@ -36,7 +36,15 @@ function storedUploadRef(raw: string): { key: string; dir: string; name: string 
   const apiBase = process.env['API_BASE_URL'];
   const ours = url.origin === 'http://relative.invalid'
     || (!!apiBase && URL.canParse(apiBase) && new URL(apiBase).origin === url.origin);
-  const match = ours ? /^\/uploads\/(originals|creatives)\/([^/]+)$/.exec(url.pathname) : null;
+  if (!ours) return null;
+  // Dealer logos: /uploads/logos/{dealerId}/{file} (POST /v1/dealer/logo).
+  const logo = /^\/uploads\/logos\/([^/]+)\/([^/]+)$/.exec(url.pathname);
+  if (logo) {
+    const dealer = safeFileId(decodeURIComponent(logo[1]!));
+    const name = safeFileId(decodeURIComponent(logo[2]!));
+    return { key: `logos/${dealer}/${name}`, dir: path.join(LOGOS_DIR, dealer), name };
+  }
+  const match = /^\/uploads\/(originals|creatives)\/([^/]+)$/.exec(url.pathname);
   if (!match) return null;
   const name = safeFileId(decodeURIComponent(match[2]!));
   return { key: `${match[1]}/${name}`, dir: match[1] === 'originals' ? ORIGINALS_DIR : CREATIVES_DIR, name };

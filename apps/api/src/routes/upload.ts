@@ -11,6 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const UPLOADS_ROOT = path.join(__dirname, '../../../uploads');
 export const ORIGINALS_DIR = path.join(UPLOADS_ROOT, 'originals');
 export const CREATIVES_DIR = path.join(UPLOADS_ROOT, 'creatives');
+export const LOGOS_DIR = path.join(UPLOADS_ROOT, 'logos');
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic']);
 

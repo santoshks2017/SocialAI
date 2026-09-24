@@ -38,6 +38,7 @@ model Dealer {
   timezone             String?  @default("Asia/Kolkata")
   is_active            Boolean  @default(true)
   auto_reply_enabled   Boolean  @default(false)
+  use_brand_theme      Boolean  @default(false) // Settings → Business Profile: recolour the app from primary_color
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
