@@ -5,6 +5,7 @@ import { getUser, requirePermission } from '../lib/routeHelpers.js';
 import type { DealerUser } from '../generated/client/index.js';
 import { Prisma } from '../generated/client/index.js';
 import { mergeNotificationPrefs, parsePreferencesUpdate, preferencesView } from '../lib/userPreferences.js';
+import { canManageMember, inviteRole, parseAccountEdit } from '../lib/teamAccounts.js';
 
 function mapUser(u: DealerUser) {
   return {
@@ -103,7 +104,11 @@ export default async function usersRoutes(fastify: FastifyInstance) {
 
     if (!body.phone) return reply.code(400).send({ error: 'phone is required' });
 
-    const role = body.role === ROLES.ADMIN ? ROLES.ADMIN : ROLES.USER;
+    const role = inviteRole(body.role);
+    // Only the platform owner grants the owner role (the same rule as PATCH /:id/role).
+    if (role === ROLES.OWNER && !isGlobalOwner(user)) {
+      return reply.code(403).send({ error: 'Only the owner can assign the owner role' });
+    }
 
     // Check if user already exists in this org
     const existing = await prisma.dealerUser.findUnique({ where: { phone: body.phone } });
@@ -172,6 +177,9 @@ export default async function usersRoutes(fastify: FastifyInstance) {
       where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
     });
     if (!target) return reply.code(404).send({ error: 'User not found' });
+    if (!canManageMember(user.role, target.role)) {
+      return reply.code(403).send({ error: 'Only an Owner can change an Owner’s role' });
+    }
 
     const updated = await prisma.dealerUser.update({ where: { id }, data: { role } });
     return { user: mapUser(updated) };
@@ -191,6 +199,41 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     if (!target) return reply.code(404).send({ error: 'User not found' });
 
     const updated = await prisma.dealerUser.update({ where: { id }, data: { is_active: isActive } });
+    return { user: mapUser(updated) };
+  });
+
+  // PATCH /v1/users/:id/account { name?, email?, phone? } — edit a team member's account (manage_users).
+  // A Manager can't edit an Owner. A phone number is a sign-in identity, so it must stay unique.
+  fastify.patch('/:id/account', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const user = getUser(request);
+    if (!requirePermission(reply, user, 'manage_users')) return;
+
+    const parsed = parseAccountEdit(request.body);
+    if (!parsed.ok) return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: parsed.message } });
+
+    const { id } = request.params as { id: string };
+    const target = await prisma.dealerUser.findFirst({
+      where: { id, ...(!isGlobalOwner(user) ? { dealer_id: user.dealer_id! } : {}) },
+    });
+    if (!target) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    if (!canManageMember(user.role, target.role)) {
+      return reply.code(403).send({ error: { code: 'FORBIDDEN', message: 'Only an Owner can edit an Owner’s account' } });
+    }
+
+    const { name, email, phone } = parsed.edit;
+    if (phone !== undefined && phone !== target.phone) {
+      const taken = await prisma.dealerUser.findUnique({ where: { phone } });
+      if (taken) return reply.code(409).send({ error: { code: 'PHONE_TAKEN', message: 'This phone number is already in use' } });
+    }
+
+    const updated = await prisma.dealerUser.update({
+      where: { id: target.id },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(email !== undefined ? { email } : {}),
+        ...(phone !== undefined ? { phone } : {}),
+      },
+    });
     return { user: mapUser(updated) };
   });
 
