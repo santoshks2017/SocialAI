@@ -813,7 +813,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // POST /v1/auth/facebook/pages — redeem the code from /facebook/callback for the
   // Pages and Instagram accounts the user can connect. The tokens are parked under
-  // the caller's dealer for POST /v1/platform-accounts to pick up by account id.
+  // the caller's dealer. Nothing redeems them since the manual account save was
+  // removed; connects go through /v1/platforms/connect/:platform instead.
   fastify.post('/facebook/pages', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const dealerId = request.user.dealer_id;
     if (!dealerId) {
