@@ -80,4 +80,12 @@ describe('POST /v1/events', () => {
     assert.equal(statuses[59], 204);
     assert.equal(statuses[60], 429);
   });
+
+  it('records interest in a planned platform', async () => {
+    const dealerId = await newDealer();
+    const res = await send(headersFor(dealerId), { action: 'platform.notify_requested', platform: 'linkedin' });
+    assert.equal(res.statusCode, 204);
+    const [event] = await prisma.event.findMany({ where: { dealer_id: dealerId } });
+    assert.deepEqual([event?.action, event?.meta], ['platform.notify_requested', { platform: 'linkedin' }]);
+  });
 });

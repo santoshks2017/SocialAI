@@ -1,4 +1,4 @@
-export const EVENT_ACTIONS = ['caption.accepted', 'caption.edited', 'caption.rejected', 'report.downloaded'] as const;
+export const EVENT_ACTIONS = ['caption.accepted', 'caption.edited', 'caption.rejected', 'report.downloaded', 'platform.notify_requested'] as const;
 export type EventAction = (typeof EVENT_ACTIONS)[number];
 export type EventMeta = Record<string, string | number | boolean>;
 
