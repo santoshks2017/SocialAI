@@ -3,6 +3,8 @@ import { prisma } from '../db/prisma.js';
 import { CONFIGURABLE_PERMISSIONS, isGlobalOwner, resolvePermissions, ROLES } from '../lib/permissions.js';
 import { getUser, requirePermission } from '../lib/routeHelpers.js';
 import type { DealerUser } from '../generated/client/index.js';
+import { Prisma } from '../generated/client/index.js';
+import { mergeNotificationPrefs, parsePreferencesUpdate, preferencesView } from '../lib/userPreferences.js';
 
 function mapUser(u: DealerUser) {
   return {
@@ -27,6 +29,34 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const dbUser = await prisma.dealerUser.findUnique({ where: { id: user.dealer_user_id } });
     if (!dbUser) return { id: user.dealer_user_id, role: user.role, permissions: user.permissions };
     return { user: mapUser(dbUser) };
+  });
+
+  // GET /v1/users/me/preferences — the signed-in person's theme and notification choices
+  fastify.get('/me/preferences', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const me = await prisma.dealerUser.findUnique({ where: { id: getUser(request).dealer_user_id } });
+    if (!me) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    return preferencesView(me);
+  });
+
+  // PUT /v1/users/me/preferences { theme_mode?, notification_prefs? } — partial; notification_prefs merges
+  fastify.put('/me/preferences', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const parsed = parsePreferencesUpdate(request.body);
+    if (!parsed.ok) return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: parsed.message } });
+
+    const me = await prisma.dealerUser.findUnique({ where: { id: getUser(request).dealer_user_id } });
+    if (!me) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+
+    const { theme_mode, notification_prefs } = parsed.update;
+    const updated = await prisma.dealerUser.update({
+      where: { id: me.id },
+      data: {
+        ...(theme_mode !== undefined ? { theme_mode } : {}),
+        ...(notification_prefs !== undefined
+          ? { notification_prefs: mergeNotificationPrefs(me.notification_prefs, notification_prefs) as Prisma.InputJsonValue }
+          : {}),
+      },
+    });
+    return preferencesView(updated);
   });
 
   // GET /v1/users — list all users in this dealer org (admin+)
