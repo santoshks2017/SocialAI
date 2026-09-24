@@ -1,8 +1,9 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import axios from 'axios';
 import { prisma } from '../db/prisma.js';
 import { exchangeForLongLivedToken, fetchManagedPages, type ManagedPage } from '../services/meta.js';
 import { fetchGmbLocations, type GmbLocation } from '../services/gmb.js';
+import { NO_YOUTUBE_CHANNEL, YOUTUBE_SCOPES, fetchYouTubeChannels } from '../services/youtube.js';
 import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { issueHandoffCode, type SessionHandoff } from '../lib/oauthHandoff.js';
 import { signOAuthState, verifyOAuthState } from '../lib/oauthState.js';
@@ -80,6 +81,19 @@ function googleClient(): { id: string; secret: string } | null {
   return id ? { id, secret: process.env['GOOGLE_CLIENT_SECRET'] ?? '' } : null;
 }
 
+/** The Google consent URL shared by every Google OAuth connect (Business Profile, YouTube). */
+function googleConsentUrl(clientId: string, scope: string, state: string): string {
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('redirect_uri', GOOGLE_CALLBACK_URI);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', scope);
+  url.searchParams.set('access_type', 'offline');
+  url.searchParams.set('prompt', 'consent');
+  url.searchParams.set('state', state);
+  return url.toString();
+}
+
 async function exchangeGoogleCode(code: string): Promise<{ access_token: string; refresh_token?: string; expires_in: number }> {
   const client = googleClient();
   const res = await axios.post<{ access_token: string; refresh_token?: string; expires_in: number }>(
@@ -125,7 +139,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     const isSignin = signin === '1';
     const isMock = mock === 'true';
 
-    if ((platform === 'twitter' || platform === 'youtube') && mockPlatformsDisabled()) {
+    // Twitter is mock-only; YouTube is mock-only until the Google client is configured.
+    if ((platform === 'twitter' || (platform === 'youtube' && !googleClient())) && mockPlatformsDisabled()) {
       return reply.code(501).send({ error: { code: 'NOT_AVAILABLE', message: `${platform} connections are not available yet` } });
     }
 
@@ -185,15 +200,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         return reply.code(500).send({ error: { code: 'CONFIG_ERROR', message: 'GOOGLE_CLIENT_ID not configured' } });
       }
       const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform, signin: isSignin });
-      const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-      url.searchParams.set('client_id', google.id);
-      url.searchParams.set('redirect_uri', GOOGLE_CALLBACK_URI);
-      url.searchParams.set('response_type', 'code');
-      url.searchParams.set('scope', 'https://www.googleapis.com/auth/business.manage email profile');
-      url.searchParams.set('access_type', 'offline');
-      url.searchParams.set('prompt', 'consent');
-      url.searchParams.set('state', state);
-      return { success: true, redirect_url: url.toString() };
+      return { success: true, redirect_url: googleConsentUrl(google.id, 'https://www.googleapis.com/auth/business.manage email profile', state) };
     }
 
     // Twitter/X: mock OAuth only
@@ -207,14 +214,19 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       return { success: true, redirect_url: callbackUrl };
     }
 
-    // YouTube: mock OAuth (Task 5 adds real Google OAuth)
+    // YouTube: Google OAuth with the YouTube scopes. It returns to the registered Google callback, which
+    // tells YouTube from Business Profile by the state. The mock runs without a Google client, or with
+    // ?mock=true outside production.
     if (platform === 'youtube') {
       if (!dealer_id) {
         return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
       }
       const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform });
-      const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/youtube?code=mock_youtube_code&state=${state}`;
-      return { success: true, redirect_url: callbackUrl };
+      const google = googleClient();
+      if (!google || (isMock && process.env['NODE_ENV'] !== 'production')) {
+        return { success: true, redirect_url: `${API_BASE_URL}/v1/platforms/callback/youtube?code=mock_youtube_code&state=${state}` };
+      }
+      return { success: true, redirect_url: googleConsentUrl(google.id, YOUTUBE_SCOPES, state) };
     }
 
     return reply.code(400).send({ error: { code: 'INVALID_PLATFORM', message: `Unknown platform: ${platform}` } });
@@ -479,6 +491,33 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // The YouTube half of /callback/google: saves every channel the Google account owns.
+  async function saveYouTubeChannels(code: string, dealerId: string | null, reply: FastifyReply) {
+    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=youtube`);
+    if (!dealerId) return fail('Session expired. Please try again.');
+    try {
+      const tokens = await exchangeGoogleCode(code);
+      const channels = await fetchYouTubeChannels(tokens.access_token);
+      const [first] = channels;
+      if (!first) return fail(NO_YOUTUBE_CHANNEL);
+      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+      const { saved, limitReached } = await saveConnections(dealerId, channels.map((channel) => ({
+        platform: 'youtube',
+        platform_account_id: channel.id,
+        platform_account_name: channel.title,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token, // undefined on a reconnect keeps the stored one
+        token_expires_at: expiresAt,
+      })));
+      if (limitReached) return fail(ACCOUNT_LIMIT_MESSAGE);
+      return reply.redirect(`${frontendCallback}?success=1&platform=youtube&page_name=${encodeURIComponent(first.title)}&${savedCountQuery(saved)}`);
+    } catch (err) {
+      fastify.log.error({ message: errorText(err) }, 'YouTube OAuth callback failed');
+      return fail('YouTube connection failed');
+    }
+  }
+
   // GET /v1/platforms/callback/google
   // Google redirects the browser here after consent: every Business Profile location is saved.
   fastify.get('/callback/google', async (request, reply) => {
@@ -494,7 +533,8 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     if (oauthError || !code || !state) return fail(oauthError ?? 'Google login cancelled');
 
     const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
-    if (!stateData || stateData.platform !== 'gmb') return fail('Invalid state');
+    if (!stateData || (stateData.platform !== 'gmb' && stateData.platform !== 'youtube')) return fail('Invalid state');
+    if (stateData.platform === 'youtube') return saveYouTubeChannels(code, stateData.dealer_id, reply);
 
     try {
       const { access_token, refresh_token, expires_in } = await exchangeGoogleCode(code);
