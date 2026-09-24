@@ -35,6 +35,21 @@ describe('Shorts metadata', () => {
     assert.ok(many.join(',').length <= 500);
     assert.ok(many.length < 60);
   });
+
+  it('truncates an emoji-heavy title by code point, never splitting a surrogate pair', () => {
+    const car = '\u{1F697}'; // astral-plane emoji: 2 UTF-16 code units, 1 code point
+    const title = shortsTitle('X' + car.repeat(120), 'Dealer');
+    assert.equal(title.isWellFormed(), true);
+    assert.equal(Array.from(title).length, 100);
+    assert.ok(title.endsWith(' #Shorts'));
+  });
+
+  it('truncates an emoji-heavy description by code point, never splitting a surrogate pair', () => {
+    const face = '\u{1F600}'; // astral-plane emoji
+    const description = shortsDescription(face.repeat(6000));
+    assert.equal(description.isWellFormed(), true);
+    assert.equal(Array.from(description).length, 5000);
+  });
 });
 
 describe('uploadShort', () => {
@@ -88,6 +103,21 @@ describe('uploadShort', () => {
 
     assert.match(result.url, /^https:\/\/youtube\.com\/shorts\/mock_yt_short_/);
     assert.equal(load.mock.callCount() + post.mock.callCount(), 0);
+  });
+
+  it('gives a clear error when the init response has no upload address', async (t) => {
+    t.mock.method(reelSource, 'load', async () => Buffer.from('x'));
+    t.mock.method(axios, 'post', async () => ({ headers: {}, data: {} }));
+
+    await assert.rejects(uploadShort(UPLOAD), { message: 'YouTube did not return an upload address.' });
+  });
+
+  it('gives a clear error when the upload response has no video id', async (t) => {
+    t.mock.method(reelSource, 'load', async () => Buffer.from('x'));
+    t.mock.method(axios, 'post', async () => ({ headers: { location: 'https://upload.test/session-1' }, data: {} }));
+    t.mock.method(axios, 'put', async () => ({ data: {} }));
+
+    await assert.rejects(uploadShort(UPLOAD), { message: 'YouTube did not return a video id.' });
   });
 });
 

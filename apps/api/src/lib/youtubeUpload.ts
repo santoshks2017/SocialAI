@@ -21,18 +21,26 @@ const LIMIT_REASONS = new Set(['quotaExceeded', 'uploadLimitExceeded', 'dailyLim
 
 const stripAngles = (text: string) => text.replace(/[<>]/g, '');
 
+// Unicode-code-point-aware length/truncation: `.length`/`.slice()` count UTF-16 code
+// units, which can split an astral-plane character (most emoji) in half, leaving a
+// lone surrogate that corrupts to U+FFFD once the title/description is UTF-8 encoded
+// for the HTTP body. Iterating the string (`for...of` / `Array.from`) walks whole
+// code points instead, so a cut never lands inside a surrogate pair.
+const charLength = (text: string): number => Array.from(text).length;
+const truncateChars = (text: string, max: number): string => Array.from(text).slice(0, max).join('');
+
 /** The caption's first line without hashtags or angle brackets, cut so that "{title} #Shorts" fits in 100. */
 export function shortsTitle(caption: string, dealerName: string): string {
   const clean = (text: string) => stripAngles(text.replace(/#[^\s#]+/g, ' ')).replace(/\s+/g, ' ').trim();
   const firstLine = caption.split(/\r?\n/).find((line) => line.trim()) ?? '';
   const base = clean(firstLine) || clean(dealerName) || 'New video';
   const room = TITLE_MAX - SHORTS_TAG.length - 1;
-  return `${base.length > room ? base.slice(0, room).trimEnd() : base} ${SHORTS_TAG}`;
+  return `${charLength(base) > room ? truncateChars(base, room).trimEnd() : base} ${SHORTS_TAG}`;
 }
 
 /** The caption as other platforms get it (hashtags appended), without angle brackets, at most 5000 characters. */
 export function shortsDescription(fullCaption: string): string {
-  return stripAngles(fullCaption).trim().slice(0, DESCRIPTION_MAX);
+  return truncateChars(stripAngles(fullCaption).trim(), DESCRIPTION_MAX);
 }
 
 /** The hashtags without "#", deduplicated, within YouTube's 500-character total. */
