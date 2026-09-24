@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import type { Lead } from '../generated/client/index.js';
@@ -27,6 +28,14 @@ async function tagMessageAsLead(dealerId: string, messageId: string): Promise<vo
     await prisma.inboxMessage.update({ where: { id: message.id }, data: { tag: 'lead' } });
   }
 }
+
+// Deterministic id for the lead of a given message, so two concurrent "Mark as lead" calls (or a
+// client retry) collide on create instead of each inserting their own row (mirrors inboxMessageDocId).
+export function leadDocId(dealerId: string, sourceMessageId: string): string {
+  return `lead_${createHash('sha256').update(`${dealerId}:${sourceMessageId}`).digest('hex').slice(0, 32)}`;
+}
+
+const isDuplicate = (err: unknown) => (err as { code?: unknown } | null)?.code === 'P2002';
 
 export default async function leadsRoutes(fastify: FastifyInstance) {
   // GET /v1/leads — list leads
@@ -99,23 +108,36 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const lead = await prisma.lead.create({
-      data: {
-        dealer_id,
-        customer_name: body.customerName,
-        ...(body.customerPhone !== undefined ? { customer_phone: body.customerPhone } : {}),
-        ...(body.sourcePlatform !== undefined ? { source_platform: body.sourcePlatform } : {}),
-        source_type: body.sourceType ?? 'inbox',
-        ...(body.sourcePostId !== undefined ? { source_post_id: body.sourcePostId } : {}),
-        ...(body.sourceCampaignId !== undefined ? { source_campaign_id: body.sourceCampaignId } : {}),
-        ...(sourceMessageId !== undefined ? { source_message_id: sourceMessageId } : {}),
-        ...(body.vehicleInterest !== undefined ? { vehicle_interest: body.vehicleInterest } : {}),
-        ...(body.notes !== undefined ? { notes: body.notes } : {}),
-      },
-    });
+    let lead: Lead;
+    let created = true;
+    try {
+      lead = await prisma.lead.create({
+        data: {
+          // A deterministic id when we know the message, so a racing duplicate create fails with P2002
+          // instead of inserting a second lead for the same message.
+          ...(sourceMessageId ? { id: leadDocId(dealer_id, sourceMessageId) } : {}),
+          dealer_id,
+          customer_name: body.customerName,
+          ...(body.customerPhone !== undefined ? { customer_phone: body.customerPhone } : {}),
+          ...(body.sourcePlatform !== undefined ? { source_platform: body.sourcePlatform } : {}),
+          source_type: body.sourceType ?? 'inbox',
+          ...(body.sourcePostId !== undefined ? { source_post_id: body.sourcePostId } : {}),
+          ...(body.sourceCampaignId !== undefined ? { source_campaign_id: body.sourceCampaignId } : {}),
+          ...(sourceMessageId !== undefined ? { source_message_id: sourceMessageId } : {}),
+          ...(body.vehicleInterest !== undefined ? { vehicle_interest: body.vehicleInterest } : {}),
+          ...(body.notes !== undefined ? { notes: body.notes } : {}),
+        },
+      });
+    } catch (err) {
+      if (!sourceMessageId || !isDuplicate(err)) throw err;
+      const raced = await prisma.lead.findFirst({ where: { id: leadDocId(dealer_id, sourceMessageId), dealer_id } });
+      if (!raced) throw err;
+      lead = raced;
+      created = false;
+    }
     if (sourceMessageId) await tagMessageAsLead(dealer_id, sourceMessageId);
 
-    return reply.code(201).send({ item: mapLead(lead) });
+    return reply.code(created ? 201 : 200).send({ item: mapLead(lead) });
   });
 
   // PATCH /v1/leads/:id — update lead

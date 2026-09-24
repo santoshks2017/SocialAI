@@ -47,6 +47,19 @@ describe('POST /v1/leads', () => {
     assert.equal((await prisma.inboxMessage.findUnique({ where: { id: m.id } }))?.tag, 'lead');
   });
 
+  it('holds one lead per message under concurrent requests', async () => {
+    const dealerId = await newDealer();
+    const h = headers(dealerId);
+    const m = await newMessage(dealerId, null);
+    const body = { customerName: 'Ravi Kumar', sourcePlatform: 'facebook', sourceMessageId: m.id };
+
+    const [a, b] = await Promise.all([createLead(h, body), createLead(h, body)]);
+
+    assert.deepEqual([a.statusCode, b.statusCode].sort(), [200, 201]);
+    assert.equal(leadId(a), leadId(b));
+    assert.equal((await prisma.lead.findMany({ where: { dealer_id: dealerId, source_message_id: m.id } })).length, 1);
+  });
+
   it('keeps a tag someone already chose', async () => {
     const dealerId = await newDealer();
     const m = await newMessage(dealerId, 'complaint');
