@@ -125,6 +125,13 @@ export function topPostsSubtitle(platform: 'all' | AnalyticsPlatform): string {
   return platform === 'all' ? 'Ranked by reach across all platforms' : `Ranked by reach on ${platformName(platform)}`;
 }
 
+/** Top Performing Posts empty state: no posts at all vs. published posts that haven't gathered reach yet. */
+export function topPostsEmptyCopy(postCount: number): { title: string; body: string } {
+  return postCount > 0
+    ? { title: 'No reach data yet', body: 'Top posts appear here once your published posts gather reach.' }
+    : { title: 'No published posts yet', body: 'Your top posts will appear here once you start publishing.' };
+}
+
 /** Ad spend ÷ leads, rounded; null when either is missing. */
 export function costPerLead(adSpend: number | null, leads: number): number | null {
   return adSpend !== null && adSpend > 0 && leads > 0 ? Math.round(adSpend / leads) : null;

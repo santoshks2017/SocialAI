@@ -1,19 +1,20 @@
 import { Download, FileText, Trophy } from 'lucide-react';
 import { Button } from '../ui/Button';
 import type { DashboardStats } from '../../services/dashboard';
-import { formatINR, topPosts, topPostsSubtitle, type AnalyticsPlatform, type PostMetric } from '../../utils/analytics';
+import { formatINR, topPosts, topPostsEmptyCopy, topPostsSubtitle, type AnalyticsPlatform, type PostMetric } from '../../utils/analytics';
 import { CardEmpty, DeltaBadge, PlatformIconRow, SectionShell, StatTile } from './AnalyticsParts';
 
 // The five fetched posts with the most reach (posts that reached no one are left out), on the chosen platform.
 export function TopPostsCard({ posts, platform }: { posts: PostMetric[] | null; platform: 'all' | AnalyticsPlatform }) {
   const top = topPosts(posts ?? []);
+  const emptyCopy = topPostsEmptyCopy(posts?.length ?? 0);
   return (
     <SectionShell title="Top Performing Posts" subtitle={topPostsSubtitle(platform)} bodyClassName="p-0">
       {posts === null ? (
         <div className="p-5 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-10 rounded-lg bg-zinc-50 animate-pulse" />)}</div>
       ) : top.length === 0 ? (
         <div className="p-5">
-          <CardEmpty icon={<Trophy className="w-5 h-5" />} title="No published posts yet" text="Your top posts will appear here once you start publishing." />
+          <CardEmpty icon={<Trophy className="w-5 h-5" />} title={emptyCopy.title} text={emptyCopy.body} />
         </div>
       ) : (
         <div className="divide-y divide-zinc-100">

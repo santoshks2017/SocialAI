@@ -48,9 +48,8 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     ]);
 
     // Aggregate stats for this month
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const monthCampaigns = await prisma.boostCampaign.findMany({
       where: { dealer_id, created_at: { gte: monthStart } },
       select: { total_spent: true, metrics: true },

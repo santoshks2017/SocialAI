@@ -14,7 +14,7 @@ export interface InboxIngestInput {
   customer_name?: string | undefined;
   customer_platform_id?: string | undefined;
   customer_avatar_url?: string | undefined;
-  /** Our Post.id (see resolvePostId); null clears the link. */
+  /** Our Post.id (see resolvePostId); null means unresolved and never overwrites an already-linked post. */
   post_id?: string | null | undefined;
   received_at?: Date | undefined;
   rating?: number | null | undefined;
@@ -46,7 +46,8 @@ function refreshPatch(existing: InboxMessage, input: InboxIngestInput): Record<s
   if (name && name !== existing.customer_name) patch['customer_name'] = name;
   if (input.customer_platform_id && input.customer_platform_id !== existing.customer_platform_id) patch['customer_platform_id'] = input.customer_platform_id;
   if (input.customer_avatar_url && input.customer_avatar_url !== existing.customer_avatar_url) patch['customer_avatar_url'] = input.customer_avatar_url;
-  if (input.post_id !== undefined && input.post_id !== existing.post_id) patch['post_id'] = input.post_id;
+  // An event whose post can't be resolved sends null — never clears an already-resolved post_id.
+  if (input.post_id != null && input.post_id !== existing.post_id) patch['post_id'] = input.post_id;
   if (input.reply_text) {
     if (input.reply_text !== existing.reply_text) {
       patch['reply_text'] = input.reply_text;

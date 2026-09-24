@@ -143,6 +143,23 @@ describe('ingestInboxMessage', () => {
     assert.equal(await resolvePostId(dealerId, 'facebook', undefined), null);
   });
 
+  it('keeps a resolved post_id when a later refresh cannot resolve one', async () => {
+    const { dealerId } = await dealerWithTeam();
+    const post = await prisma.post.create({
+      data: { dealer_id: dealerId, prompt_text: 'p', caption_hashtags: [], platforms: ['facebook'], status: 'published', publish_results: {} },
+    });
+    const input = {
+      dealer_id: dealerId, platform: 'facebook', message_type: 'comment' as const,
+      platform_message_id: `c-${randomUUID()}`, message_text: 'Is the Creta available?', customer_name: 'Ravi', post_id: post.id,
+    };
+    const first = await ingestInboxMessage(input);
+    assert.equal(first.message.post_id, post.id);
+
+    const again = await ingestInboxMessage({ ...input, message_text: 'Is the Creta available in white?', post_id: null });
+
+    assert.equal(again.message.post_id, post.id);
+  });
+
   const review = (dealerId: string, extra: Record<string, unknown> = {}) => ({
     dealer_id: dealerId, platform: 'gmb', message_type: 'review' as const, platform_message_id: `r-${randomUUID()}`,
     message_text: 'Smooth delivery', customer_name: 'Asha', rating: 5, reply_text: 'Thank you!',

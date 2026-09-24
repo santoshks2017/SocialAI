@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   captionEventFor, costPerLead, emptyPerformance, engagementRate, formatDuration, formatINR, formatPercent, metricParts,
-  monthLabel, platformAbbrev, platformName, relativeWidth, responseRateColor, signed, sortPosts, topPlatform, topPosts, topPostsSubtitle, type PostMetric,
+  monthLabel, platformAbbrev, platformName, relativeWidth, responseRateColor, signed, sortPosts, topPlatform, topPosts, topPostsEmptyCopy, topPostsSubtitle, type PostMetric,
 } from './analytics.js';
 
 const post = (id: string, over: Partial<PostMetric> = {}): PostMetric => ({
@@ -92,6 +92,17 @@ describe('top posts', () => {
     assert.equal(topPostsSubtitle('all'), 'Ranked by reach across all platforms');
     assert.equal(topPostsSubtitle('instagram'), 'Ranked by reach on Instagram');
     assert.equal(topPostsSubtitle('gmb'), 'Ranked by reach on GMB');
+  });
+
+  it('tells no posts yet from posts with no reach yet', () => {
+    assert.deepEqual(topPostsEmptyCopy(0), {
+      title: 'No published posts yet',
+      body: 'Your top posts will appear here once you start publishing.',
+    });
+    assert.deepEqual(topPostsEmptyCopy(3), {
+      title: 'No reach data yet',
+      body: 'Top posts appear here once your published posts gather reach.',
+    });
   });
 });
 
