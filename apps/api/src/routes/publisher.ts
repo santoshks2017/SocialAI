@@ -55,7 +55,7 @@ async function targetAccounts(dealerId: string, value: unknown): Promise<string[
 // Whether a publish request should go through the queue: a queue must be configured, some target
 // platform must still be reachable, and there must be an actual job to run. Without the jobsLength
 // check, a publish where every named account already has the post (nothing to enqueue) would still
-// take the queue path, enqueue nothing, and leave the post stuck in "publishing" forever — this falls
+// take the queue path, enqueue nothing, and leave the post stuck in "publishing" forever; this falls
 // it through to the inline publishPost() call instead, which records the already-known outcome.
 export function useQueueFor(queueAvailable: boolean, jobsLength: number, skippedLength: number, platformsLength: number): boolean {
   return queueAvailable && jobsLength > 0 && skippedLength < platformsLength
