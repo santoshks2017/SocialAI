@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { useDealerProfile } from '../../contexts/DealerProfileContext';
-import { billingService, type BillingStatus } from '../../services/billing';
-import { NOTIFICATION_KEYS, addBrand } from '../../utils/settings';
+import { addBrand } from '../../utils/settings';
+import { normaliseLanguages, toggleLanguage } from '../../utils/preferences';
 
 interface ProfileResponse {
   success: boolean;
@@ -21,8 +21,7 @@ export function useProfileForm() {
   const { reload: reloadProfile } = useDealerProfile();
   // Empty until GET /dealer/profile answers; Save stays disabled so blanks never overwrite the dealer.
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [billing, setBilling] = useState<BillingStatus | null>(null);
-  const [selectedLangs, setSelectedLangs] = useState<string[]>(['en', 'hi']);
+  const [selectedLangs, setSelectedLangs] = useState<string[]>(['en']);
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [dealerName, setDealerName] = useState('');
@@ -32,12 +31,6 @@ export function useProfileForm() {
   const [primaryColor, setPrimaryColor] = useState('#1877F2');
   const [secondaryColor, setSecondaryColor] = useState('');
   const [useBrandTheme, setUseBrandTheme] = useState(false);
-  const [defaultRadius, setDefaultRadius] = useState(25);
-  const [notifications, setNotifications] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem('sg_notifications');
-    if (saved) return new Set(JSON.parse(saved) as string[]);
-    return new Set(NOTIFICATION_KEYS.filter((n) => n.defaultOn).map((n) => n.key));
-  });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logoUrl, setLogoUrl] = useState('');
@@ -57,7 +50,7 @@ export function useProfileForm() {
       if (p.secondary_color) setSecondaryColor(p.secondary_color);
       setUseBrandTheme(p.use_brand_theme === true);
       if (p.brands?.length) setSelectedBrands(p.brands);
-      if (p.language_preferences?.length) setSelectedLangs(p.language_preferences);
+      setSelectedLangs(normaliseLanguages(p.language_preferences));
       if (p.region) setSelectedRegion(p.region);
       if (p.logo_url) setLogoUrl(p.logo_url);
       if (p.font) setFont(p.font);
@@ -67,23 +60,15 @@ export function useProfileForm() {
     }).catch(() => {
       addToast({ type: 'error', title: 'Could not load your profile', message: 'Refresh the page before saving changes.' });
     });
-    billingService.getStatus()
-      .then((res) => { if (res.success) setBilling(res); })
-      .catch(() => setBilling(null));
   }, [addToast]);
 
-  const toggleLang = (code: string) => {
-    if (code === 'en') return; // English always required
-    setSelectedLangs((prev) => prev.includes(code) ? prev.filter((l) => l !== code) : [...prev, code]);
-  };
-
+  const toggleLang = (code: string) => setSelectedLangs((prev) => toggleLanguage(prev, code));
   const addSelectedBrand = (raw: string) => setSelectedBrands((prev) => addBrand(prev, raw));
   const removeSelectedBrand = (brand: string) => setSelectedBrands((prev) => prev.filter((b) => b !== brand));
 
   const handleSave = async (): Promise<boolean> => {
     if (!profileLoaded) return false;
     setSaving(true);
-    localStorage.setItem('sg_notifications', JSON.stringify([...notifications]));
     try {
       await api.put('/dealer/profile', {
         name: dealerName,
@@ -94,7 +79,7 @@ export function useProfileForm() {
         ...(secondaryColor ? { secondary_color: secondaryColor } : {}),
         use_brand_theme: useBrandTheme,
         brands: selectedBrands,
-        language_preferences: selectedLangs,
+        language_preferences: normaliseLanguages(selectedLangs),
         region: selectedRegion,
         logo_url: logoUrl,
         font,
@@ -115,11 +100,11 @@ export function useProfileForm() {
   };
 
   return {
-    profileLoaded, billing, selectedLangs, setSelectedLangs, selectedRegion, setSelectedRegion, selectedBrands,
-    addSelectedBrand, removeSelectedBrand, dealerName, setDealerName, city, setCity, phone, setPhone, whatsapp, setWhatsapp,
+    profileLoaded, selectedLangs, selectedRegion, setSelectedRegion, selectedBrands, addSelectedBrand, removeSelectedBrand,
+    dealerName, setDealerName, city, setCity, phone, setPhone, whatsapp, setWhatsapp,
     primaryColor, setPrimaryColor, secondaryColor, setSecondaryColor, useBrandTheme, setUseBrandTheme,
-    defaultRadius, setDefaultRadius, notifications, setNotifications, saved, saving, logoUrl, setLogoUrl, font, setFont,
-    address, setAddress, showroomType, setShowroomType, toggleLang, handleSave,
+    saved, saving, logoUrl, setLogoUrl, font, setFont, address, setAddress, showroomType, setShowroomType,
+    toggleLang, handleSave,
   };
 }
 

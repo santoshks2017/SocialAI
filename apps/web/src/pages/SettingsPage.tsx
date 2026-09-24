@@ -58,7 +58,9 @@ export default function SettingsPage() {
 
       {activeTab === 'profile' && <ProfileTab form={form} />}
       {activeTab === 'platforms' && <PlatformsTab />}
-      {activeTab === 'preferences' && <PreferencesTab form={form} />}
+      {activeTab === 'preferences' && (
+        <PreferencesTab form={form} onOpenBilling={tabs.some((t) => t.id === 'billing') ? () => selectTab('billing') : undefined} />
+      )}
       {activeTab === 'billing' && <BillingTab />}
       {activeTab === 'inspiration' && <InspirationTab />}
       {activeTab === 'team' && <TeamTab />}

@@ -1,157 +1,172 @@
-import { Link } from 'react-router-dom';
-import { Check } from 'lucide-react';
-import { Button } from '../ui/Button';
+import { useEffect, useState } from 'react';
+import { Bell, Check, ChevronDown, CreditCard, Languages, MapPin, SunMoon } from 'lucide-react';
+import { cn } from '../ui/Button';
+import { ThemedSelect } from '../ui/ThemedSelect';
+import { useToast } from '../ui/Toast';
 import { useTheme } from '../../contexts/ThemeContext';
+import { preferencesService } from '../../services/preferences';
+import { CONTENT_LANGUAGES, NOTIFICATION_OPTIONS, allNotificationsOn, type NotificationPrefs } from '../../utils/preferences';
+import { REGIONS } from '../../utils/settings';
 import type { ThemeMode } from '../../utils/theme';
-import { LANGUAGES, NOTIFICATION_KEYS, PLAN_LABELS, REGIONS } from '../../utils/settings';
+import { SaveBar, SectionHeader, SettingsCard, Toggle } from './SettingsParts';
 import type { ProfileForm } from './useProfileForm';
 
-// Moved unchanged from SettingsPage.tsx; Task 10 ports it to the reference layout.
-export function PreferencesTab({ form }: { form: ProfileForm }) {
-  const { mode: themeMode, setMode: setThemeMode } = useTheme();
-  const {
-    selectedLangs, toggleLang, selectedRegion, setSelectedRegion, defaultRadius, setDefaultRadius,
-    notifications, setNotifications, billing, saved, handleSave, profileLoaded,
-  } = form;
+const THEME_OPTIONS: Array<{ value: ThemeMode; label: string }> = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+];
+
+export function PreferencesTab({ form, onOpenBilling }: { form: ProfileForm; onOpenBilling?: () => void }) {
+  const { addToast } = useToast();
+  const { mode, setMode } = useTheme();
+  const { selectedLangs, toggleLang, selectedRegion, setSelectedRegion, saved, saving, handleSave, profileLoaded } = form;
+  const [prefs, setPrefs] = useState<NotificationPrefs>(allNotificationsOn);
+  const [savedPrefs, setSavedPrefs] = useState<NotificationPrefs>(allNotificationsOn);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    preferencesService.get()
+      .then((p) => {
+        if (cancelled) return;
+        setPrefs(p.notification_prefs);
+        setSavedPrefs(p.notification_prefs);
+        setPrefsLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) addToast({ type: 'error', title: 'Could not load your notification settings', message: 'Refresh the page before saving changes.' });
+      });
+    return () => { cancelled = true; };
+  }, [addToast]);
+
+  // The theme is yours, not the dealership's: it applies at once and is saved to your account.
+  const chooseTheme = (next: ThemeMode) => {
+    const previous = mode;
+    setMode(next);
+    preferencesService.update({ theme_mode: next }).catch(() => {
+      setMode(previous);
+      addToast({ type: 'error', title: 'Could not save your theme', message: 'Please try again.' });
+    });
+  };
+
+  const saveNotifications = async () => {
+    const changed = NOTIFICATION_OPTIONS.map((o) => o.type).filter((type) => prefs[type] !== savedPrefs[type]);
+    if (!prefsLoaded || changed.length === 0) return;
+    try {
+      const change = Object.fromEntries(changed.map((type) => [type, prefs[type]])) as Partial<NotificationPrefs>;
+      const next = await preferencesService.update({ notification_prefs: change });
+      setPrefs(next.notification_prefs);
+      setSavedPrefs(next.notification_prefs);
+    } catch {
+      addToast({ type: 'error', title: 'Could not save notifications', message: 'Please try again.' });
+    }
+  };
+
+  // Languages and region belong to the dealership (PUT /dealer/profile); notifications to you.
+  const save = () => {
+    void Promise.all([handleSave(), saveNotifications()]);
+  };
 
   return (
-        <div className="space-y-5">
-          <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-            <h3 className="font-semibold text-zinc-900 text-sm mb-1">Appearance</h3>
-            <p className="text-xs text-zinc-500 mb-3">Choose how Social AI looks on this device.</p>
-            <div className="inline-flex gap-1 bg-zinc-100/80 rounded-xl p-1">
-              {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setThemeMode(m)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-all ${themeMode === m ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
-                >
-                  {m === 'light' ? 'Light' : m === 'dark' ? 'Dark' : 'System'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
-            <div>
-              <h3 className="font-semibold text-slate-800 text-sm mb-1">Caption Languages</h3>
-              <p className="text-xs text-slate-500 mb-3">Select languages for AI caption generation. English is always included.</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {LANGUAGES.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => toggleLang(lang.code)}
-                    disabled={lang.code === 'en'}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-all cursor-pointer ${
-                      selectedLangs.includes(lang.code)
-                        ? 'bg-orange-50 border-orange-200 text-orange-700 font-bold shadow-xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50/50'
-                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                  >
-                    <span className="font-medium">{lang.label}</span>
-                    <span className="text-[10px] text-slate-500">{lang.script}</span>
-                    {selectedLangs.includes(lang.code) && <Check className="w-3.5 h-3.5 text-orange-600" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-slate-800 text-sm mb-1">Region</h3>
-              <p className="text-xs text-slate-500 mb-2">Controls which festival templates and regional campaigns are shown.</p>
-              <select
-                value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
-                className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-              >
-                <option value="" className="bg-white">Select a region</option>
-                {REGIONS.map((r) => <option key={r} className="bg-white">{r}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-slate-800 text-sm mb-1">Default Boost Radius</h3>
-              <p className="text-xs text-slate-500 mb-2">How far from your dealership boost campaigns target by default.</p>
-              <div className="space-y-2">
-                <input
-                  type="range"
-                  min={5}
-                  max={50}
-                  value={defaultRadius}
-                  onChange={(e) => setDefaultRadius(+e.target.value)}
-                  className="w-full accent-orange-500 bg-slate-100"
-                />
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>5 km</span>
-                  <span className="font-medium text-orange-600">{defaultRadius} km</span>
-                  <span>50 km</span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-slate-800 text-sm mb-2">Notifications</h3>
-              <div className="space-y-1">
-                {NOTIFICATION_KEYS.map((n) => (
-                  <label key={n.key} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0 cursor-pointer">
-                    <span className="text-sm text-slate-700">{n.label}</span>
-                    <input
-                      type="checkbox"
-                      checked={notifications.has(n.key)}
-                      onChange={() => setNotifications((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(n.key)) next.delete(n.key); else next.add(n.key);
-                        return next;
-                      })}
-                      className="w-4 h-4 accent-orange-500 cursor-pointer"
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-slate-800 text-sm mb-2">Subscription Plan</h3>
-              <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/[0.02] border border-orange-200/80 rounded-xl p-5 text-slate-805 shadow-sm">
-                {billing ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-base text-slate-800">{PLAN_LABELS[billing.plan] ?? billing.plan} Plan</p>
-                        <p className="text-orange-900/80 text-xs mt-0.5">
-                          {billing.limits.postsLimit >= 999999 ? 'Unlimited posts' : `${billing.limits.postsUsed} of ${billing.limits.postsLimit} posts used this month`}
-                          {' · '}{billing.limits.platformsConnected} of {billing.limits.platformsLimit} platforms connected
-                        </p>
-                      </div>
-                      {billing.subscription?.status && (
-                        <span className="bg-orange-100 border border-orange-200 text-orange-700 text-xs font-bold px-2.5 py-1 rounded-full capitalize">{billing.subscription.status}</span>
-                      )}
-                    </div>
-                    {(billing.subscription?.currentPeriodEnd ?? billing.expiresAt) && (
-                      <p className="text-slate-500 text-xs mt-3">
-                        Renews on {new Date((billing.subscription?.currentPeriodEnd ?? billing.expiresAt)!).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm text-slate-600">View your current plan, usage and upgrade options on the Billing page.</p>
-                )}
-                <Link to="/billing" className="inline-flex items-center mt-3.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium px-4 py-2 rounded-md shadow-sm shadow-orange-500/20 transition-colors">
-                  Manage plan
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3">
-            {saved && (
-              <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium">
-                <Check className="w-4 h-4" /> Saved
-              </div>
-            )}
-            <Button onClick={handleSave} disabled={!profileLoaded} className="text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 cursor-pointer">Save Preferences</Button>
-          </div>
+    <div className="space-y-4">
+      <SettingsCard>
+        <SectionHeader icon={<SunMoon className="w-4 h-4" />} title="Appearance" description="Saved to your account, so it follows you to every device you sign in on." />
+        <div role="group" aria-label="Theme" className="inline-flex gap-1 bg-zinc-100 p-1 rounded-xl">
+          {THEME_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={mode === o.value}
+              onClick={() => chooseTheme(o.value)}
+              className={cn('px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-all', mode === o.value ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700')}
+            >
+              {o.label}
+            </button>
+          ))}
         </div>
+        <p className="text-[11px] text-zinc-400 mt-2">“System” follows your device's light/dark setting.</p>
+      </SettingsCard>
+
+      <SettingsCard>
+        <SectionHeader
+          icon={<Languages className="w-4 h-4" />}
+          title="Content languages"
+          description="Used for AI captions, hashtags & on-image text. The first one is your account default; you can switch language per post."
+        />
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {CONTENT_LANGUAGES.map((lang) => {
+            const selected = selectedLangs.includes(lang.code);
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => toggleLang(lang.code)}
+                disabled={lang.code === 'en'}
+                aria-pressed={selected}
+                className={cn(
+                  'flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border text-sm transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed',
+                  selected ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-white border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50',
+                )}
+              >
+                <span className="font-medium">{lang.label}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-zinc-400">{lang.script}</span>
+                  {selectedLangs[0] === lang.code && (
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-orange-600 bg-white/70 ring-1 ring-orange-200 rounded px-1 py-0.5">Default</span>
+                  )}
+                  {selected && <Check className="w-3.5 h-3.5 text-orange-600" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </SettingsCard>
+
+      <SettingsCard>
+        <SectionHeader icon={<MapPin className="w-4 h-4" />} title="Region" description="Controls which festival templates and regional campaigns are shown." />
+        <ThemedSelect
+          value={selectedRegion}
+          onChange={setSelectedRegion}
+          options={REGIONS.map((r) => ({ value: r, label: r }))}
+          placeholder="Select a region"
+          className="sm:max-w-xs"
+          ariaLabel="Region"
+        />
+      </SettingsCard>
+
+      <SettingsCard>
+        <SectionHeader icon={<Bell className="w-4 h-4" />} title="Notifications" description="Choose which events trigger in-app notifications." />
+        <div className="divide-y divide-zinc-100">
+          {NOTIFICATION_OPTIONS.map((o) => (
+            <div key={o.type} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+              <span className="text-sm text-zinc-700">{o.label}</span>
+              <Toggle checked={prefs[o.type]} onChange={(on) => setPrefs((prev) => ({ ...prev, [o.type]: on }))} label={o.label} disabled={!prefsLoaded} />
+            </div>
+          ))}
+        </div>
+      </SettingsCard>
+
+      {onOpenBilling && (
+        <button
+          type="button"
+          onClick={onOpenBilling}
+          className="w-full bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-5 flex items-center justify-between gap-3 text-left transition-all hover:shadow-md hover:border-zinc-300"
+        >
+          <span className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-lg bg-orange-50 ring-1 ring-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0">
+              <CreditCard className="w-4 h-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-zinc-900">Subscription & billing</span>
+              <span className="block text-xs text-zinc-500 mt-0.5">Manage your plan and billing cycle.</span>
+            </span>
+          </span>
+          <ChevronDown className="w-4 h-4 text-zinc-400 -rotate-90" />
+        </button>
+      )}
+
+      <SaveBar saved={saved} label="Save preferences" onSave={save} disabled={!profileLoaded} busy={saving} />
+    </div>
   );
 }

@@ -62,7 +62,7 @@ export function DealerProfileProvider({ children }: { children: ReactNode }) {
   return (
     <DealerProfileContext.Provider value={{ profile, loading, reload: load }}>
       {children}
-      <AppearanceSync brandColor={brandColor} />
+      <AppearanceSync userId={user?.id ?? null} brandColor={brandColor} />
     </DealerProfileContext.Provider>
   );
 }

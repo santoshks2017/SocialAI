@@ -7,8 +7,10 @@
     <title>CarDekho Social AI</title>
     <script>
       // Mirrors utils/theme.ts: apply the saved theme before first paint to avoid a white flash.
+      // No saved choice (or an unknown one) follows the device, like DEFAULT_THEME_MODE.
       try {
         var m = localStorage.getItem('themeMode');
+        if (m !== 'light' && m !== 'dark') m = 'system';
         if (m === 'dark' || (m === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
           document.documentElement.classList.add('dark');
         }

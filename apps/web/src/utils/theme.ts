@@ -2,8 +2,8 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 export const THEME_STORAGE_KEY = 'themeMode';
 
-// Light until every page is ported to the new design; Stage E switches this to 'system'.
-export const DEFAULT_THEME_MODE: ThemeMode = 'light';
+// A first visit (no saved choice) follows the device. index.html's pre-paint script mirrors this.
+export const DEFAULT_THEME_MODE: ThemeMode = 'system';
 
 export function parseThemeMode(value: string | null | undefined): ThemeMode {
   return value === 'light' || value === 'dark' || value === 'system' ? value : DEFAULT_THEME_MODE;

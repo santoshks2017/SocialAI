@@ -1,29 +1,8 @@
 // Settings constants and shared types (moved from pages/SettingsPage.tsx).
 
-export const PLAN_LABELS: Record<string, string> = { starter: 'Starter', growth: 'Growth', enterprise: 'Enterprise' };
-
-export const LANGUAGES = [
-  { code: 'en', label: 'English', script: 'Latin' },
-  { code: 'hi', label: 'Hindi', script: 'Devanagari' },
-  { code: 'ta', label: 'Tamil', script: 'Tamil' },
-  { code: 'te', label: 'Telugu', script: 'Telugu' },
-  { code: 'kn', label: 'Kannada', script: 'Kannada' },
-  { code: 'ml', label: 'Malayalam', script: 'Malayalam' },
-  { code: 'mr', label: 'Marathi', script: 'Devanagari' },
-];
-
 export const REGIONS = ['North India', 'South India', 'East India', 'West India', 'Maharashtra', 'Karnataka', 'Tamil Nadu', 'Kerala', 'Telangana', 'Gujarat', 'Punjab', 'Rajasthan'];
 
 export const BRANDS = ['Maruti Suzuki', 'Hyundai', 'Tata', 'Kia', 'Honda', 'Toyota', 'Mahindra', 'Renault', 'Nissan', 'MG', 'Skoda', 'Volkswagen', 'Jeep', 'Ford', 'Citroën', 'BMW', 'Mercedes-Benz', 'Audi'];
-
-export const NOTIFICATION_KEYS = [
-  { key: 'post_published', label: 'Post published successfully', defaultOn: true },
-  { key: 'post_failed', label: 'Post failed to publish', defaultOn: true },
-  { key: 'inbox_message', label: 'New inbox message received', defaultOn: true },
-  { key: 'boost_update', label: 'Boost campaign update (every 4h)', defaultOn: false },
-  { key: 'festival_suggestion', label: 'Festival campaign suggestions', defaultOn: true },
-  { key: 'monthly_report', label: 'Monthly performance report', defaultOn: true },
-];
 
 export type SettingsTabId = 'profile' | 'platforms' | 'preferences' | 'billing' | 'inspiration' | 'team' | 'model_library';
 
