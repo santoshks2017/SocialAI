@@ -31,7 +31,10 @@ export function roleOptions(viewer: Viewer): Array<{ value: Role; label: string 
   return assignableRoles(viewer).map((role) => ({ value: role, label: ROLE_LABELS[role] }));
 }
 
-/** A Manager can't edit or re-role an Owner (PATCH /users/:id/account and /role answer 403). */
+/**
+ * A Manager can't edit, re-role, deactivate or remove an Owner (PATCH /users/:id/account, /role and
+ * /status and DELETE /users/:id answer 403).
+ */
 export function canManageMember(viewer: Viewer, member: Pick<TeamMember, 'role'>): boolean {
   return !!viewer && (member.role !== 'owner' || viewer.role === 'owner');
 }
@@ -44,9 +47,14 @@ export function canChangeRole(viewer: Viewer, member: Pick<TeamMember, 'id' | 'r
   return !isSelf(viewer, member) && canManageMember(viewer, member);
 }
 
+/** Deactivate / Activate: never on yourself, and a Manager never on an Owner. */
+export function canToggleActive(viewer: Viewer, member: Pick<TeamMember, 'id' | 'role'>): boolean {
+  return !isSelf(viewer, member) && canManageMember(viewer, member);
+}
+
 /** Owners are never removed from this screen, and nobody removes themselves (as in the reference). */
 export function canRemove(viewer: Viewer, member: Pick<TeamMember, 'id' | 'role'>): boolean {
-  return !isSelf(viewer, member) && member.role !== 'owner';
+  return canToggleActive(viewer, member) && member.role !== 'owner';
 }
 
 const GRADIENTS = [

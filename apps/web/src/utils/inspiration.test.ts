@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { InspirationHandle } from './settings.js';
-import { handleTitle, inspirationStats, postsLearned, referencePlaceholder } from './inspiration.js';
+import { handleTitle, inspirationStats, isHttpUrl, postsLearned, referencePlaceholder } from './inspiration.js';
 
 const handle = (over: Partial<InspirationHandle>): InspirationHandle => ({
   id: 'h1', platform: 'facebook', handle_url: 'https://www.facebook.com/example', handle_name: null,
@@ -31,5 +31,13 @@ describe('inspiration references', () => {
   it('suggests a URL for the chosen platform', () => {
     assert.equal(referencePlaceholder('facebook'), 'https://www.facebook.com/yourreference');
     assert.equal(referencePlaceholder('instagram'), 'https://www.instagram.com/yourreference');
+  });
+
+  it('treats only http(s) links as references', () => {
+    assert.equal(isHttpUrl('https://www.instagram.com/kiaindia/'), true);
+    assert.equal(isHttpUrl('http://example.com'), true);
+    for (const bad of ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,hi', 'ftp://example.com', 'www.facebook.com/page', '']) {
+      assert.equal(isHttpUrl(bad), false, bad);
+    }
   });
 });

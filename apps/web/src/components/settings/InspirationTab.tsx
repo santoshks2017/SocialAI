@@ -8,7 +8,7 @@ import { ThemedSelect } from '../ui/ThemedSelect';
 import { useToast } from '../ui/Toast';
 import api from '../../services/api';
 import type { InspirationHandle } from '../../utils/settings';
-import { INSPIRATION_PLATFORMS, handleTitle, inspirationStats, postsLearned, referencePlaceholder, type InspirationPlatform } from '../../utils/inspiration';
+import { INSPIRATION_PLATFORMS, handleTitle, inspirationStats, isHttpUrl, postsLearned, referencePlaceholder, type InspirationPlatform } from '../../utils/inspiration';
 import { FieldLabel, ICON, PILL, SettingsCard, StatPill } from './SettingsParts';
 
 function HandleSkeleton() {
@@ -31,6 +31,8 @@ function AddReferenceModal({ busy, onClose, onAdd }: {
   const [platform, setPlatform] = useState<InspirationPlatform>('facebook');
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
+  const link = url.trim();
+  const validLink = isHttpUrl(link);
   return (
     <Modal
       isOpen
@@ -43,7 +45,7 @@ function AddReferenceModal({ busy, onClose, onAdd }: {
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={() => onAdd({ url: url.trim(), platform, name: name.trim() })} disabled={!url.trim() || busy}>
+          <Button onClick={() => onAdd({ url: link, platform, name: name.trim() })} disabled={!validLink || busy}>
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             {busy ? 'Adding…' : 'Add reference'}
           </Button>
@@ -59,6 +61,7 @@ function AddReferenceModal({ busy, onClose, onAdd }: {
           <div className="sm:col-span-2">
             <FieldLabel htmlFor="reference-url">Page URL</FieldLabel>
             <Input id="reference-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={referencePlaceholder(platform)} />
+            {link && !validLink && <p className="text-xs text-zinc-500 mt-1.5">Enter the full link, starting with https://</p>}
           </div>
         </div>
         <div>
@@ -190,16 +193,20 @@ export function InspirationTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="text-sm font-semibold text-zinc-900 truncate">{handleTitle(h)}</p>
-                    <span className={cn(PILL, instagram ? 'bg-pink-50 text-pink-700 ring-1 ring-pink-100' : 'bg-blue-50 text-blue-700 ring-1 ring-blue-100')}>
+                    <span className={cn(PILL, 'bg-blue-50 text-blue-700 ring-1 ring-blue-100')}>
                       {instagram ? 'Instagram' : 'Facebook'}
                     </span>
                     {count > 0
                       ? <span className={cn(PILL, 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100')}>{count} post{count === 1 ? '' : 's'} learned</span>
                       : <span className="text-[11px] text-zinc-400">Not analysed yet</span>}
                   </div>
-                  <a href={h.handle_url} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-zinc-500 hover:text-orange-600 mt-0.5">
-                    {h.handle_url}
-                  </a>
+                  {isHttpUrl(h.handle_url) ? (
+                    <a href={h.handle_url} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-zinc-500 hover:text-orange-600 mt-0.5">
+                      {h.handle_url}
+                    </a>
+                  ) : (
+                    <p className="truncate text-xs text-zinc-500 mt-0.5">{h.handle_url}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button

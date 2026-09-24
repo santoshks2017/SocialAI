@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { DEFAULT_THEME_MODE, THEME_STORAGE_KEY, isDarkMode, parseThemeMode, resolveThemeMode } from './theme.js';
+import { DEFAULT_THEME_MODE, THEME_STORAGE_KEY, isDarkMode, parseThemeMode, savedThemeMode, themeSync, type ThemeMode } from './theme.js';
 
 describe('theme mode', () => {
   it('uses the themeMode storage key and follows the device by default', () => {
@@ -33,26 +33,44 @@ describe('theme mode', () => {
   });
 });
 
-describe('resolveThemeMode', () => {
-  it('applies a fetch that matches the signed-in user', () => {
-    assert.equal(resolveThemeMode('user-a', { userId: 'user-a', mode: 'dark' }), 'dark');
+describe('themeSync', () => {
+  const unchanged = (mode: ThemeMode) => ({ atRequest: mode, now: mode });
+
+  it('applies the theme saved on the account over the device choice', () => {
+    assert.deepEqual(themeSync('user-a', { userId: 'user-a', mode: 'dark' }, unchanged('light')), { action: 'apply', mode: 'dark' });
+    assert.deepEqual(themeSync('user-a', { userId: 'user-a', mode: 'system' }, unchanged('dark')), { action: 'apply', mode: 'system' });
   });
 
-  it('falls back to the default when nothing has been fetched for this user yet', () => {
-    assert.equal(resolveThemeMode('user-a', null), 'system');
+  it('server null: keeps the device choice and saves it to the account', () => {
+    assert.deepEqual(themeSync('user-a', { userId: 'user-a', mode: null }, unchanged('dark')), { action: 'save', mode: 'dark' });
+    // After a switch the device theme was reset to the default, so that is what gets kept.
+    assert.deepEqual(themeSync('user-a', { userId: 'user-a', mode: null }, unchanged('system')), { action: 'save', mode: 'system' });
+  });
+
+  it('ignores a fetch overtaken by a theme picked on this device while it was in flight', () => {
+    assert.deepEqual(themeSync('user-a', { userId: 'user-a', mode: 'light' }, { atRequest: 'light', now: 'dark' }), { action: 'ignore' });
+    assert.deepEqual(themeSync('user-a', { userId: 'user-a', mode: null }, { atRequest: 'system', now: 'dark' }), { action: 'ignore' });
   });
 
   it('switch-user: ignores a fetch tagged for a different account than the one signed in now', () => {
-    assert.equal(resolveThemeMode('user-b', { userId: 'user-a', mode: 'dark' }), 'system');
+    assert.deepEqual(themeSync('user-b', { userId: 'user-a', mode: 'dark' }, unchanged('system')), { action: 'ignore' });
+    assert.deepEqual(themeSync('user-b', { userId: 'user-a', mode: null }, unchanged('system')), { action: 'ignore' });
   });
 
   it('signed-out: ignores any fetched value when no one is signed in', () => {
-    assert.equal(resolveThemeMode(null, { userId: 'user-a', mode: 'dark' }), 'system');
-    assert.equal(resolveThemeMode(null, null), 'system');
+    assert.deepEqual(themeSync(null, { userId: 'user-a', mode: 'dark' }, unchanged('system')), { action: 'ignore' });
   });
 
   it('late-response: a fetch for the previous user that resolves after switching accounts is ignored', () => {
     // user-a's request was in flight when user-b signed in; it resolves afterwards, tagged user-a.
-    assert.equal(resolveThemeMode('user-b', { userId: 'user-a', mode: 'light' }), 'system');
+    assert.deepEqual(themeSync('user-b', { userId: 'user-a', mode: 'light' }, unchanged('system')), { action: 'ignore' });
+  });
+
+  it('reads the saved theme, null when there is none', () => {
+    assert.equal(savedThemeMode('dark'), 'dark');
+    assert.equal(savedThemeMode('system'), 'system');
+    assert.equal(savedThemeMode(null), null);
+    assert.equal(savedThemeMode(undefined), null);
+    assert.equal(savedThemeMode('DARK'), null);
   });
 });

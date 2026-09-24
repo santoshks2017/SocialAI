@@ -6,6 +6,9 @@ export const UNLIMITED_POSTS = 999_999;
 /** Also the API's 503 BILLING_NOT_CONFIGURED message. */
 export const PAYMENTS_OFF_MESSAGE = 'Online payments are being set up. Contact us to change your plan.';
 
+/** Also the API's 409 ALREADY_SUBSCRIBED message. */
+export const ALREADY_SUBSCRIBED_MESSAGE = 'You already have an active plan. Contact us to change plans.';
+
 export function rupees(amount: number): string {
   return `₹${amount.toLocaleString('en-IN')}`;
 }
@@ -55,4 +58,31 @@ export function renewalDate(status: BillingStatus): string | null {
   const sub = status.subscription;
   const iso = sub?.status === 'active' ? sub.currentPeriodEnd ?? status.expiresAt : null;
   return iso ? new Date(iso).toLocaleDateString('en-IN') : null;
+}
+
+/**
+ * Whether a plan card is the dealer's current plan: the same tier and, while a subscription is live,
+ * the same billing cycle (Growth monthly isn't "current" on the Annual toggle).
+ */
+export function isCurrentPlan(planId: string, cycle: BillingCycle, status: BillingStatus): boolean {
+  const tier = status.success ? status.plan : 'starter';
+  if (planId !== tier) return false;
+  const paidCycle = status.subscription?.live ? status.subscription.cycle : null;
+  return paidCycle === null || paidCycle === cycle;
+}
+
+/** A live subscription: changing plan goes through us (the API answers 409 ALREADY_SUBSCRIBED). */
+export function hasLiveSubscription(status: BillingStatus): boolean {
+  return status.subscription?.live === true;
+}
+
+/**
+ * Opens the Razorpay payment page in a new tab. The link arrives after an awaited request, so the
+ * browser may block the pop-up; then this tab goes to the payment page instead.
+ * (window.open with 'noopener' always returns null, so the opener is cleared by hand.)
+ */
+export function openPaymentLink(link: string, win: Pick<Window, 'open' | 'location'> = window): void {
+  const tab = win.open(link, '_blank');
+  if (tab) tab.opener = null;
+  else win.location.assign(link);
 }

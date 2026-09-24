@@ -1,4 +1,5 @@
 // Settings constants and shared types (moved from pages/SettingsPage.tsx).
+import { normaliseLanguages } from './preferences.js';
 
 export const REGIONS = ['North India', 'South India', 'East India', 'West India', 'Maharashtra', 'Karnataka', 'Tamil Nadu', 'Kerala', 'Telangana', 'Gujarat', 'Punjab', 'Rajasthan'];
 
@@ -38,6 +39,78 @@ export function visibleSettingsTabs(access: SettingsAccess): SettingsTabDef[] {
 /** The tab named in ?tab= when this viewer can see it; otherwise Business Profile. */
 export function resolveSettingsTab(raw: string | null, tabs: readonly SettingsTabDef[]): SettingsTabId {
   return tabs.find((tab) => tab.id === raw)?.id ?? 'profile';
+}
+
+/** The tabs that read or edit the dealer profile form: only these load GET /dealer/profile or report its failure. */
+export function usesProfile(tab: SettingsTabId): boolean {
+  return tab === 'profile' || tab === 'preferences' || tab === 'model_library';
+}
+
+/** GET /dealer/profile: the fields Business Profile and Preferences edit. */
+export interface StoredDealerProfile {
+  name: string; city: string; contact_phone?: string; whatsapp_number?: string;
+  primary_color?: string; secondary_color?: string; use_brand_theme?: boolean;
+  brands?: string[]; language_preferences?: string[]; region?: string;
+  logo_url?: string; font?: string; address?: string; showroom_type?: string[];
+}
+
+/** The shared Business Profile / Preferences form. */
+export interface ProfileFormValues {
+  dealerName: string; city: string; phone: string; whatsapp: string;
+  primaryColor: string; secondaryColor: string; useBrandTheme: boolean;
+  selectedBrands: string[]; selectedLangs: string[]; selectedRegion: string;
+  logoUrl: string; font: string; address: string; showroomType: string;
+}
+
+/** The form before GET /dealer/profile answers, and the fallback for any field the profile lacks. */
+export const EMPTY_PROFILE_FORM: ProfileFormValues = {
+  dealerName: '', city: '', phone: '', whatsapp: '', primaryColor: '#1877F2', secondaryColor: '', useBrandTheme: false,
+  selectedBrands: [], selectedLangs: ['en'], selectedRegion: '', logoUrl: '', font: 'Arial', address: '', showroomType: 'new',
+};
+
+export function profileFormValues(p: StoredDealerProfile): ProfileFormValues {
+  const d = EMPTY_PROFILE_FORM;
+  return {
+    dealerName: p.name ?? '',
+    city: p.city ?? '',
+    phone: p.contact_phone || d.phone,
+    whatsapp: p.whatsapp_number || d.whatsapp,
+    primaryColor: p.primary_color || d.primaryColor,
+    secondaryColor: p.secondary_color || d.secondaryColor,
+    useBrandTheme: p.use_brand_theme === true,
+    selectedBrands: p.brands?.length ? p.brands : d.selectedBrands,
+    selectedLangs: normaliseLanguages(p.language_preferences),
+    selectedRegion: p.region || d.selectedRegion,
+    logoUrl: p.logo_url || d.logoUrl,
+    font: p.font || d.font,
+    address: p.address || d.address,
+    showroomType: p.showroom_type?.[0] || d.showroomType,
+  };
+}
+
+/** The PUT /dealer/profile body for the form. */
+export function profileUpdateBody(v: ProfileFormValues): Record<string, unknown> {
+  return {
+    name: v.dealerName,
+    city: v.city,
+    contact_phone: v.phone,
+    whatsapp_number: v.whatsapp,
+    primary_color: v.primaryColor,
+    ...(v.secondaryColor ? { secondary_color: v.secondaryColor } : {}),
+    use_brand_theme: v.useBrandTheme,
+    brands: v.selectedBrands,
+    language_preferences: normaliseLanguages(v.selectedLangs),
+    region: v.selectedRegion,
+    logo_url: v.logoUrl,
+    font: v.font,
+    address: v.address,
+    showroom_type: [v.showroomType],
+  };
+}
+
+/** Whether the form would change the dealer profile; false until it has loaded. */
+export function profileChanged(current: ProfileFormValues, saved: ProfileFormValues | null): boolean {
+  return saved !== null && JSON.stringify(profileUpdateBody(current)) !== JSON.stringify(profileUpdateBody(saved));
 }
 
 export interface InspirationHandle {

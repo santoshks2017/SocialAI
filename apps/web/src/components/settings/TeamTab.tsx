@@ -8,7 +8,7 @@ import { userService, type TeamMember } from '../../services/users';
 import { CONFIGURABLE_PERMISSIONS, isAtLeast, type Role } from '../../lib/permissions';
 import { roleLabel } from '../../utils/roleLabel';
 import {
-  accountChanges, avatarGradient, canChangeRole, canManageMember, canRemove, initialOf, isSelf, memberName, roleOptions, teamStats,
+  accountChanges, avatarGradient, canChangeRole, canManageMember, canRemove, canToggleActive, initialOf, isSelf, memberName, roleOptions, teamStats,
   type AccountDraft,
 } from '../../utils/team';
 import { ICON, PILL, SettingsCard, StatPill } from './SettingsParts';
@@ -232,7 +232,7 @@ export function TeamTab() {
                         <span className="hidden sm:inline">Role</span>
                       </button>
                     )}
-                    {!self && (
+                    {canToggleActive(viewer, member) && (
                       <button
                         type="button"
                         onClick={() => void toggleActive(member)}

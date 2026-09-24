@@ -14,9 +14,9 @@ export const NOTIFICATION_TYPES = [
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export type NotificationPrefs = Record<NotificationType, boolean>;
 
-/** GET/PUT /v1/users/me/preferences */
+/** GET/PUT /v1/users/me/preferences. theme_mode is null until the person saves one. */
 export interface UserPreferences {
-  theme_mode: ThemeMode;
+  theme_mode: ThemeMode | null;
   notification_prefs: NotificationPrefs;
 }
 

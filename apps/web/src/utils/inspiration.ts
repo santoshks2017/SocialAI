@@ -29,3 +29,13 @@ export function referencePlaceholder(platform: InspirationPlatform): string {
 export function handleTitle(handle: Pick<InspirationHandle, 'handle_name' | 'handle_url'>): string {
   return handle.handle_name?.trim() || handle.handle_url;
 }
+
+/** Only http(s) links are references: the API refuses anything else, and the list links to them. */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}

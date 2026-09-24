@@ -20,7 +20,8 @@ export const STATUS_STYLES: Record<PostStatus, string> = {
   draft: 'bg-zinc-100 text-zinc-600',
   failed: 'bg-red-50 text-red-700 ring-1 ring-red-100',
   pending_approval: 'bg-violet-50 text-violet-700 ring-1 ring-violet-100',
-  approved: 'bg-teal-50 text-teal-700 ring-1 ring-teal-100',
+  // Violet, like the rest of the approval flow: teal has no dark-mode remap in index.css.
+  approved: 'bg-violet-50 text-violet-700 ring-1 ring-violet-100',
   publishing: 'bg-blue-50 text-blue-700 ring-1 ring-blue-100',
 };
 export const STATUS_LABELS: Record<PostStatus, string> = {
@@ -66,6 +67,25 @@ export function sameDay(a: Date, b: Date): boolean {
 export function startOfWeek(today: Date, offset = 0): Date {
   const dow = today.getDay() || 7;
   return new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow + 1 + offset * 7);
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Whole weeks from the week holding `anchor` to the week holding `day`. The Calendar counts its week
+ * offset from the week that was current when it opened (not from the live clock, which would shift
+ * the view by a week at midnight on Monday); "Today" uses this to get back to the actual week.
+ */
+export function weeksBetween(anchor: Date, day: Date): number {
+  const a = startOfWeek(anchor);
+  const b = startOfWeek(day);
+  // Calendar days, so a daylight-saving change can't skew the count.
+  return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / (7 * DAY_MS));
+}
+
+/** Whole months from the month holding `anchor` to the month holding `day`: the month view's weeksBetween. */
+export function monthsBetween(anchor: Date, day: Date): number {
+  return (day.getFullYear() - anchor.getFullYear()) * 12 + day.getMonth() - anchor.getMonth();
 }
 
 export function weekDays(start: Date): Date[] {

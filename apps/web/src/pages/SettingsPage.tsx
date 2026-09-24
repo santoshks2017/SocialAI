@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS, can, isAtLeast } from '../lib/permissions';
 import { cn } from '../components/ui/Button';
 import { PageCard } from '../components/ui/PageCard';
-import { resolveSettingsTab, visibleSettingsTabs, type SettingsTabId } from '../utils/settings';
+import { resolveSettingsTab, usesProfile, visibleSettingsTabs, type SettingsTabId } from '../utils/settings';
 import { useProfileForm } from '../components/settings/useProfileForm';
 import { ProfileTab } from '../components/settings/ProfileTab';
 import { PlatformsTab } from '../components/settings/PlatformsTab';
@@ -16,11 +16,11 @@ import { TeamTab } from '../components/settings/TeamTab';
 export default function SettingsPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const form = useProfileForm();
 
   const tabs = visibleSettingsTabs({ manageTeam: isAtLeast(user, 'admin'), viewBilling: can(user, PERMISSIONS.VIEW_BILLING) });
   // The tab lives in the URL (/settings?tab=billing), so links and refreshes land on it.
   const activeTab = resolveSettingsTab(searchParams.get('tab'), tabs);
+  const form = useProfileForm(usesProfile(activeTab));
   const selectTab = (id: SettingsTabId) => setSearchParams((prev) => {
     const next = new URLSearchParams(prev);
     next.set('tab', id);

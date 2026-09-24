@@ -4,10 +4,11 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useToast } from '../ui/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 import { useDealerProfile } from '../../contexts/DealerProfileContext';
 import { ApiError } from '../../services/api';
 import { dealerService } from '../../services/dealer';
-import { applyBrandTheme, brandThemeCss, parseHex } from '../../utils/brandPalette';
+import { applyBrandTheme, brandThemeCss, parseHex, resolveBrandColor } from '../../utils/brandPalette';
 import { BRANDS, FONT_OPTIONS, SHOWROOM_TYPES } from '../../utils/settings';
 import { FieldLabel, SaveBar, SectionHeader, SettingsCard, Toggle } from './SettingsParts';
 import type { ProfileForm } from './useProfileForm';
@@ -32,19 +33,21 @@ function ColourSwatch({ label, value, onChange }: { label: string; value: string
 
 export function ProfileTab({ form }: { form: ProfileForm }) {
   const { addToast } = useToast();
+  const { user } = useAuth();
   const { profile, reload } = useDealerProfile();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [brandDraft, setBrandDraft] = useState('');
   const {
     dealerName, setDealerName, city, setCity, phone, setPhone, whatsapp, setWhatsapp, showroomType, setShowroomType,
-    address, setAddress, selectedBrands, addSelectedBrand, removeSelectedBrand, logoUrl, setLogoUrl, font, setFont,
+    address, setAddress, selectedBrands, addSelectedBrand, removeSelectedBrand, logoUrl, setSavedLogoUrl, font, setFont,
     primaryColor, setPrimaryColor, secondaryColor, setSecondaryColor, useBrandTheme, setUseBrandTheme,
     saved, saving, handleSave, profileLoaded,
   } = form;
 
-  // Live preview while choosing colours; leaving the tab puts the saved theme back.
-  const savedBrandColor = profile?.use_brand_theme ? profile.primary_color ?? null : null;
+  // Live preview while choosing colours; leaving the tab puts back the saved theme, resolved the same
+  // way AppearanceSync does (never another dealership's profile).
+  const savedBrandColor = resolveBrandColor(profile, user?.dealer_id);
   useEffect(() => {
     if (!profileLoaded) return;
     applyBrandTheme(brandThemeCss(useBrandTheme ? primaryColor : null));
@@ -67,7 +70,7 @@ export function ProfileTab({ form }: { form: ProfileForm }) {
     setUploading(true);
     try {
       const { logo_url } = await dealerService.uploadLogo(file);
-      setLogoUrl(logo_url);
+      setSavedLogoUrl(logo_url);
       reload();
       addToast({ type: 'success', title: 'Logo updated' });
     } catch (err) {

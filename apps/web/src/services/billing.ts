@@ -12,6 +12,10 @@ export interface BillingStatus {
     status: string;
     planId: string;
     currentPeriodEnd: string | null;
+    /** A Razorpay subscription that can still charge: POST /billing/subscribe answers 409 ALREADY_SUBSCRIBED meanwhile. */
+    live: boolean;
+    /** The cycle its plan id is configured as; null when the API can't tell. */
+    cycle: BillingCycle | null;
   } | null;
   limits: {
     postsLimit: number;

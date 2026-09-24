@@ -119,10 +119,13 @@ h1, h2, h3, h4 { letter-spacing: -.014em; }
    dark ink instead, as the AV app does. */
 .dark .from-orange-600.text-white, .dark .bg-orange-600.text-white { color: #2a100d; }
 
-/* Readable red tints in dark mode (the banner): the reference leaves them light. */
+/* Readable red tints in dark mode (the banner, error pills and remove buttons): the reference leaves them light. */
 .dark .bg-red-50 { background-color: color-mix(in oklab, #ef4444 14%, #221e1e); }
 .dark .border-red-200 { border-color: color-mix(in oklab, #ef4444 35%, #221e1e); }
-.dark .text-red-800 { color: #fca5a5; }
+.dark .ring-red-100 { --tw-ring-color: color-mix(in oklab, #ef4444 24%, #221e1e); }
+.dark .text-red-600, .dark .text-red-700, .dark .text-red-800 { color: #fca5a5; }
+.dark .hover\:text-red-600:hover { color: #fca5a5; }
+.dark .hover\:bg-red-50:hover { background-color: color-mix(in oklab, #ef4444 14%, #221e1e); }
 .dark .hover\:bg-red-100:hover { background-color: color-mix(in oklab, #ef4444 24%, #221e1e); }
 
 /* ── Vinyl disc spin animation (YouTube Shorts preview) ──────────────────── */

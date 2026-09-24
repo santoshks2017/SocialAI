@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   HOUR_PX, chipTitle, createLink, dayKey, dropTime, festivalCreateLink, festivalEmoji, festivalsByDay, formatMonthTitle, formatWeekRange,
-  hourLabel, initialScrollTop, isReschedulable, legendCounts, monthCells, nowLineTop, postsAt, startOfWeek, toCalendarPosts, tomorrowAt,
-  visibleRange, weekDays,
+  hourLabel, initialScrollTop, isReschedulable, legendCounts, monthCells, monthStart, monthsBetween, nowLineTop, postsAt, startOfWeek,
+  toCalendarPosts, tomorrowAt, visibleRange, weekDays, weeksBetween,
 } from './calendar.js';
 
 // Local-time dates: the calendar works in the browser's time zone.
@@ -15,6 +15,28 @@ describe('calendar dates', () => {
     assert.equal(dayKey(startOfWeek(d(2026, 9, 27))), '2026-09-21');
     assert.equal(dayKey(startOfWeek(d(2026, 9, 24), 1)), '2026-09-28');
     assert.deepEqual(weekDays(d(2026, 9, 21)).map(dayKey), ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27']);
+  });
+
+  it('keeps the viewed week anchored to the week the page opened in', () => {
+    // Opened late on Sunday 27 September; the live clock then crosses into Monday.
+    const anchor = d(2026, 9, 27, 23, 59);
+    const liveNow = d(2026, 9, 28, 0, 1);
+    // Two weeks ahead stays the same week however the clock moves.
+    assert.equal(dayKey(startOfWeek(anchor, 2)), '2026-10-05');
+    assert.notEqual(dayKey(startOfWeek(liveNow, 2)), dayKey(startOfWeek(anchor, 2)));
+    // "Today" jumps to the actual current week, one week on from the anchor.
+    assert.equal(weeksBetween(anchor, liveNow), 1);
+    assert.equal(dayKey(startOfWeek(anchor, weeksBetween(anchor, liveNow))), '2026-09-28');
+    assert.equal(weeksBetween(anchor, anchor), 0);
+    assert.equal(weeksBetween(d(2026, 12, 30), d(2027, 1, 5)), 1);
+    assert.equal(weeksBetween(d(2026, 9, 24), d(2026, 9, 10)), -2);
+  });
+
+  it('keeps the viewed month anchored the same way', () => {
+    const anchor = d(2026, 12, 31, 23, 59);
+    assert.equal(monthsBetween(anchor, d(2027, 1, 1, 0, 1)), 1);
+    assert.equal(monthsBetween(anchor, anchor), 0);
+    assert.equal(formatMonthTitle(monthStart(anchor, monthsBetween(anchor, d(2027, 1, 1)))), 'January 2027');
   });
 
   it('titles weeks and months', () => {

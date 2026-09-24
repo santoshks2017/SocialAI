@@ -13,7 +13,8 @@ import { postService, type Post } from '../services/creative';
 import { dealerService } from '../services/dealer';
 import {
   createLink, dropTime, festivalCreateLink, festivalsByDay, formatMonthTitle, formatWeekRange, initialScrollTop, isReschedulable, legendCounts,
-  monthStart, startOfWeek, toCalendarPosts, visibleRange, weekDays, type CalendarPost, type CalendarView, type FestivalDate, type FestivalMark,
+  monthStart, monthsBetween, startOfWeek, toCalendarPosts, visibleRange, weekDays, weeksBetween, type CalendarPost, type CalendarView,
+  type FestivalDate, type FestivalMark,
 } from '../utils/calendar';
 
 export default function CalendarPage() {
@@ -22,6 +23,8 @@ export default function CalendarPage() {
   const { user } = useAuth();
   const canPublish = can(user, PERMISSIONS.PUBLISH_POST);
   const [now, setNow] = useState(() => new Date());
+  // The week and month offsets count from when the page opened, not from the live clock: see weeksBetween.
+  const [anchor] = useState(() => new Date());
   const [view, setView] = useState<CalendarView>('week');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -38,9 +41,9 @@ export default function CalendarPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const weekStart = startOfWeek(now, weekOffset);
+  const weekStart = startOfWeek(anchor, weekOffset);
   const days = weekDays(weekStart);
-  const month = monthStart(now, monthOffset);
+  const month = monthStart(anchor, monthOffset);
   const range = visibleRange(view, weekStart, month);
   const fromIso = range.start.toISOString();
   const toIso = range.end.toISOString();
@@ -116,7 +119,11 @@ export default function CalendarPage() {
 
   const openFestival = (day: Date, festival: FestivalMark) => navigate(festivalCreateLink(day, festival));
   const shift = (delta: number) => (view === 'week' ? setWeekOffset((o) => o + delta) : setMonthOffset((o) => o + delta));
-  const goToday = () => (view === 'week' ? setWeekOffset(0) : setMonthOffset(0));
+  const goToday = () => {
+    const today = new Date();
+    if (view === 'week') setWeekOffset(weeksBetween(anchor, today));
+    else setMonthOffset(monthsBetween(anchor, today));
+  };
   const grid = { festivals, dragging, canDragPost, onOpen: setSelected, onDropPost: dropPost, onDragState: setDragging, onFestival: openFestival };
 
   return (

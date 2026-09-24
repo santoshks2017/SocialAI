@@ -20,8 +20,9 @@ const THEME_OPTIONS: Array<{ value: ThemeMode; label: string }> = [
 export function PreferencesTab({ form, onOpenBilling }: { form: ProfileForm; onOpenBilling?: () => void }) {
   const { addToast } = useToast();
   const { mode, setMode } = useTheme();
-  const { selectedLangs, toggleLang, selectedRegion, setSelectedRegion, saved, saving, handleSave, profileLoaded } = form;
+  const { selectedLangs, toggleLang, selectedRegion, setSelectedRegion, saved, saving, handleSave, profileLoaded, dirty } = form;
   const [prefs, setPrefs] = useState<NotificationPrefs>(allNotificationsOn);
+  const [notificationsSaved, setNotificationsSaved] = useState(false);
   const [savedPrefs, setSavedPrefs] = useState<NotificationPrefs>(allNotificationsOn);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
@@ -58,15 +59,18 @@ export function PreferencesTab({ form, onOpenBilling }: { form: ProfileForm; onO
       const next = await preferencesService.update({ notification_prefs: change });
       setPrefs(next.notification_prefs);
       setSavedPrefs(next.notification_prefs);
+      setNotificationsSaved(true);
+      setTimeout(() => setNotificationsSaved(false), 3000);
     } catch {
       setPrefs(savedPrefs);
       addToast({ type: 'error', title: 'Could not save notifications', message: 'Please try again.' });
     }
   };
 
-  // Languages and region belong to the dealership (PUT /dealer/profile); notifications to you.
+  // Languages and region belong to the dealership (PUT /dealer/profile, only when a dealer field
+  // changed); notifications to you.
   const save = () => {
-    void Promise.all([handleSave(), saveNotifications()]);
+    void Promise.all([dirty ? handleSave() : Promise.resolve(true), saveNotifications()]);
   };
 
   return (
@@ -167,7 +171,7 @@ export function PreferencesTab({ form, onOpenBilling }: { form: ProfileForm; onO
         </button>
       )}
 
-      <SaveBar saved={saved} label="Save preferences" onSave={save} disabled={!profileLoaded} busy={saving} />
+      <SaveBar saved={saved || notificationsSaved} label="Save preferences" onSave={save} disabled={!profileLoaded} busy={saving} />
     </div>
   );
 }

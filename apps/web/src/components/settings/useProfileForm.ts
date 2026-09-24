@@ -1,91 +1,97 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { useDealerProfile } from '../../contexts/DealerProfileContext';
-import { addBrand } from '../../utils/settings';
-import { normaliseLanguages, toggleLanguage } from '../../utils/preferences';
-
-interface ProfileResponse {
-  success: boolean;
-  profile: {
-    name: string; city: string; contact_phone?: string; whatsapp_number?: string;
-    primary_color?: string; secondary_color?: string; use_brand_theme?: boolean;
-    brands?: string[]; language_preferences?: string[]; region?: string;
-    logo_url?: string; font?: string; address?: string; showroom_type?: string[];
-  };
-}
+import {
+  EMPTY_PROFILE_FORM, addBrand, profileChanged, profileFormValues, profileUpdateBody, type ProfileFormValues, type StoredDealerProfile,
+} from '../../utils/settings';
+import { toggleLanguage } from '../../utils/preferences';
 
 // Business Profile and Preferences share one form and one PUT /dealer/profile, as in the reference.
-export function useProfileForm() {
+// `active`: a tab that uses the form is open. The profile loads the first time one is (and again after
+// a failed load), so Billing or Team never fetch it or report that it failed.
+// (DealerProfileContext also holds the profile, but it swallows load errors and reloads after every
+// save or logo upload, which would overwrite unsaved edits here; this form keeps its own copy.)
+export function useProfileForm(active: boolean) {
   const { addToast } = useToast();
   const { reload: reloadProfile } = useDealerProfile();
   // Empty until GET /dealer/profile answers; Save stays disabled so blanks never overwrite the dealer.
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [selectedLangs, setSelectedLangs] = useState<string[]>(['en']);
-  const [selectedRegion, setSelectedRegion] = useState('');
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [dealerName, setDealerName] = useState('');
-  const [city, setCity] = useState('');
-  const [phone, setPhone] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [primaryColor, setPrimaryColor] = useState('#1877F2');
-  const [secondaryColor, setSecondaryColor] = useState('');
-  const [useBrandTheme, setUseBrandTheme] = useState(false);
+  // What the dealer profile holds, as far as this form knows: the loaded or last saved values.
+  const [savedValues, setSavedValues] = useState<ProfileFormValues | null>(null);
+  const [selectedLangs, setSelectedLangs] = useState<string[]>(EMPTY_PROFILE_FORM.selectedLangs);
+  const [selectedRegion, setSelectedRegion] = useState(EMPTY_PROFILE_FORM.selectedRegion);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(EMPTY_PROFILE_FORM.selectedBrands);
+  const [dealerName, setDealerName] = useState(EMPTY_PROFILE_FORM.dealerName);
+  const [city, setCity] = useState(EMPTY_PROFILE_FORM.city);
+  const [phone, setPhone] = useState(EMPTY_PROFILE_FORM.phone);
+  const [whatsapp, setWhatsapp] = useState(EMPTY_PROFILE_FORM.whatsapp);
+  const [primaryColor, setPrimaryColor] = useState(EMPTY_PROFILE_FORM.primaryColor);
+  const [secondaryColor, setSecondaryColor] = useState(EMPTY_PROFILE_FORM.secondaryColor);
+  const [useBrandTheme, setUseBrandTheme] = useState(EMPTY_PROFILE_FORM.useBrandTheme);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [logoUrl, setLogoUrl] = useState('');
-  const [font, setFont] = useState('Arial');
-  const [address, setAddress] = useState('');
-  const [showroomType, setShowroomType] = useState('new');
+  const [logoUrl, setLogoUrl] = useState(EMPTY_PROFILE_FORM.logoUrl);
+  const [font, setFont] = useState(EMPTY_PROFILE_FORM.font);
+  const [address, setAddress] = useState(EMPTY_PROFILE_FORM.address);
+  const [showroomType, setShowroomType] = useState(EMPTY_PROFILE_FORM.showroomType);
+
+  const requested = useRef(false);
+  const activeNow = useRef(active);
+  useEffect(() => { activeNow.current = active; }, [active]);
 
   useEffect(() => {
-    api.get<ProfileResponse>('/dealer/profile').then((res) => {
+    if (!active || requested.current) return;
+    requested.current = true;
+    api.get<{ success: boolean; profile: StoredDealerProfile }>('/dealer/profile').then((res) => {
       const p = res.profile;
       if (!p) throw new Error('Dealer profile not found');
-      setDealerName(p.name ?? '');
-      setCity(p.city ?? '');
-      if (p.contact_phone) setPhone(p.contact_phone);
-      if (p.whatsapp_number) setWhatsapp(p.whatsapp_number);
-      if (p.primary_color) setPrimaryColor(p.primary_color);
-      if (p.secondary_color) setSecondaryColor(p.secondary_color);
-      setUseBrandTheme(p.use_brand_theme === true);
-      if (p.brands?.length) setSelectedBrands(p.brands);
-      setSelectedLangs(normaliseLanguages(p.language_preferences));
-      if (p.region) setSelectedRegion(p.region);
-      if (p.logo_url) setLogoUrl(p.logo_url);
-      if (p.font) setFont(p.font);
-      if (p.address) setAddress(p.address);
-      if (p.showroom_type?.length) setShowroomType(p.showroom_type[0]);
+      const v = profileFormValues(p);
+      setDealerName(v.dealerName);
+      setCity(v.city);
+      setPhone(v.phone);
+      setWhatsapp(v.whatsapp);
+      setPrimaryColor(v.primaryColor);
+      setSecondaryColor(v.secondaryColor);
+      setUseBrandTheme(v.useBrandTheme);
+      setSelectedBrands(v.selectedBrands);
+      setSelectedLangs(v.selectedLangs);
+      setSelectedRegion(v.selectedRegion);
+      setLogoUrl(v.logoUrl);
+      setFont(v.font);
+      setAddress(v.address);
+      setShowroomType(v.showroomType);
+      setSavedValues(v);
       setProfileLoaded(true);
     }).catch(() => {
-      addToast({ type: 'error', title: 'Could not load your profile', message: 'Refresh the page before saving changes.' });
+      // Try again the next time a tab that uses the profile opens.
+      requested.current = false;
+      if (activeNow.current) addToast({ type: 'error', title: 'Could not load your profile', message: 'Refresh the page before saving changes.' });
     });
-  }, [addToast]);
+  }, [active, addToast]);
+
+  const values: ProfileFormValues = {
+    dealerName, city, phone, whatsapp, primaryColor, secondaryColor, useBrandTheme,
+    selectedBrands, selectedLangs, selectedRegion, logoUrl, font, address, showroomType,
+  };
+  /** A dealer field differs from what the profile holds, so saving would change it. */
+  const dirty = profileChanged(values, savedValues);
 
   const toggleLang = (code: string) => setSelectedLangs((prev) => toggleLanguage(prev, code));
   const addSelectedBrand = (raw: string) => setSelectedBrands((prev) => addBrand(prev, raw));
   const removeSelectedBrand = (brand: string) => setSelectedBrands((prev) => prev.filter((b) => b !== brand));
+  // POST /dealer/logo has already stored it on the profile.
+  const setSavedLogoUrl = (url: string) => {
+    setLogoUrl(url);
+    setSavedValues((prev) => (prev ? { ...prev, logoUrl: url } : prev));
+  };
 
   const handleSave = async (): Promise<boolean> => {
     if (!profileLoaded) return false;
     setSaving(true);
     try {
-      await api.put('/dealer/profile', {
-        name: dealerName,
-        city,
-        contact_phone: phone,
-        whatsapp_number: whatsapp,
-        primary_color: primaryColor,
-        ...(secondaryColor ? { secondary_color: secondaryColor } : {}),
-        use_brand_theme: useBrandTheme,
-        brands: selectedBrands,
-        language_preferences: normaliseLanguages(selectedLangs),
-        region: selectedRegion,
-        logo_url: logoUrl,
-        font,
-        address,
-        showroom_type: [showroomType],
-      });
+      await api.put('/dealer/profile', profileUpdateBody(values));
+      setSavedValues(values);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       // The brand theme and every page that reads the profile pick up the change.
@@ -100,10 +106,10 @@ export function useProfileForm() {
   };
 
   return {
-    profileLoaded, selectedLangs, selectedRegion, setSelectedRegion, selectedBrands, addSelectedBrand, removeSelectedBrand,
+    profileLoaded, dirty, selectedLangs, selectedRegion, setSelectedRegion, selectedBrands, addSelectedBrand, removeSelectedBrand,
     dealerName, setDealerName, city, setCity, phone, setPhone, whatsapp, setWhatsapp,
     primaryColor, setPrimaryColor, secondaryColor, setSecondaryColor, useBrandTheme, setUseBrandTheme,
-    saved, saving, logoUrl, setLogoUrl, font, setFont, address, setAddress, showroomType, setShowroomType,
+    saved, saving, logoUrl, setSavedLogoUrl, font, setFont, address, setAddress, showroomType, setShowroomType,
     toggleLang, handleSave,
   };
 }

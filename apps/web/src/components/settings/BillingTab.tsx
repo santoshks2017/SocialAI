@@ -4,7 +4,10 @@ import { Button, cn } from '../ui/Button';
 import { useToast } from '../ui/Toast';
 import { ApiError } from '../../services/api';
 import { billingService, type BillingCycle, type BillingPlans, type BillingStatus, type PlanTier } from '../../services/billing';
-import { PAYMENTS_OFF_MESSAGE, annualSaving, planPrice, popularPlanId, renewalDate, rupees, statusTone, usageMeter, type StatusTone } from '../../utils/billing';
+import {
+  ALREADY_SUBSCRIBED_MESSAGE, PAYMENTS_OFF_MESSAGE, annualSaving, hasLiveSubscription, isCurrentPlan, openPaymentLink, planPrice, popularPlanId,
+  renewalDate, rupees, statusTone, usageMeter, type StatusTone,
+} from '../../utils/billing';
 import { SettingsCard } from './SettingsParts';
 
 const TONES: Record<StatusTone, string> = {
@@ -38,7 +41,7 @@ export function BillingTab() {
     setSubscribing(tier);
     try {
       const res = await billingService.subscribe(tier, cycle);
-      window.open(res.paymentLink, '_blank', 'noopener,noreferrer');
+      openPaymentLink(res.paymentLink);
       addToast({ type: 'success', title: 'Subscription created', message: 'Complete payment to activate your plan.' });
     } catch (err) {
       const notConfigured = err instanceof ApiError && err.code === 'BILLING_NOT_CONFIGURED';
@@ -76,6 +79,8 @@ export function BillingTab() {
   const subStatus = status.subscription?.status ?? null;
   const renews = renewalDate(status);
   const popular = popularPlanId(plans.plans, currentTier);
+  // While a subscription is live, a plan change would start a second one: it goes through us instead.
+  const live = hasLiveSubscription(status);
 
   return (
     <div className="space-y-4">
@@ -134,7 +139,7 @@ export function BillingTab() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
           {plans.plans.map((plan) => {
-            const isCurrent = plan.id === currentTier;
+            const isCurrent = isCurrentPlan(plan.id, cycle, status);
             const isPopular = plan.id === popular;
             const saving = annualSaving(plan);
             return (
@@ -172,16 +177,20 @@ export function BillingTab() {
                     </li>
                   ))}
                 </ul>
-                <Button
-                  className="mt-5 w-full"
-                  variant={isCurrent ? 'secondary' : 'primary'}
-                  disabled={isCurrent || !plans.payments_enabled || subscribing !== null}
-                  title={!isCurrent && !plans.payments_enabled ? PAYMENTS_OFF_MESSAGE : undefined}
-                  onClick={() => void subscribe(plan.id)}
-                >
-                  {subscribing === plan.id && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {isCurrent ? 'Current plan' : `Choose ${plan.name}`}
-                </Button>
+                {live && !isCurrent ? (
+                  <p className="mt-5 min-h-10 flex items-center justify-center text-center text-xs text-zinc-500">{ALREADY_SUBSCRIBED_MESSAGE}</p>
+                ) : (
+                  <Button
+                    className="mt-5 w-full"
+                    variant={isCurrent ? 'secondary' : 'primary'}
+                    disabled={isCurrent || !plans.payments_enabled || subscribing !== null}
+                    title={!isCurrent && !plans.payments_enabled ? PAYMENTS_OFF_MESSAGE : undefined}
+                    onClick={() => void subscribe(plan.id)}
+                  >
+                    {subscribing === plan.id && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {isCurrent ? 'Current plan' : `Choose ${plan.name}`}
+                  </Button>
+                )}
               </div>
             );
           })}

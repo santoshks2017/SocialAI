@@ -128,7 +128,8 @@ export function RemoveMemberModal({ member, busy, onClose, onConfirm }: {
   );
 }
 
-// The reference edited email and password; we sign in by phone OTP, so an account is name, email and phone.
+// The reference edited email and password. Our accounts have no password: Google and Facebook sign-in find
+// the account by its email (and phone OTP by its phone number), so an account is name, email and phone.
 export function EditAccountModal({ member, busy, onClose, onSave }: {
   member: TeamMember;
   busy: boolean;
@@ -149,7 +150,7 @@ export function EditAccountModal({ member, busy, onClose, onSave }: {
       closeOnEscape={!busy}
       footer={(
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
-          <p className="text-[11px] text-zinc-400">Changing the phone number changes how {member.name?.trim() || 'the user'} signs in.</p>
+          <p className="text-[11px] text-zinc-400">Google and Facebook sign-in use this email, so changing it changes how {member.name?.trim() || 'the user'} signs in.</p>
           <div className="flex gap-3">
             <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
             <Button onClick={() => onSave(draft)} disabled={busy}>

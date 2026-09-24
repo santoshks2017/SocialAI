@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TeamMember } from '../services/users';
 import {
-  accountChanges, accountDraft, assignableRoles, avatarGradient, canChangeRole, canManageMember, canRemove, initialOf, memberName, roleOptions, teamStats,
+  accountChanges, accountDraft, assignableRoles, avatarGradient, canChangeRole, canManageMember, canRemove, canToggleActive, initialOf, memberName, roleOptions,
+  teamStats,
 } from './team.js';
 
 const member = (over: Partial<TeamMember>): TeamMember => ({
@@ -31,6 +32,16 @@ describe('team helpers', () => {
     assert.equal(canRemove(dealerOwner, member({ role: 'owner' })), false);
     assert.equal(canRemove(manager, member({ id: 'me' })), false);
     assert.equal(canRemove(manager, member({})), true);
+  });
+
+  it('offers Deactivate and Remove only on rows the viewer can manage', () => {
+    assert.equal(canToggleActive(manager, member({ role: 'owner' })), false);
+    assert.equal(canToggleActive(manager, member({ id: 'me', role: 'admin' })), false);
+    assert.equal(canToggleActive(manager, member({ role: 'user' })), true);
+    assert.equal(canToggleActive(dealerOwner, member({ role: 'owner' })), true);
+    assert.equal(canToggleActive(null, member({ role: 'user' })), false);
+    assert.equal(canRemove(manager, member({ role: 'owner' })), false);
+    assert.equal(canRemove(null, member({ role: 'user' })), false);
   });
 
   it('builds avatars and names', () => {

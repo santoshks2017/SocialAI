@@ -29,8 +29,8 @@ export function BoostStatCards({ stats }: { stats: BoostStats }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
       <StatTile icon={<Wallet className="w-4 h-4" />} tint="bg-orange-50 text-orange-600" label="Total Spend This Month" value={rupees(stats.totalSpendThisMonth)} sub={campaignsLine(stats.campaignsThisMonth)} />
-      <StatTile icon={<Radio className="w-4 h-4" />} tint="bg-blue-50 text-blue-600" label="Total Reach" value={stats.totalReachThisMonth.toLocaleString('en-IN')} sub="people reached" />
-      <StatTile icon={<MousePointerClick className="w-4 h-4" />} tint="bg-violet-50 text-violet-600" label="Total Clicks" value={stats.totalClicksThisMonth.toLocaleString('en-IN')} sub="link clicks" />
+      <StatTile icon={<Radio className="w-4 h-4" />} tint="bg-blue-50 text-blue-700" label="Total Reach" value={stats.totalReachThisMonth.toLocaleString('en-IN')} sub="people reached" />
+      <StatTile icon={<MousePointerClick className="w-4 h-4" />} tint="bg-violet-50 text-violet-700" label="Total Clicks" value={stats.totalClicksThisMonth.toLocaleString('en-IN')} sub="link clicks" />
       <StatTile icon={<Percent className="w-4 h-4" />} tint="bg-emerald-50 text-emerald-600" label="Avg CTR" value={avgCtr(stats)} sub="click-through rate" />
     </div>
   );
