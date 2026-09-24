@@ -56,6 +56,7 @@ export interface BoostStats {
   totalReachThisMonth: number;
   totalClicksThisMonth: number;
   avgCtr: number;
+  campaignsThisMonth: number;
 }
 
 export const boostService = {
@@ -80,6 +81,7 @@ export const boostService = {
   getMetrics: (id: string) =>
     api.get<{ metrics: BoostMetrics }>(`/boost/${id}/metrics`),
   
-  getReachEstimate: (dailyBudget: number, targeting: TargetingSpec) =>
-    api.post<{ minReach: number; maxReach: number }>('/boost/reach-estimate', { dailyBudget, targeting }),
+  // POST /boost/reach-estimate — people per day; the wizard's only reach figure.
+  getReachEstimate: (dailyBudget: number) =>
+    api.post<{ minReach: number; maxReach: number }>('/boost/reach-estimate', { dailyBudget }),
 };

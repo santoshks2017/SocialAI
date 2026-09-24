@@ -1,25 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
-import type { BoostCampaign } from '../generated/client/index.js';
 import { Prisma } from '../generated/client/index.js';
 import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
+import { boostPostSummary, mapCampaign, parseBoostCreate, reachEstimate, type BoostPostSummary } from '../lib/boostView.js';
 
-function mapCampaign(c: BoostCampaign) {
-  return {
-    id: c.id,
-    dealerId: c.dealer_id,
-    postId: c.post_id,
-    metaCampaignId: c.meta_campaign_id ?? undefined,
-    dailyBudget: c.daily_budget,
-    durationDays: c.duration_days,
-    startDate: c.start_date?.toISOString() ?? undefined,
-    endDate: c.end_date?.toISOString() ?? undefined,
-    targeting: (c.targeting_spec as Record<string, unknown>) ?? {},
-    status: c.status as 'draft' | 'active' | 'paused' | 'completed',
-    totalSpent: c.total_spent,
-    metrics: (c.metrics as Record<string, unknown>) ?? undefined,
-    createdAt: c.created_at.toISOString(),
-  };
+const invalid = (message: string) => ({ error: { code: 'INVALID_INPUT', message } });
+
+// Titles and thumbnails of the boosted posts: the dealership's own posts only.
+async function postSummaries(dealerId: string, postIds: string[]): Promise<Map<string, BoostPostSummary>> {
+  const ids = [...new Set(postIds)];
+  if (ids.length === 0) return new Map();
+  const posts = await prisma.post.findMany({
+    where: { dealer_id: dealerId, id: { in: ids } },
+    select: { id: true, prompt_text: true, thumbnail_url: true, creative_urls: true },
+  });
+  return new Map(posts.map((p) => [p.id, boostPostSummary(p)]));
 }
 
 export default async function boostRoutes(fastify: FastifyInstance) {
@@ -68,45 +63,42 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     }
     const avgCtr = totalReachThisMonth > 0 ? (totalClicksThisMonth / totalReachThisMonth) * 100 : 0;
 
+    const posts = await postSummaries(dealer_id, campaigns.map((c) => c.post_id));
     return {
-      items: campaigns.map(mapCampaign),
+      items: campaigns.map((c) => mapCampaign(c, posts.get(c.post_id))),
       total,
-      stats: { totalSpendThisMonth, totalReachThisMonth, totalClicksThisMonth, avgCtr },
+      stats: { totalSpendThisMonth, totalReachThisMonth, totalClicksThisMonth, avgCtr, campaignsThisMonth: monthCampaigns.length },
     };
   });
 
-  // POST /v1/boost — create boost campaign
+  // POST /v1/boost — record a boost campaign for one of the dealership's posts. Nothing runs on Meta.
   fastify.post('/', { preHandler: [fastify.authenticate, canRunBoost] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
-    const body = request.body as {
-      postId: string;
-      dailyBudget: number;
-      durationDays: number;
-      targeting: Record<string, unknown>;
-    };
+    const parsed = parseBoostCreate(request.body);
+    if (!parsed.ok) return reply.code(400).send(invalid(parsed.message));
+    const { postId, dailyBudget, durationDays, targeting } = parsed.value;
 
-    if (!body.postId || !body.dailyBudget || !body.durationDays) {
-      return reply.code(400).send({ error: 'postId, dailyBudget, and durationDays are required' });
-    }
+    const post = await prisma.post.findFirst({ where: { id: postId, dealer_id } });
+    if (!post) return reply.code(404).send({ error: { code: 'POST_NOT_FOUND', message: 'That post was not found' } });
 
     const startDate = new Date();
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + body.durationDays);
+    endDate.setDate(endDate.getDate() + durationDays);
 
     const campaign = await prisma.boostCampaign.create({
       data: {
         dealer_id,
-        post_id: body.postId,
-        daily_budget: body.dailyBudget,
-        duration_days: body.durationDays,
-        targeting_spec: (body.targeting ?? {}) as Prisma.InputJsonValue,
+        post_id: post.id,
+        daily_budget: dailyBudget,
+        duration_days: durationDays,
+        targeting_spec: targeting as Prisma.InputJsonValue,
         start_date: startDate,
         end_date: endDate,
         status: 'active',
       },
     });
 
-    return reply.code(201).send({ item: mapCampaign(campaign) });
+    return reply.code(201).send({ item: mapCampaign(campaign, boostPostSummary(post)) });
   });
 
   // GET /v1/boost/:id — single campaign
@@ -115,7 +107,8 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const campaign = await prisma.boostCampaign.findFirst({ where: { id, dealer_id } });
     if (!campaign) return reply.code(404).send({ error: 'Not found' });
-    return { item: mapCampaign(campaign) };
+    const posts = await postSummaries(dealer_id, [campaign.post_id]);
+    return { item: mapCampaign(campaign, posts.get(campaign.post_id)) };
   });
 
   // POST /v1/boost/:id/pause — pause campaign (frontend uses POST)
@@ -157,12 +150,12 @@ export default async function boostRoutes(fastify: FastifyInstance) {
     return { metrics: (campaign.metrics as Record<string, unknown>) ?? { reach: 0, impressions: 0, clicks: 0, spend: 0, cpc: 0, ctr: 0 } };
   });
 
-  // POST /v1/boost/reach-estimate — estimated reach based on budget
-  fastify.post('/reach-estimate', { preHandler: [fastify.authenticate] }, async (request) => {
-    const { dailyBudget = 1000 } = request.body as { dailyBudget?: number; targeting?: unknown };
-    return {
-      minReach: Math.round(dailyBudget * 12),
-      maxReach: Math.round(dailyBudget * 20),
-    };
+  // POST /v1/boost/reach-estimate { dailyBudget } — people per day; the wizard's only reach figure
+  fastify.post('/reach-estimate', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { dailyBudget } = (request.body ?? {}) as { dailyBudget?: unknown };
+    if (typeof dailyBudget !== 'number' || !Number.isFinite(dailyBudget) || dailyBudget <= 0) {
+      return reply.code(400).send(invalid('dailyBudget must be a positive number'));
+    }
+    return reachEstimate(dailyBudget);
   });
 }
