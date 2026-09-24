@@ -221,8 +221,8 @@ describe('permission checks', () => {
 
   it('view_billing gates billing', async () => {
     const dealerId = await newDealer('billing-dealer');
-    for (const [method, url] of [['GET', '/v1/billing/status'], ['POST', '/v1/billing/subscribe']] as const) {
-      const res = await fastify.inject({ method, url, headers: bearer(token(dealerId, 'user')), payload: { planId: 'growth' } });
+    for (const [method, url] of [['GET', '/v1/billing/status'], ['GET', '/v1/billing/plans'], ['POST', '/v1/billing/subscribe']] as const) {
+      const res = await fastify.inject({ method, url, headers: bearer(token(dealerId, 'user')), payload: { tier: 'growth', cycle: 'monthly' } });
       assert.equal(res.statusCode, 403, url);
     }
   });

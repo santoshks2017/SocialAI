@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import { connectedPlatformCount } from '../lib/connectionStore.js';
+import { planLimits } from '../lib/billingPlans.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -27,10 +28,11 @@ export async function registerPlanGate(fastify: FastifyInstance) {
         return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Dealer not found' } });
       }
 
-      const plan = dealer.plan ?? 'starter';
+      // The same table GET /billing/status reports (lib/billingPlans.ts).
+      const limits = planLimits(dealer.plan);
 
-      // 1. Blocked features check for starter plan
-      if (plan === 'starter' && ['inbox', 'boost', 'inventory'].includes(feature)) {
+      // 1. Features the plan doesn't include (Starter: inbox, boost, inventory)
+      if ((limits.blockedFeatures as readonly string[]).includes(feature)) {
         return reply.code(403).send({
           error: {
             code: 'PLAN_GATED',
@@ -39,8 +41,8 @@ export async function registerPlanGate(fastify: FastifyInstance) {
         });
       }
 
-      // 2. Posts limit check (Starter plan: 30 posts per calendar month)
-      if (feature === 'posts' && plan === 'starter') {
+      // 2. Posts per calendar month (Starter: 30)
+      if (feature === 'posts' && limits.postsPerMonth !== null) {
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
@@ -52,19 +54,19 @@ export async function registerPlanGate(fastify: FastifyInstance) {
           },
         });
 
-        if (postsCount >= 30) {
+        if (postsCount >= limits.postsPerMonth) {
           return reply.code(403).send({
             error: {
               code: 'PLAN_LIMIT_REACHED',
-              message: 'You have reached the monthly limit of 30 posts for the Starter plan. Please upgrade to publish more.',
+              message: `You have reached the monthly limit of ${limits.postsPerMonth} posts for the Starter plan. Please upgrade to publish more.`,
             },
           });
         }
       }
 
-      // 3. Platform connections limit check (Starter: 2, Growth: 5)
+      // 3. Connected platforms (Starter 2, Growth 5, Enterprise 4 — all four connectable platforms)
       if (feature === 'platforms') {
-        const limit = plan === 'starter' ? 2 : plan === 'growth' ? 5 : 999;
+        const limit = limits.platforms;
 
         // Platforms, not accounts: a second Facebook Page or Google location doesn't use up the plan.
         const connectionsCount = await connectedPlatformCount(dealerId);

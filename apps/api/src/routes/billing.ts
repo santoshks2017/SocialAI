@@ -2,9 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import axios from 'axios';
 import { validateRazorpaySignature } from '../lib/webhookSecurity.js';
-import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 import { connectedPlatformCount } from '../lib/connectionStore.js';
+import {
+  BILLING_PLANS, PAYMENTS_OFF_MESSAGE, UNLIMITED, annualDiscountPercent, isBillingCycle, isPlanTier, paymentsEnabled,
+  planLimits, razorpayPlanId, tierForRazorpayPlan,
+} from '../lib/billingPlans.js';
 
 export default async function billingRoutes(fastify: FastifyInstance) {
   const canViewBilling = requirePermissionHook(PERMISSIONS.VIEW_BILLING);
@@ -28,20 +31,11 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     const activePlan = dealer.plan ?? 'starter';
     const expiresAt = dealer.plan_expires_at ? dealer.plan_expires_at.toISOString() : null;
 
-    // Define tier limits
-    let postsLimit = 30;
-    let platformsLimit = 2;
-    let featuresBlocked: string[] = ['inbox', 'boost', 'inventory'];
-
-    if (activePlan === 'growth') {
-      postsLimit = 999999; // Unlimited
-      platformsLimit = 5;
-      featuresBlocked = [];
-    } else if (activePlan === 'enterprise') {
-      postsLimit = 999999; // Unlimited
-      platformsLimit = 99; // Virtually unlimited
-      featuresBlocked = [];
-    }
+    // Limits come from lib/billingPlans.ts, the same table the plan gate enforces.
+    const limits = planLimits(activePlan);
+    const postsLimit = limits.postsPerMonth ?? UNLIMITED;
+    const platformsLimit = limits.platforms;
+    const featuresBlocked = [...limits.blockedFeatures];
 
     // Query active usage:
     // 1. Posts in the current billing period or calendar month
@@ -79,90 +73,53 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // POST /v1/billing/subscribe — Initiate subscription
+  // GET /v1/billing/plans — the plan catalogue, and whether online payment is available
+  fastify.get('/plans', { preHandler: [fastify.authenticate, canViewBilling] }, async () => ({
+    plans: BILLING_PLANS,
+    payments_enabled: paymentsEnabled(),
+    annual_discount_percent: annualDiscountPercent(),
+  }));
+
+  // POST /v1/billing/subscribe { tier, cycle } — starts a Razorpay subscription on the configured plan id.
+  // Until Razorpay is configured (paymentsEnabled) it answers 503 BILLING_NOT_CONFIGURED and creates nothing.
   fastify.post('/subscribe', { preHandler: [fastify.authenticate, canViewBilling] }, async (request, reply) => {
     const dealerId = request.user.dealer_id;
     if (!dealerId) {
-      return reply.code(400).send({ error: 'Not authenticated with a dealer' });
+      return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: 'Not authenticated with a dealer' } });
     }
 
-    const { planId } = request.body as { planId: string };
-    if (!planId) {
-      return reply.code(400).send({ error: 'planId is required' });
+    const { tier, cycle } = (request.body ?? {}) as { tier?: unknown; cycle?: unknown };
+    if (!isPlanTier(tier) || !isBillingCycle(cycle)) {
+      return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'tier must be starter, growth or enterprise, and cycle monthly or annual' } });
+    }
+    const planId = razorpayPlanId(tier, cycle);
+    if (!paymentsEnabled() || !planId) {
+      return reply.code(503).send({ error: { code: 'BILLING_NOT_CONFIGURED', message: PAYMENTS_OFF_MESSAGE } });
     }
 
-    // Retrieve or create subscription record
-    let sub = await prisma.subscription.findUnique({
-      where: { dealer_id: dealerId },
-    });
-
-    const keyId = process.env['RAZORPAY_KEY_ID'];
-    const keySecret = process.env['RAZORPAY_KEY_SECRET'];
-
-    let razorpaySubscriptionId = '';
-    let shortUrl = '';
-
-    if (keyId && keySecret) {
-      try {
-        // Construct Razorpay payload
-        // We charge starting immediately. For monthly plans, total_count is 12.
-        const response = await axios.post(
-          'https://api.razorpay.com/v1/subscriptions',
-          {
-            plan_id: planId,
-            total_count: 12,
-            quantity: 1,
-            customer_notify: 1,
-          },
-          {
-            auth: {
-              username: keyId,
-              password: keySecret,
-            },
-          }
-        );
-
-        razorpaySubscriptionId = response.data.id;
-        shortUrl = response.data.short_url;
-      } catch (err: any) {
-        fastify.log.error(err.response?.data || err.message, 'Razorpay Subscription Error');
-        return reply.code(500).send({
-          error: 'Failed to create subscription with payment gateway',
-          details: err.response?.data ?? err.message,
-        });
-      }
-    } else {
-      // Mock mode
-      fastify.log.warn('Razorpay credentials missing. Generating mock subscription ID.');
-      razorpaySubscriptionId = `mock_sub_${Math.random().toString(36).substring(2, 15)}`;
-      shortUrl = `${getFrontendUrl()}/billing/success?subscription_id=${razorpaySubscriptionId}`;
-    }
-
-    if (sub) {
-      sub = await prisma.subscription.update({
-        where: { dealer_id: dealerId },
-        data: {
-          razorpaySubscriptionId,
-          planId,
-          status: 'created',
-        },
-      });
-    } else {
-      sub = await prisma.subscription.create({
-        data: {
-          dealer_id: dealerId,
-          razorpaySubscriptionId,
-          planId,
-          status: 'created',
-        },
+    let subscriptionId: string;
+    let paymentLink: string;
+    try {
+      const response = await axios.post<{ id: string; short_url: string }>(
+        'https://api.razorpay.com/v1/subscriptions',
+        { plan_id: planId, total_count: 12, quantity: 1, customer_notify: 1 },
+        { auth: { username: process.env['RAZORPAY_KEY_ID']!, password: process.env['RAZORPAY_KEY_SECRET']! }, timeout: 15_000 },
+      );
+      subscriptionId = response.data.id;
+      paymentLink = response.data.short_url;
+    } catch (err) {
+      fastify.log.error(`[billing] Razorpay subscription failed: ${err instanceof Error ? err.message : String(err)}`);
+      return reply.code(502).send({
+        error: { code: 'PAYMENT_GATEWAY_ERROR', message: 'Could not start the subscription with the payment gateway. Please try again.' },
       });
     }
 
-    return {
-      success: true,
-      subscriptionId: razorpaySubscriptionId,
-      paymentLink: shortUrl,
-    };
+    const existing = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
+    const data = { razorpaySubscriptionId: subscriptionId, planId, status: 'created' };
+    if (existing) await prisma.subscription.update({ where: { dealer_id: dealerId }, data });
+    else await prisma.subscription.create({ data: { dealer_id: dealerId, ...data } });
+
+    return { success: true, subscriptionId, paymentLink };
   });
 
   // POST /v1/billing/webhook — Handle Razorpay payment gateway webhooks
@@ -201,15 +158,8 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     const planId = subscriptionEntity.plan_id;
     const status = subscriptionEntity.status; // authenticated, active, cancelled, expired, etc.
 
-    // Map plan ID to tier
-    let planTier = 'starter';
-    if (planId?.includes('growth') || planId?.includes('premium')) {
-      planTier = 'growth';
-    } else if (planId?.includes('enterprise')) {
-      planTier = 'enterprise';
-    } else if (planId?.includes('starter')) {
-      planTier = 'starter';
-    }
+    // Configured Razorpay plan ids first, then the old "plan_growth_monthly" style.
+    const planTier = tierForRazorpayPlan(planId);
 
     const currentPeriodStart = subscriptionEntity.current_start ? new Date(subscriptionEntity.current_start * 1000) : null;
     const currentPeriodEnd = subscriptionEntity.current_end ? new Date(subscriptionEntity.current_end * 1000) : null;
