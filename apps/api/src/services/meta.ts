@@ -227,28 +227,53 @@ export async function fetchFacebookPostMetrics(
   };
 }
 
+type InsightRow = { name?: string; values?: Array<{ value?: unknown }>; total_value?: { value?: unknown } };
+
+// /{id}/insights answers { data: [{ name, values: [{ value }] }] } (or total_value on newer metrics).
+function insightValue(rows: InsightRow[] | undefined, name: string): number {
+  const row = rows?.find((r) => r.name === name);
+  const raw = row?.values?.[0]?.value ?? row?.total_value?.value;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0;
+}
+
 export async function fetchInstagramPostMetrics(
   mediaId: string,
   accessToken: string,
 ): Promise<{ reach: number; likes: number; comments: number; saved: number }> {
-  const res = await axios.get<{
-    reach: number;
-    like_count: number;
-    comments_count: number;
-    saved: number;
-  }>(
+  const res = await axios.get<{ data?: InsightRow[] }>(
     `${META_GRAPH_BASE}/${mediaId}/insights`,
-    {
-      params: {
-        metric: 'reach,like_count,comments_count,saved',
-        access_token: accessToken,
-      },
-    },
+    { params: { metric: 'reach,likes,comments,saved', access_token: accessToken } },
   );
+  const rows = res.data.data;
   return {
-    reach: res.data.reach ?? 0,
-    likes: res.data.like_count ?? 0,
-    comments: res.data.comments_count ?? 0,
-    saved: res.data.saved ?? 0,
+    reach: insightValue(rows, 'reach'),
+    likes: insightValue(rows, 'likes'),
+    comments: insightValue(rows, 'comments'),
+    saved: insightValue(rows, 'saved'),
   };
+}
+
+// ─── Followers (daily audience snapshots) ─────────────────────────────────────
+// Mock connections (local and demo) have no audience: null means "skip".
+
+function followerCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+export async function fetchPageFollowers(pageId: string, accessToken: string): Promise<number | null> {
+  if (pageId.startsWith('mock_') || accessToken.startsWith('mock_')) return null;
+  const res = await axios.get<{ followers_count?: number; fan_count?: number }>(
+    `${META_GRAPH_BASE}/${pageId}`,
+    { params: { fields: 'followers_count,fan_count', access_token: accessToken } },
+  );
+  return followerCount(res.data.followers_count ?? res.data.fan_count);
+}
+
+export async function fetchInstagramFollowers(igUserId: string, accessToken: string): Promise<number | null> {
+  if (igUserId.startsWith('mock_') || accessToken.startsWith('mock_')) return null;
+  const res = await axios.get<{ followers_count?: number }>(
+    `${META_GRAPH_BASE}/${igUserId}`,
+    { params: { fields: 'followers_count', access_token: accessToken } },
+  );
+  return followerCount(res.data.followers_count);
 }

@@ -6,20 +6,15 @@ import type { PlatformPublishResult } from '../lib/publishDirect.js';
 import { notifyPublishOutcome } from '../lib/postNotifications.js';
 import { transitionPost } from '../lib/publishClaim.js';
 import { sweepVideoJobs } from '../lib/videoJobRunner.js';
+import { forEachLimited } from '../lib/concurrency.js';
+import { runMaintenance, type MaintenanceCounts } from '../lib/cronMaintenance.js';
 
 const BATCH_SIZE = 20; // posts per invocation, to keep each request short
 const CONCURRENCY = 5;
 export const STUCK_PUBLISHING_MS = 15 * 60 * 1000;
 export const STUCK_PUBLISHING_ERROR =
   'Publishing did not finish within 15 minutes and was stopped. Check the platform before retrying to avoid a duplicate post.';
-
-async function forEachLimited<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) await fn(items[next++]!);
-  });
-  await Promise.all(workers);
-}
+const NO_MAINTENANCE: MaintenanceCounts = { classified: 0, reviews: 0, metrics: 0, followers: 0 };
 
 // Posts left in 'publishing' (crashed instance, killed request) would never move again.
 // Close them out rather than retrying, since the platform may already have the post:
@@ -95,6 +90,15 @@ export default async function cronRoutes(fastify: FastifyInstance) {
       return { ran: [] as string[], expired: [] as string[] };
     });
 
+    // Inbox and analytics upkeep (classification, Google reviews, post metrics, follower counts). Started with
+    // the reel sweep and awaited after publishing; runMaintenance isolates and time-boxes every step.
+    const maintenance = runMaintenance(now, {
+      error: (obj, msg) => fastify.log.error(obj, msg),
+    }).catch((err: unknown) => {
+      fastify.log.error({ message: err instanceof Error ? err.message : String(err) }, '[cron] maintenance failed');
+      return NO_MAINTENANCE;
+    });
+
     const recovered = await recoverStuckPosts(now);
 
     // Oldest due posts first, so a backlog drains in order
@@ -134,10 +138,15 @@ export default async function cronRoutes(fastify: FastifyInstance) {
     });
 
     const videoJobs = await videoSweep;
+    const maintenanceCounts = await maintenance;
+    const maintained = Object.values(maintenanceCounts).some((n) => n > 0);
 
-    if (processed || skipped || recovered.length || videoJobs.ran.length || videoJobs.expired.length) {
-      fastify.log.info({ results, skipped, recovered, videoJobs }, `[cron] published ${processed} scheduled posts`);
+    if (processed || skipped || recovered.length || videoJobs.ran.length || videoJobs.expired.length || maintained) {
+      fastify.log.info(
+        { results, skipped, recovered, videoJobs, maintenance: maintenanceCounts },
+        `[cron] published ${processed} scheduled posts`,
+      );
     }
-    return { success: true, processed, skipped, recovered: recovered.length, results, videoJobs };
+    return { success: true, processed, skipped, recovered: recovered.length, results, videoJobs, maintenance: maintenanceCounts };
   });
 }
