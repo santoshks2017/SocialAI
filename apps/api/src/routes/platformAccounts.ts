@@ -2,9 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import axios from 'axios';
 import type { PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
-import { clearMetaPageSelection, resolveMetaAccount } from '../lib/oauthHandoff.js';
-import { ACCOUNT_LIMIT_MESSAGE, ACCOUNT_PLATFORMS } from '../lib/connections.js';
-import { saveConnection } from '../lib/connectionStore.js';
+import { ACCOUNT_PLATFORMS } from '../lib/connections.js';
 import { isMockConnection } from '../lib/platformMock.js';
 
 const VALID_PLATFORMS = new Set([
@@ -16,15 +14,6 @@ const VALID_PLATFORMS = new Set([
 // Graph API answers that mean a Meta token is dead: code 190, or subcodes 460, 463 and 467.
 const DEAD_TOKEN_SUBCODES = new Set([460, 463, 467]);
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
-interface SaveAccountBody {
-  platform?: string;
-  accountId?: string;
-  accountName?: string;
-  accessToken?: string;
-  refreshToken?: string;
-  tokenExpiry?: string;
-}
 
 // The shape the web reads (Accounts page, Create Studio, Settings): one row per connected account.
 function toAccount(conn: PlatformConnection) {
@@ -39,9 +28,10 @@ function toAccount(conn: PlatformConnection) {
 }
 
 export default async function platformAccountRoutes(fastify: FastifyInstance) {
-  // GET /v1/platform-accounts: the dealer's connected accounts on Facebook, Instagram, Google and YouTube
+  // GET /v1/platform-accounts: the dealer's connected accounts on Facebook, Instagram, Google and YouTube.
+  // ?verify=0 skips the live Meta token checks, for pickers that only need the list.
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { platform } = request.query as { platform?: string };
+    const { platform, verify } = request.query as { platform?: string; verify?: string };
 
     if (platform && !VALID_PLATFORMS.has(platform)) {
       return reply.code(400).send({
@@ -61,7 +51,7 @@ export default async function platformAccountRoutes(fastify: FastifyInstance) {
 
       // A live Meta token check, so a revoked Page shows "Reconnect" (mock tokens are never sent to Meta).
       await Promise.all(connections.map(async (conn) => {
-        if ((conn.platform !== 'facebook' && conn.platform !== 'instagram') || isMockConnection(conn)) return;
+        if (verify === '0' || (conn.platform !== 'facebook' && conn.platform !== 'instagram') || isMockConnection(conn)) return;
         try {
           await axios.get(`https://graph.facebook.com/v19.0/${conn.platform_account_id}`, {
             params: { fields: 'id', access_token: conn.access_token },
@@ -81,73 +71,6 @@ export default async function platformAccountRoutes(fastify: FastifyInstance) {
     } catch (err) {
       request.log.error({ message: errorText(err) }, '[PlatformAccounts] Failed to list accounts');
       return reply.code(500).send({ error: 'Failed to list platform accounts' });
-    }
-  });
-
-  // POST /v1/platform-accounts: save or update one account. After the Meta page picker
-  // (POST /v1/auth/facebook/pages), send only platform + accountId: the name and token come from the server.
-  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const body = request.body as SaveAccountBody | undefined;
-
-    if (!body || !body.platform || !body.accountId) {
-      return reply.code(400).send({
-        error: 'Missing required fields: platform, accountId, accountName, accessToken',
-      });
-    }
-
-    if (!VALID_PLATFORMS.has(body.platform)) {
-      return reply.code(400).send({
-        error: `Invalid platform. Must be one of: ${[...VALID_PLATFORMS].join(', ')}`,
-      });
-    }
-
-    const dealer_id = request.user.dealer_id!;
-    const platform = body.platform === 'google' ? 'gmb' : body.platform;
-
-    let { accountName, accessToken, tokenExpiry } = body;
-    const fromMetaSelection = !accessToken && (platform === 'facebook' || platform === 'instagram');
-    if (fromMetaSelection) {
-      const picked = await resolveMetaAccount(dealer_id, platform, body.accountId);
-      if (!picked) {
-        return reply.code(400).send({
-          error: 'Facebook authorization has expired or does not include this account. Please connect again.',
-        });
-      }
-      ({ accountName, accessToken, tokenExpiry } = picked);
-    }
-
-    if (!accountName || !accessToken) {
-      return reply.code(400).send({
-        error: 'Missing required fields: platform, accountId, accountName, accessToken',
-      });
-    }
-
-    try {
-      const outcome = await saveConnection(dealer_id, {
-        platform,
-        platform_account_id: body.accountId,
-        platform_account_name: accountName,
-        access_token: accessToken,
-        // undefined (no refreshToken in the request) keeps whatever refresh token is already stored;
-        // only an explicit new value from the client overwrites it.
-        refresh_token: body.refreshToken,
-        token_expires_at: tokenExpiry ? new Date(tokenExpiry) : null,
-      });
-      if (outcome.status === 'limit') {
-        return reply.code(409).send({ error: { code: 'ACCOUNT_LIMIT', message: ACCOUNT_LIMIT_MESSAGE } });
-      }
-
-      if (fromMetaSelection) {
-        await clearMetaPageSelection(dealer_id).catch((err: unknown) => {
-          request.log.warn({ message: errorText(err) }, '[PlatformAccounts] Failed to clear Meta page selection');
-        });
-      }
-
-      request.log.info(`[PlatformAccounts] Saved a ${platform} account for dealer=${dealer_id}`);
-      return { success: true, account: toAccount(outcome.connection) };
-    } catch (err) {
-      request.log.error({ message: errorText(err) }, '[PlatformAccounts] Failed to save connection');
-      return reply.code(500).send({ error: 'Failed to save platform connection' });
     }
   });
 

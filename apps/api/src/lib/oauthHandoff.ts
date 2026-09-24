@@ -128,7 +128,8 @@ export async function redeemHandoffCode<T>(kind: HandoffKind, code: unknown): Pr
 // ── Meta page selection ─────────────────────────────────────────────────────
 // /v1/auth/facebook/callback collects every Page the user manages, with its token.
 // The web app redeems the code for names and ids only. The tokens stay parked
-// under the dealer until POST /v1/platform-accounts picks one by id.
+// under the dealer until they expire: POST /v1/platform-accounts, which picked
+// one by id (resolveMetaAccount), has been removed, so nothing reads them now.
 
 export interface MetaPageSelection {
   pages: Array<{ id: string; name: string; access_token: string }>;

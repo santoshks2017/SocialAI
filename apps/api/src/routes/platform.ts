@@ -11,6 +11,7 @@ import { needsReconnect } from '../lib/platformHealth.js';
 import { ACCOUNT_LIMIT_MESSAGE, MAX_CONNECTED_ACCOUNTS, byAge } from '../lib/connections.js';
 import { saveConnection, saveConnections, type ConnectionInput } from '../lib/connectionStore.js';
 import { discoverInstagram, instagramConnection } from '../lib/instagramDiscovery.js';
+import { mapWithConcurrency } from '../lib/concurrency.js';
 
 const META_APP_ID     = process.env['META_APP_ID']     ?? '';
 const META_APP_SECRET = process.env['META_APP_SECRET'] ?? '';
@@ -35,8 +36,10 @@ const INSTAGRAM_LOOKUP_FAILED = 'Couldn\u2019t reach Facebook to check your Page
 const YOUTUBE_UPLOAD_SCOPE_MISSING = 'YouTube upload permission wasn\u2019t granted. Connect again and allow uploading videos.';
 
 // Instagram discovery calls one Graph endpoint per Page; running several in flight keeps a dealer with many
-// Pages from stalling the OAuth redirect while staying well under Meta's rate limits.
+// Pages from stalling the OAuth redirect (or the sync request) while staying well under Meta's rate limits.
 const DISCOVERY_CONCURRENCY = 5;
+// Graph calls in the connect callback get the same bound as every other Meta call.
+const META_TIMEOUT_MS = 15_000;
 
 // Local and demo connects: two Pages; lib/instagramDiscovery.ts links a mock Instagram account to the first.
 const MOCK_PAGES: ManagedPage[] = [
@@ -45,23 +48,6 @@ const MOCK_PAGES: ManagedPage[] = [
 ];
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
-/** Runs `fn` over `items` with at most `concurrency` in flight, returning results in the same order as `items`. */
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  concurrency: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  async function worker(): Promise<void> {
-    for (let index = next++; index < items.length; index = next++) {
-      results[index] = await fn(items[index] as T, index);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
-  return results;
-}
 
 // Page and OAuth tokens never leave the server.
 function publicConnection(conn: Record<string, any>) {
@@ -366,6 +352,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
             redirect_uri: META_CALLBACK_URI,
             code,
           },
+          timeout: META_TIMEOUT_MS,
         });
         const { access_token: longLivedToken, expires_in } = await exchangeForLongLivedToken(tokenRes.data.access_token);
         expiresAt = new Date(Date.now() + expires_in * 1000);
@@ -374,6 +361,7 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         const [meRes, managed] = await Promise.all([
           axios.get<{ id: string; name: string; email?: string }>('https://graph.facebook.com/v19.0/me', {
             params: { fields: 'id,name,email', access_token: longLivedToken },
+            timeout: META_TIMEOUT_MS,
           }),
           fetchManagedPages(longLivedToken, MAX_CONNECTED_ACCOUNTS),
         ]);
@@ -668,17 +656,17 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     const pages = (await prisma.platformConnection.findMany({
       where: { dealer_id: dealerId, platform: 'facebook', is_connected: true },
     })).sort(byAge);
-    const found: ConnectionInput[] = [];
     let failures = 0;
-    for (const page of pages) {
+    const found = (await mapWithConcurrency(pages, DISCOVERY_CONCURRENCY, async (page) => {
       try {
         const ig = await discoverInstagram(page.platform_account_id, page.access_token);
-        if (ig) found.push(instagramConnection(ig, page.access_token, page.token_expires_at));
+        return ig ? instagramConnection(ig, page.access_token, page.token_expires_at) : null;
       } catch (err) {
         failures++;
         request.log.warn({ message: errorText(err) }, '[platforms] Instagram discovery failed for a Page');
+        return null;
       }
-    }
+    })).filter((input): input is ConnectionInput => input !== null);
     if (found.length === 0) {
       // Every lookup threw (a bad Page token, a Graph outage): say so, rather than the wrong "not linked".
       if (pages.length > 0 && failures === pages.length) {

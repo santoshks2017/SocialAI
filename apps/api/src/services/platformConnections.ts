@@ -1,33 +1,4 @@
 import { prisma } from '../db/prisma.js';
-import { saveConnection } from '../lib/connectionStore.js';
-
-export type Platform = 'facebook' | 'instagram' | 'google';
-
-export interface SaveAccountInput {
-  userId: string;
-  platform: Platform;
-  accountId: string;
-  accountName: string;
-  accessToken: string;
-  refreshToken?: string | undefined;
-  tokenExpiry?: Date | undefined;
-}
-
-export async function saveAccount(input: SaveAccountInput) {
-  if (input.userId === 'anonymous') {
-    return null;
-  }
-
-  const outcome = await saveConnection(input.userId, {
-    platform: input.platform,
-    platform_account_id: input.accountId,
-    platform_account_name: input.accountName,
-    access_token: input.accessToken,
-    refresh_token: input.refreshToken ?? null,
-    token_expires_at: input.tokenExpiry ?? null,
-  });
-  return outcome.status === 'saved' ? outcome.connection : null;
-}
 
 export async function getAccountsByUser(userId: string, platform?: string) {
   if (userId === 'anonymous') {

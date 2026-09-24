@@ -5,7 +5,7 @@ import axios from 'axios';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
-import { ACCOUNT_LIMIT_MESSAGE, MAX_CONNECTED_ACCOUNTS, byAge, platformLabel, primaryConnection, resolveTargets } from '../src/lib/connections.js';
+import { MAX_CONNECTED_ACCOUNTS, byAge, platformLabel, primaryConnection, resolveTargets } from '../src/lib/connections.js';
 import { connectedPlatformCount, connectionDocId, saveConnection, saveConnections } from '../src/lib/connectionStore.js';
 
 before(async () => { await fastify.ready(); });
@@ -103,6 +103,38 @@ describe('saving accounts', () => {
     assert.deepEqual([back?.is_connected, back?.access_token], [true, 't1b']);
   });
 
+  it('brings a disconnected account back as the newest while its platform still has a connected one', async () => {
+    const dealerId = await newDealer();
+    const a = await connect(dealerId, 'facebook', 'pA', { created_at: new Date('2026-09-01T00:00:00Z') });
+    const b = await connect(dealerId, 'facebook', 'pB', { created_at: new Date('2026-09-02T00:00:00Z') });
+    await prisma.platformConnection.update({ where: { id: a.id }, data: { is_connected: false } });
+
+    await saveConnections(dealerId, [page('pA', 'tA'), page('pB', 'tB')]);
+
+    const stored = await prisma.platformConnection.findMany({ where: { dealer_id: dealerId } });
+    const back = stored.find((c) => c.id === a.id);
+    assert.equal(back?.is_connected, true);
+    assert.ok(back!.created_at.getTime() > b.created_at.getTime());
+    assert.equal(primaryConnection(stored, 'facebook')?.id, b.id);
+  });
+
+  it('keeps the original primary when the platform had no connected account left', async () => {
+    const dealerId = await newDealer();
+    const a = await connect(dealerId, 'facebook', 'pA', { created_at: new Date('2026-09-01T00:00:00Z'), is_connected: false });
+    const b = await connect(dealerId, 'facebook', 'pB', { created_at: new Date('2026-09-02T00:00:00Z'), is_connected: false });
+
+    // B arrives first: the rule looks at the rows connected before this save, not the ones it brings back.
+    await saveConnections(dealerId, [page('pB', 'tB'), page('pA', 'tA')]);
+
+    const stored = await prisma.platformConnection.findMany({ where: { dealer_id: dealerId } });
+    assert.ok(stored.every((c) => c.is_connected));
+    assert.deepEqual(
+      [a, b].map((c) => stored.find((s) => s.id === c.id)?.created_at.getTime()),
+      [a.created_at.getTime(), b.created_at.getTime()],
+    );
+    assert.equal(primaryConnection(stored, 'facebook')?.id, a.id);
+  });
+
   it('keeps the stored refresh token unless a new one arrives', async () => {
     const dealerId = await newDealer();
     const channel = { platform: 'youtube', platform_account_id: 'UC1', platform_account_name: 'Channel', token_expires_at: null };
@@ -122,6 +154,16 @@ describe('saving accounts', () => {
     assert.equal((await saveConnection(dealerId, page('p1', 't1-again'))).status, 'saved');
     assert.equal((await saveConnection(dealerId, page('p3', 't3'))).status, 'limit');
     assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId, is_connected: true } }), MAX_CONNECTED_ACCOUNTS);
+  });
+
+  it('counts only the Accounts page platforms toward the 30', async () => {
+    const dealerId = await newDealer();
+    for (let i = 0; i < MAX_CONNECTED_ACCOUNTS - 1; i++) await connect(dealerId, 'gmb', `accounts/2/locations/${i}`);
+    await connect(dealerId, 'twitter', 'tw-1');
+
+    const result = await saveConnections(dealerId, [page('p1', 't1'), page('p2', 't2')]);
+
+    assert.deepEqual([result.saved.map((c) => c.platform_account_id), result.limitReached], [['p1'], true]);
   });
 
   it('counts connected platforms, not accounts', async () => {
@@ -199,35 +241,29 @@ describe('/v1/platform-accounts', () => {
     assert.deepEqual((google.json() as { accounts: Array<{ platform: string }> }).accounts.map((x) => x.platform), ['google']);
   });
 
-  it('saves a second account of a platform and refuses the 31st', async () => {
+  it('checks Meta tokens live unless ?verify=0 asks for the list only', async (t) => {
     const dealerId = await newDealer();
-    const save = (accountId: string) => fastify.inject({
-      method: 'POST', url: '/v1/platform-accounts', headers: headers(dealerId),
-      payload: { platform: 'google', accountId, accountName: `Location ${accountId}`, accessToken: 'ya29.x' },
-    });
-    assert.equal((await save('accounts/1/locations/1')).statusCode, 200);
-    assert.equal((await save('accounts/1/locations/2')).statusCode, 200);
-    assert.equal((await save('accounts/1/locations/2')).statusCode, 200);
-    assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId, platform: 'gmb' } }), 2);
+    await connect(dealerId, 'facebook', 'live-page-1', { access_token: 'page-token-live' });
+    await connect(dealerId, 'instagram', 'live-ig-1', { access_token: 'page-token-live' });
+    const get = t.mock.method(axios, 'get', async () => ({ data: { id: 'ok' } }));
 
-    for (let i = 3; i <= MAX_CONNECTED_ACCOUNTS; i++) await connect(dealerId, 'youtube', `mock_UC${i}`);
-    const refused = await save('accounts/1/locations/99');
-    assert.equal(refused.statusCode, 409);
-    assert.deepEqual((refused.json() as { error: unknown }).error, { code: 'ACCOUNT_LIMIT', message: ACCOUNT_LIMIT_MESSAGE });
+    const quick = await fastify.inject({ method: 'GET', url: '/v1/platform-accounts?verify=0', headers: headers(dealerId) });
+    assert.equal(quick.statusCode, 200);
+    assert.equal((quick.json() as { accounts: unknown[] }).accounts.length, 2);
+    assert.equal(get.mock.callCount(), 0);
+
+    await fastify.inject({ method: 'GET', url: '/v1/platform-accounts', headers: headers(dealerId) });
+    assert.equal(get.mock.callCount(), 2);
   });
 
-  it('keeps a stored refresh token when a re-save omits it', async () => {
+  it('has no route that saves an account from a client-supplied token', async () => {
     const dealerId = await newDealer();
-    const save = (payload: Record<string, unknown>) => fastify.inject({
-      method: 'POST', url: '/v1/platform-accounts', headers: headers(dealerId), payload,
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/platform-accounts', headers: headers(dealerId),
+      payload: { platform: 'facebook', accountId: 'any-page', accountName: 'Any Page', accessToken: 'any-token' },
     });
-    const first = await save({ platform: 'youtube', accountId: 'UC-refresh', accountName: 'Channel', accessToken: 'a1', refreshToken: 'r1' });
-    assert.equal(first.statusCode, 200);
-    const second = await save({ platform: 'youtube', accountId: 'UC-refresh', accountName: 'Channel', accessToken: 'a2' });
-    assert.equal(second.statusCode, 200);
-
-    const [conn] = await prisma.platformConnection.findMany({ where: { dealer_id: dealerId, platform: 'youtube' } });
-    assert.deepEqual([conn?.access_token, conn?.refresh_token], ['a2', 'r1']);
+    assert.equal(res.statusCode, 404);
+    assert.equal(await prisma.platformConnection.count({ where: { dealer_id: dealerId } }), 0);
   });
 
   it('disconnects one account and leaves the others', async (t) => {

@@ -7,7 +7,7 @@ import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
 import { signOAuthState, verifyOAuthState } from '../src/lib/oauthState.js';
-import { ACCOUNT_LIMIT_MESSAGE, MAX_CONNECTED_ACCOUNTS } from '../src/lib/connections.js';
+import { ACCOUNT_LIMIT_MESSAGE, MAX_CONNECTED_ACCOUNTS, primaryConnection } from '../src/lib/connections.js';
 
 before(async () => { await fastify.ready(); });
 after(async () => { await fastify.close(); });
@@ -66,16 +66,21 @@ describe('Meta callback', () => {
     assert.equal(await prisma.socialConnection.count({ where: { dealer_id: dealerId } }), 0);
   });
 
-  it('brings back a Page the dealer disconnected', async () => {
+  it('brings back a Page the dealer disconnected as the newest, so it does not take over as primary', async () => {
     const dealerId = await newDealer();
     await metaCallback(dealerId);
-    const second = (await rows(dealerId)).find((c) => c.platform_account_id === 'mock_fb_page_id_2')!;
-    await prisma.platformConnection.update({ where: { id: second.id }, data: { is_connected: false } });
+    const pageRow = async (id: string) => (await rows(dealerId)).find((c) => c.platform_account_id === id)!;
+    const first = await pageRow('mock_fb_page_id');
+    const second = await pageRow('mock_fb_page_id_2');
+    await prisma.platformConnection.update({ where: { id: first.id }, data: { created_at: new Date('2026-09-01T00:00:00Z'), is_connected: false } });
+    await prisma.platformConnection.update({ where: { id: second.id }, data: { created_at: new Date('2026-09-02T00:00:00Z') } });
 
     await metaCallback(dealerId);
 
-    assert.equal((await prisma.platformConnection.findUnique({ where: { id: second.id } }))?.is_connected, true);
-    assert.equal((await rows(dealerId)).length, 3);
+    const saved = await rows(dealerId);
+    assert.equal(saved.length, 3);
+    assert.equal(saved.find((c) => c.id === first.id)?.is_connected, true);
+    assert.equal(primaryConnection(saved, 'facebook')?.id, second.id);
   });
 
   it('stops at 30 connected accounts and says so', async () => {
@@ -95,10 +100,10 @@ describe('Meta callback', () => {
 
   it('reads every managed Page across result pages, each with its own Page token', async (t) => {
     const dealerId = await newDealer();
-    const calls: Array<{ url: string; params: Record<string, string> }> = [];
-    t.mock.method(axios, 'get', async (url: string, config: { params?: Record<string, string> } = {}) => {
+    const calls: Array<{ url: string; params: Record<string, string>; timeout: number | undefined }> = [];
+    t.mock.method(axios, 'get', async (url: string, config: { params?: Record<string, string>; timeout?: number } = {}) => {
       const params = config.params ?? {};
-      calls.push({ url, params });
+      calls.push({ url, params, timeout: config.timeout });
       if (url.endsWith('/oauth/access_token')) {
         return { data: params['grant_type'] === 'fb_exchange_token' ? { access_token: 'long-token', expires_in: 5_184_000 } : { access_token: 'short-token' } };
       }
@@ -120,6 +125,12 @@ describe('Meta callback', () => {
     assert.deepEqual([token('page-1'), token('page-2'), token('ig-1')], ['page-token-1', 'page-token-2', 'page-token-1']);
     assert.equal(calls.find((c) => c.url.endsWith('/me/accounts'))?.params['fields'], 'id,name,access_token');
     assert.equal(calls.find((c) => c.url.endsWith('/page-1'))?.params['fields'], 'instagram_business_account{id,username,name}');
+    // Every Graph call behind the redirect is bounded: both token exchanges, /me, the Page list and the lookups.
+    assert.deepEqual(
+      calls.filter((c) => c.timeout !== 15_000).map((c) => c.url),
+      [],
+    );
+    assert.equal(calls.filter((c) => c.url.endsWith('/oauth/access_token')).length, 2);
   });
 
   it("still saves a Page whose Instagram lookup throws", async (t) => {
@@ -284,6 +295,35 @@ describe('POST /v1/platforms/sync-instagram', () => {
       code: 'INSTAGRAM_LOOKUP_FAILED',
       message: 'Couldn\u2019t reach Facebook to check your Pages. Try again, or reconnect Facebook if this keeps happening.',
     });
+  });
+
+  it('checks the Pages at most 5 at a time and keeps them in age order', async (t) => {
+    const dealerId = await newDealer();
+    for (let i = 0; i < 8; i++) {
+      await prisma.platformConnection.create({
+        data: {
+          dealer_id: dealerId, platform: 'facebook', platform_account_id: `page-c${i}`, platform_account_name: `Page ${i}`,
+          access_token: `token-c${i}`, is_connected: true, created_at: new Date(Date.UTC(2026, 8, 1 + i)),
+        },
+      });
+    }
+    let inFlight = 0;
+    let maxInFlight = 0;
+    t.mock.method(axios, 'get', async (url: string) => {
+      const i = Number(url.split('page-c').at(-1));
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      // Later Pages answer first, so a list built in answer order would start with a later Page.
+      await new Promise((resolve) => setTimeout(resolve, (8 - i) * 4));
+      inFlight--;
+      return i % 2 === 0 ? { data: { instagram_business_account: { id: `ig-c${i}`, username: `ig${i}` } } } : { data: {} };
+    });
+
+    const res = await sync(dealerId);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.json(), { found: 4, accountName: '@ig0' });
+    assert.ok(maxInFlight > 1 && maxInFlight <= 5, `expected 2 to 5 lookups in flight, saw ${maxInFlight}`);
   });
 
   it('answers 409 when the account limit blocks every found account', async () => {

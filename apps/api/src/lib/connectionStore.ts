@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
-import { MAX_CONNECTED_ACCOUNTS, platformLabel, primaryConnection } from './connections.js';
+import { ACCOUNT_PLATFORMS, MAX_CONNECTED_ACCOUNTS, platformLabel, primaryConnection } from './connections.js';
 import { guardedWrite } from './guardedWrite.js';
 import { notify } from './notifications.js';
 
@@ -40,13 +40,20 @@ function findAccount(dealerId: string, input: Pick<ConnectionInput, 'platform' |
   });
 }
 
-async function writeAccount(dealerId: string, input: ConnectionInput, existing: PlatformConnection | null): Promise<PlatformConnection> {
+/** `asNewest` restamps `created_at`, so a returning account sorts after the platform's other accounts. */
+async function writeAccount(
+  dealerId: string,
+  input: ConnectionInput,
+  existing: PlatformConnection | null,
+  asNewest: boolean,
+): Promise<PlatformConnection> {
   const data = {
     platform_account_name: input.platform_account_name,
     access_token: input.access_token,
     token_expires_at: input.token_expires_at,
     is_connected: true,
     ...(input.refresh_token !== undefined ? { refresh_token: input.refresh_token } : {}),
+    ...(asNewest ? { created_at: new Date() } : {}),
   };
   // A row found by the compound fields is updated in place; its id stays whatever it already is.
   if (existing) return prisma.platformConnection.update({ where: { id: existing.id }, data });
@@ -76,13 +83,23 @@ async function writeAccount(dealerId: string, input: ConnectionInput, existing: 
 /**
  * Saves the accounts a connect flow returned, one row per account. An account that is already connected is
  * always refreshed. A new one, or one the dealer disconnected, is added only while the dealership has fewer
- * than MAX_CONNECTED_ACCOUNTS connected accounts; `limitReached` says some were left out.
+ * than MAX_CONNECTED_ACCOUNTS connected accounts on the Accounts page's platforms (ACCOUNT_PLATFORMS);
+ * `limitReached` says some were left out.
+ *
+ * A connect saves every account the provider returns, so it also brings back accounts the dealer disconnected.
+ * One that returns while its platform still has a connected account comes back as the newest, so it can't
+ * take over as primary (the oldest connected row) and receive posts that name no account. When the platform
+ * has no connected account left (e.g. reconnecting after a revoked grant), it keeps its age, so the original
+ * primary returns.
  */
 export async function saveConnections(
   dealerId: string,
   inputs: readonly ConnectionInput[],
 ): Promise<{ saved: PlatformConnection[]; limitReached: boolean }> {
-  let connected = await prisma.platformConnection.count({ where: { dealer_id: dealerId, is_connected: true } });
+  const connectedRows = await prisma.platformConnection.findMany({ where: { dealer_id: dealerId, is_connected: true } });
+  const livePlatforms = new Set(connectedRows.map((c) => c.platform));
+  const capped = (platform: string) => ACCOUNT_PLATFORMS.includes(platform);
+  let connected = connectedRows.filter((c) => capped(c.platform)).length;
   const saved: PlatformConnection[] = [];
   const seen = new Set<string>();
   let limitReached = false;
@@ -91,12 +108,13 @@ export async function saveConnections(
     if (seen.has(key)) continue;
     seen.add(key);
     const existing = await findAccount(dealerId, input);
-    const adds = !existing?.is_connected;
+    const adds = !existing?.is_connected && capped(input.platform);
     if (adds && connected >= MAX_CONNECTED_ACCOUNTS) {
       limitReached = true;
       continue;
     }
-    saved.push(await writeAccount(dealerId, input, existing));
+    const returning = existing !== null && !existing.is_connected;
+    saved.push(await writeAccount(dealerId, input, existing, returning && livePlatforms.has(input.platform)));
     if (adds) connected++;
   }
   return { saved, limitReached };

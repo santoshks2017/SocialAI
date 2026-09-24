@@ -229,16 +229,7 @@ describe('Facebook page connect keeps page tokens on the server', () => {
     });
   }
 
-  async function selectAccount(dealerId: string, platform: string, accountId: string) {
-    return fastify.inject({
-      method: 'POST',
-      url: '/v1/platform-accounts',
-      headers: bearer(dealerId),
-      payload: { platform, accountId },
-    });
-  }
-
-  it('lists pages without tokens and saves the picked page with its server-side token', async (t) => {
+  it('lists pages without tokens', async (t) => {
     mockGraphApi(t);
     const dealerId = await newDealer('pages-dealer');
     const code = await runCallback(dealerId);
@@ -252,31 +243,6 @@ describe('Facebook page connect keeps page tokens on the server', () => {
     assert.ok(body.tokenExpiry);
 
     assert.equal((await redeemPages(code, dealerId)).statusCode, 400, 'code must be single-use');
-    assert.equal((await selectAccount(dealerId, 'facebook', '999')).statusCode, 400, 'unknown page');
-
-    const saved = await selectAccount(dealerId, 'facebook', '222');
-    assert.equal(saved.statusCode, 200);
-    assert.ok(!saved.body.includes(PAGE_TOKENS['222']));
-    const connection = await prisma.platformConnection.findFirst({ where: { dealer_id: dealerId, platform: 'facebook' } });
-    assert.equal(connection?.platform_account_id, '222');
-    assert.equal(connection?.platform_account_name, 'Apex Used Cars');
-    assert.equal(connection?.access_token, PAGE_TOKENS['222']);
-
-    // The selection is consumed once a page is saved.
-    assert.equal((await selectAccount(dealerId, 'instagram', 'ig-1')).statusCode, 400);
-  });
-
-  it('saves an Instagram account with the token of its linked page', async (t) => {
-    mockGraphApi(t);
-    const dealerId = await newDealer('ig-dealer');
-    const code = await runCallback(dealerId);
-    assert.equal((await redeemPages(code, dealerId)).statusCode, 200);
-
-    const saved = await selectAccount(dealerId, 'instagram', 'ig-1');
-    assert.equal(saved.statusCode, 200);
-    const connection = await prisma.platformConnection.findFirst({ where: { dealer_id: dealerId, platform: 'instagram' } });
-    assert.equal(connection?.platform_account_name, 'apexmotors');
-    assert.equal(connection?.access_token, PAGE_TOKENS['111']);
   });
 
   it('refuses a code redeemed by a different dealer', async (t) => {
@@ -288,7 +254,6 @@ describe('Facebook page connect keeps page tokens on the server', () => {
     const stolen = await redeemPages(code, intruder);
     assert.equal(stolen.statusCode, 403);
     assert.equal(stolen.json().error.code, 'DEALER_MISMATCH');
-    assert.equal((await selectAccount(intruder, 'facebook', '111')).statusCode, 400);
   });
 
   it('requires authentication to redeem the page list', async (t) => {

@@ -184,6 +184,7 @@ export async function exchangeForLongLivedToken(shortLivedToken: string): Promis
         client_secret: appSecret,
         fb_exchange_token: shortLivedToken,
       },
+      timeout: 15_000,
     },
   );
   return res.data;
