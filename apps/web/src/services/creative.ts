@@ -45,6 +45,7 @@ export interface Post {
   video_url?: string | null;
   thumbnail_url?: string | null;
   platforms: string[];
+  connection_ids?: string[];
   status: PostStatus;
   scheduled_at?: string;
   published_at?: string;
@@ -133,6 +134,7 @@ export interface PostUpdate {
   captionHashtags?: string[];
   creativeUrls?: Record<string, string>;
   platforms?: string[];
+  connectionIds?: string[];
   mediaType?: 'image' | 'video';
   videoUrl?: string;
   thumbnailUrl?: string;
@@ -148,6 +150,7 @@ export const postService = {
   create: (data: {
     promptText: string;
     platforms: string[];
+    connectionIds?: string[];
     captionText?: string;
     captionHashtags?: string[];
     creativeUrls?: Record<string, string>;

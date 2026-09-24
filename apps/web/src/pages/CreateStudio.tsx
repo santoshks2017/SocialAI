@@ -8,12 +8,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDealerProfile } from '../contexts/DealerProfileContext';
 import { PERMISSIONS, can } from '../lib/permissions';
 import { ApiError } from '../services/api';
+import { accountsService } from '../services/accounts';
 import { creativeService, postService } from '../services/creative';
 import { createStudioService, type CarModelMatch, type GeneratedPost, type VideoEngineName } from '../services/createStudio';
 import {
-  LANGUAGES, dealerInitials, defaultPlatforms, initialLanguage, keepPreloadedCaption, limitIssues, mergeHashtags, outputFormat, platformOptions,
-  reelErrorMessage, scheduleFromQuery, shouldFallBackToQuickRender, togglePlatform,
-  type CreateType, type PlatformSpecs, type VisualSource,
+  LANGUAGES, accountSelection, connectedPlatformIds, dealerInitials, defaultPlatforms, initialLanguage, keepPreloadedCaption, limitIssues, mergeHashtags,
+  outputFormat, platformAccounts, platformOptions, reelErrorMessage, scheduleFromQuery, selectedConnectionIds, shouldFallBackToQuickRender, toggleAccount,
+  togglePlatform, type CreateType, type PlatformSpecs, type StudioAccount, type VisualSource,
 } from '../utils/createStudio';
 import { waitForVideoJob } from '../utils/videoJobPolling';
 import { firstCreative } from '../utils/posts';
@@ -65,9 +66,11 @@ function CreateStudio() {
   const [languageChoice, setLanguageChoice] = useState<string | null>(null);
   const [source, setSource] = useState<VisualSource>('generate_scratch');
   const [prompt, setPrompt] = useState(() => (params.get('prompt') ?? '').slice(0, 500));
-  const [connected, setConnected] = useState<string[]>([]);
+  const [accounts, setAccounts] = useState<StudioAccount[]>([]);
   const [specs, setSpecs] = useState<PlatformSpecs | null>(null);
   const [picked, setPicked] = useState<string[] | null>(null);
+  // Account ids chosen in the "Post to" account chips; null until the dealer picks (the primary is preselected).
+  const [pickedAccounts, setPickedAccounts] = useState<string[] | null>(null);
   const [matchedCar, setMatchedCar] = useState<CarModelMatch | null>(null);
   const [matching, setMatching] = useState(false);
   const [uploadUrl, setUploadUrl] = useState<string | null>(null);
@@ -93,7 +96,9 @@ function CreateStudio() {
 
   // Derived: the language follows the dealer profile until picked; platforms default to every connected one.
   const language = languageChoice ?? initialLanguage(profile?.language_preferences);
+  const connected = connectedPlatformIds(accounts);
   const selected = picked ?? defaultPlatforms(type, connected);
+  const selection = accountSelection(accounts, selected, pickedAccounts);
   const format = outputFormat(type, selected, specs);
   const issues = limitIssues(type, selected, specs, caption, hashtags);
   const hasContent = type === 'image' ? !!result : !!reel;
@@ -107,8 +112,8 @@ function CreateStudio() {
 
   useEffect(() => {
     let cancelled = false;
-    createStudioService.connectedPlatforms()
-      .then((ids) => { if (!cancelled) setConnected(ids); })
+    accountsService.list()
+      .then((list) => { if (!cancelled) setAccounts(list); })
       .catch(() => {});
     createStudioService.platformSpecs()
       .then((data) => { if (!cancelled) setSpecs(data); })
@@ -134,6 +139,7 @@ function CreateStudio() {
         setCaption(data.caption_text ?? '');
         setHashtags(mergeHashtags([], data.caption_hashtags ?? []));
         setPicked(data.platforms);
+        setPickedAccounts(data.connection_ids?.length ? data.connection_ids : null);
         if (isVideo && data.video_url) {
           setReel({ videoUrl: data.video_url, thumbnailUrl: data.thumbnail_url ?? null });
         } else {
@@ -337,6 +343,7 @@ function CreateStudio() {
       captionText: caption,
       captionHashtags: hashtags,
       platforms: selected,
+      connectionIds: selectedConnectionIds(selection),
       ...(type === 'image' && selectedCreative ? { creativeUrls: Object.fromEntries(selected.map((p) => [p, selectedCreative])) } : {}),
     };
     if (savedId) {
@@ -417,6 +424,7 @@ function CreateStudio() {
     setDesignIdx(0);
     setSavedId(null);
     setPicked(null);
+    setPickedAccounts(null);
     navigate('/create', { replace: true });
   };
 
@@ -479,7 +487,9 @@ function CreateStudio() {
             options={platformOptions(type, connected)}
             selected={selected}
             format={format}
+            accountChoices={Object.entries(selection).map(([platform, ids]) => ({ platform, accounts: platformAccounts(accounts, platform), selected: ids }))}
             onToggle={(id) => setPicked(togglePlatform(selected, id))}
+            onToggleAccount={(platform, id) => setPickedAccounts(toggleAccount(selection, platform, id))}
             onConnect={() => navigate('/accounts')}
           />
           {type === 'image' && <SourcePicker value={source} onChange={changeSource} />}
