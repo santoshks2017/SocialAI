@@ -45,6 +45,7 @@ import billingRoutes from './routes/billing.js';
 import adminRoutes from './routes/admin.js';
 import apiConnectionRoutes from './routes/apiConnections.js';
 import notificationRoutes from './routes/notifications.js';
+import eventRoutes from './routes/events.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 import { getFrontendUrl } from './lib/frontendUrl.js';
 
@@ -169,6 +170,7 @@ fastify.register(billingRoutes,         { prefix: '/v1/billing' });
 fastify.register(apiConnectionRoutes,   { prefix: '/v1/admin/api-connections' });
 fastify.register(adminRoutes,           { prefix: '/v1/admin' });
 fastify.register(notificationRoutes,    { prefix: '/v1/notifications' });
+fastify.register(eventRoutes,           { prefix: '/v1/events' });
 
 fastify.get('/v1/health', async () => ({
   status: 'ok',

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import type { Lead } from '../generated/client/index.js';
+import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 
 function mapLead(l: Lead) {
   return {
@@ -17,6 +18,14 @@ function mapLead(l: Lead) {
     notes: l.notes ?? undefined,
     createdAt: new Date(l.created_at).toISOString(),
   };
+}
+
+// A message turned into a lead is tagged "lead", unless someone already chose another tag.
+async function tagMessageAsLead(dealerId: string, messageId: string): Promise<void> {
+  const message = await prisma.inboxMessage.findFirst({ where: { id: messageId, dealer_id: dealerId } });
+  if (message && (message.tag === null || message.tag === 'general')) {
+    await prisma.inboxMessage.update({ where: { id: message.id }, data: { tag: 'lead' } });
+  }
 }
 
 export default async function leadsRoutes(fastify: FastifyInstance) {
@@ -60,22 +69,35 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     return { item: mapLead(lead) };
   });
 
-  // POST /v1/leads — create lead
-  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  // POST /v1/leads — create a lead. Leads come from the Inbox ("Mark as lead"), so this needs reply_inbox.
+  // One lead per inbox message: a repeat for the same sourceMessageId returns the existing lead (200).
+  fastify.post('/', { preHandler: [fastify.authenticate, requirePermissionHook(PERMISSIONS.REPLY_INBOX)] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
-    const body = request.body as {
-      customerName: string;
+    const body = (request.body ?? {}) as {
+      customerName?: string;
       customerPhone?: string;
       sourcePlatform?: string;
       sourceType?: string;
       sourcePostId?: string;
       sourceCampaignId?: string;
-      sourceMessageId?: string;
+      sourceMessageId?: unknown;
       vehicleInterest?: string;
       notes?: string;
     };
 
     if (!body.customerName) return reply.code(400).send({ error: 'customerName is required' });
+    if (body.sourceMessageId !== undefined && typeof body.sourceMessageId !== 'string') {
+      return reply.code(400).send({ error: 'sourceMessageId must be a string' });
+    }
+    const sourceMessageId = body.sourceMessageId;
+
+    if (sourceMessageId) {
+      const existing = await prisma.lead.findFirst({ where: { dealer_id, source_message_id: sourceMessageId } });
+      if (existing) {
+        await tagMessageAsLead(dealer_id, sourceMessageId);
+        return reply.code(200).send({ item: mapLead(existing) });
+      }
+    }
 
     const lead = await prisma.lead.create({
       data: {
@@ -86,11 +108,12 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         source_type: body.sourceType ?? 'inbox',
         ...(body.sourcePostId !== undefined ? { source_post_id: body.sourcePostId } : {}),
         ...(body.sourceCampaignId !== undefined ? { source_campaign_id: body.sourceCampaignId } : {}),
-        ...(body.sourceMessageId !== undefined ? { source_message_id: body.sourceMessageId } : {}),
+        ...(sourceMessageId !== undefined ? { source_message_id: sourceMessageId } : {}),
         ...(body.vehicleInterest !== undefined ? { vehicle_interest: body.vehicleInterest } : {}),
         ...(body.notes !== undefined ? { notes: body.notes } : {}),
       },
     });
+    if (sourceMessageId) await tagMessageAsLead(dealer_id, sourceMessageId);
 
     return reply.code(201).send({ item: mapLead(lead) });
   });
