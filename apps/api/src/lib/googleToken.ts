@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const RECONNECT_HINT = 'Reconnect Google Business Profile in Settings, then publish again.';
+const REFRESH_TIMEOUT_MS = 15_000;
 
 export interface GoogleTokenConnection {
   id: string;
@@ -40,6 +41,7 @@ export async function getFreshGoogleAccessToken(conn: GoogleTokenConnection): Pr
       client_id: clientId,
       client_secret: clientSecret,
     }),
+    signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
   });
   const body = (await res.json().catch(() => ({}))) as {
     access_token?: string;

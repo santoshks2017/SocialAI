@@ -11,7 +11,7 @@ import { ApiError } from '../services/api';
 import { creativeService, postService } from '../services/creative';
 import { createStudioService, type CarModelMatch, type GeneratedPost, type VideoEngineName } from '../services/createStudio';
 import {
-  LANGUAGES, dealerInitials, defaultPlatforms, initialLanguage, limitIssues, mergeHashtags, outputFormat, platformOptions,
+  LANGUAGES, dealerInitials, defaultPlatforms, initialLanguage, keepPreloadedCaption, limitIssues, mergeHashtags, outputFormat, platformOptions,
   reelErrorMessage, scheduleFromQuery, shouldFallBackToQuickRender, togglePlatform,
   type CreateType, type PlatformSpecs, type VisualSource,
 } from '../utils/createStudio';
@@ -25,6 +25,8 @@ import { PublishActions } from '../components/create/PublishActions';
 import { ScheduleModal } from '../components/create/ScheduleModal';
 import { SuccessScreen, type CreateOutcome } from '../components/create/SuccessScreen';
 import { CanvasStudio } from '../components/CreatePost/CanvasStudio';
+import { trackEvent } from '../services/events';
+import { captionEventFor } from '../utils/analytics';
 
 type Action = 'publish' | 'schedule' | 'approval';
 
@@ -86,6 +88,8 @@ function CreateStudio() {
   const [canvasOpen, setCanvasOpen] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
   const aliveRef = useRef(true);
+  // The caption the AI last produced for the chosen design or reel, compared with the saved caption for usage events.
+  const generatedCaptionRef = useRef<string | null>(null);
 
   // Derived: the language follows the dealer profile until picked; platforms default to every connected one.
   const language = languageChoice ?? initialLanguage(profile?.language_preferences);
@@ -137,6 +141,10 @@ function CreateStudio() {
           if (url) {
             setResult({ creatives: [url], copies: [{ caption: data.caption_text ?? '', hashtags: data.caption_hashtags ?? [] }] });
             setDesignIdx(0);
+          } else if (data.caption_text) {
+            // A drafted caption without a design yet (Inbox "Turn into post") counts as generated:
+            // saving it unchanged is caption.accepted.
+            generatedCaptionRef.current = data.caption_text;
           }
         }
       })
@@ -165,7 +173,8 @@ function CreateStudio() {
   }, [result, reel]);
 
   // Polls a reel job. `retry` re-renders with the quick engine when a premium (Veo) render fails.
-  const followReel = async (jobId: string, retry: (() => Promise<void>) | null, isCancelled: () => boolean): Promise<void> => {
+  // `keepCaption`: the drafted caption stays instead of the reel's generated one (see keepPreloadedCaption).
+  const followReel = async (jobId: string, retry: (() => Promise<void>) | null, isCancelled: () => boolean, keepCaption = false): Promise<void> => {
     const polled = await waitForVideoJob(() => createStudioService.videoStatus(jobId), { isCancelled, isFatal: isMissingJobError });
     if (polled.kind === 'cancelled') return;
     if (polled.kind === 'missing') {
@@ -179,8 +188,11 @@ function CreateStudio() {
     const job = polled.job;
     if (polled.kind === 'ready' && job.video_url) {
       setReel({ videoUrl: job.video_url, thumbnailUrl: job.thumbnail_url });
-      setCaption((current) => job.caption ?? current);
-      setHashtags(mergeHashtags([], job.hashtags));
+      if (!keepCaption) {
+        setCaption((current) => job.caption ?? current);
+        generatedCaptionRef.current = job.caption ?? null;
+        setHashtags(mergeHashtags([], job.hashtags));
+      }
       addToast({ type: 'success', title: 'Reel ready!', message: 'Your video is ready to publish.' });
       return;
     }
@@ -192,7 +204,7 @@ function CreateStudio() {
     addToast({ type: 'error', title: 'Reel failed', message: reelErrorMessage(job.error?.code) });
   };
 
-  const startReel = async (engine?: VideoEngineName): Promise<void> => {
+  const startReel = async (engine?: VideoEngineName, keepCaption = false): Promise<void> => {
     const started = await createStudioService.startVideo({
       prompt: prompt.trim(),
       language,
@@ -202,7 +214,7 @@ function CreateStudio() {
       ...(engine ? { engine } : {}),
     });
     addToast({ type: 'info', title: 'Generating video', message: 'This takes a minute or two. You can leave this page — we’ll notify you when it’s ready.' });
-    await followReel(started.job_id, started.engine === 'veo' ? () => startReel('kenburns') : null, () => !aliveRef.current);
+    await followReel(started.job_id, started.engine === 'veo' ? () => startReel('kenburns', keepCaption) : null, () => !aliveRef.current, keepCaption);
   };
 
   // ?job=<id> (from the "reel ready" notification): pick the job back up once.
@@ -224,19 +236,27 @@ function CreateStudio() {
       addToast({ type: 'error', title: source === 'add_inspiration' ? 'Upload a reference image' : 'Upload your creative' });
       return;
     }
+    // Editing a drafted caption with no design yet: the first generate keeps it (and its hashtags).
+    const keepCaption = keepPreloadedCaption({ editing: !!editId, currentCaption: caption, hasResult: !!result || !!reel });
+    // Replacing an unsaved generated caption rejects it.
+    if (!keepCaption && generatedCaptionRef.current !== null) trackEvent('caption.rejected', { type });
     setGenerating(true);
     try {
       if (type === 'reel') {
-        await startReel();
+        await startReel(undefined, keepCaption);
         return;
       }
       const generated = await createStudioService.generatePost({ prompt: text || FALLBACK_PROMPT, language, source, uploadUrl, car: uploadUrl ? null : matchedCar });
       if (generated.creatives.length === 0) throw new Error('No designs came back.');
-      setResult(generated);
+      // Without their generated copy, picking another design keeps the drafted caption too.
+      setResult(keepCaption ? { ...generated, copies: [] } : generated);
       setDesignIdx(0);
-      const first = generated.copies[0];
-      setCaption(first?.caption ?? '');
-      setHashtags(mergeHashtags([], first?.hashtags ?? []));
+      if (!keepCaption) {
+        const first = generated.copies[0];
+        setCaption(first?.caption ?? '');
+        generatedCaptionRef.current = first?.caption ?? null;
+        setHashtags(mergeHashtags([], first?.hashtags ?? []));
+      }
       addToast({ type: 'success', title: 'Post ready!', message: 'Pick a design and publish.' });
     } catch (err) {
       if (type === 'reel') {
@@ -258,6 +278,7 @@ function CreateStudio() {
     setDesignIdx(index);
     const copy = result?.copies[index] ?? result?.copies[0];
     if (copy) {
+      generatedCaptionRef.current = copy.caption;
       setCaption(copy.caption);
       setHashtags(mergeHashtags([], copy.hashtags));
     }
@@ -299,6 +320,13 @@ function CreateStudio() {
     }
   };
 
+  // Once per generated caption, on the first save: kept as the AI wrote it (accepted) or changed (edited).
+  const reportCaption = () => {
+    const event = captionEventFor(generatedCaptionRef.current, caption);
+    if (event) trackEvent(event, { type });
+    generatedCaptionRef.current = null;
+  };
+
   // Creates the post once, then updates the same draft on later attempts (or in edit mode).
   const savePost = async (): Promise<string> => {
     const video = type === 'reel' && reel
@@ -313,10 +341,12 @@ function CreateStudio() {
     };
     if (savedId) {
       await postService.update(savedId, { ...content, mediaType: type === 'reel' ? 'video' : 'image', ...(video ?? {}) });
+      reportCaption();
       return savedId;
     }
     const { item } = await postService.create({ ...content, ...(video ? { mediaType: 'video' as const, ...video } : {}) });
     setSavedId(item.id);
+    reportCaption();
     return item.id;
   };
 
@@ -464,6 +494,8 @@ function CreateStudio() {
             onFile={(file) => { void attach(file); }}
             onClear={() => setUploadUrl(null)}
           />
+          {/* Edit mode before any result: the drafted caption is visible and editable straight away. */}
+          {editId && !hasContent && captionEditor(3)}
           <Button className="w-full" onClick={() => { void generate(); }} disabled={generating || selected.length === 0}>
             {generating
               ? <><LoaderCircle className="w-4 h-4 animate-spin" /> Generating…</>

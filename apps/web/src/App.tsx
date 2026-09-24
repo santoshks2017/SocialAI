@@ -11,7 +11,8 @@ import CalendarPage from './pages/Calendar';
 import InboxPage from './pages/InboxPage';
 import InventoryPage from './pages/Inventory';
 import BoostPage from './pages/Boost';
-import AnalyticsPage from './pages/Analytics';
+import AnalyticsPage from './pages/AnalyticsPage';
+import ReportPage from './pages/ReportPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import SettingsPage from './pages/SettingsPage';
 import AccountsPage from './pages/AccountsPage';
@@ -80,6 +81,8 @@ function AppRoutes() {
       <Route path="/inbox" element={<RequireAuth><AppLayout><InboxPage /></AppLayout></RequireAuth>} />
       <Route path="/inventory" element={<RequireAuth><AppLayout><InventoryPage /></AppLayout></RequireAuth>} />
       <Route path="/analytics" element={<RequireAuth><AppLayout><AnalyticsPage /></AppLayout></RequireAuth>} />
+      {/* Printable report: signed in, but outside AppLayout so it prints without the app shell. */}
+      <Route path="/report" element={<RequireAuth><ReportPage /></RequireAuth>} />
       <Route path="/boost" element={<RequireAuth><AppLayout><BoostPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts" element={<RequireAuth><AppLayout><AccountsPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectProfilesPage /></AppLayout></RequireAuth>} />

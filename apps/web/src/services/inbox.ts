@@ -1,26 +1,7 @@
 import api from './api';
+import type { ApiInboxMessage, ApiPlatform, InboxTag } from '../utils/inbox';
 
-export interface InboxMessage {
-  id: string;
-  dealerId: string;
-  platform: 'facebook' | 'instagram' | 'gmb' | 'email';
-  messageType: 'comment' | 'dm' | 'review' | 'email';
-  platformMessageId: string;
-  postId?: string;
-  customerName: string;
-  customerAvatarUrl?: string;
-  customerPlatformId?: string;
-  emailSubject?: string;
-  messageText: string;
-  sentiment?: 'positive' | 'neutral' | 'negative';
-  tag?: 'lead' | 'complaint' | 'general' | 'spam';
-  aiSuggestedReply?: string;
-  replyText?: string;
-  repliedAt?: string;
-  isRead: boolean;
-  requiresApproval: boolean;
-  receivedAt: string;
-}
+export type InboxMessage = ApiInboxMessage;
 
 export interface AutoReplyTemplate {
   id: string;
@@ -52,7 +33,7 @@ export interface Lead {
   dealerId: string;
   customerName?: string;
   customerPhone?: string;
-  sourcePlatform?: 'facebook' | 'instagram' | 'gmb' | 'email';
+  sourcePlatform?: ApiPlatform;
   sourceType?: 'post' | 'campaign' | 'inbox';
   sourcePostId?: string;
   sourceCampaignId?: string;
@@ -65,11 +46,35 @@ export interface Lead {
 export interface CreateLeadRequest {
   customerName: string;
   customerPhone?: string;
-  sourcePlatform: 'facebook' | 'instagram' | 'gmb' | 'email';
+  sourcePlatform: ApiPlatform;
   sourceMessageId?: string;
   vehicleInterest?: string;
   notes?: string;
 }
+
+/** Editable fields of an auto-reply rule, as the page holds them (snake_case, like the rules the API returns). */
+export interface RuleInput {
+  platform: string;
+  message_type: string;
+  condition_type: string;
+  condition_value: string;
+  action_type: string;
+  ai_tone: string | null;
+  template_id: string | null;
+  is_active: boolean;
+}
+
+// The rules API reads camelCase fields.
+const ruleBody = (r: Partial<RuleInput>) => ({
+  platform: r.platform,
+  messageType: r.message_type,
+  conditionType: r.condition_type,
+  conditionValue: r.condition_value,
+  actionType: r.action_type,
+  aiTone: r.ai_tone ?? undefined,
+  templateId: r.template_id ?? undefined,
+  isActive: r.is_active,
+});
 
 export const inboxService = {
   list: (params?: {
@@ -81,24 +86,27 @@ export const inboxService = {
     search?: string;
   }) =>
     api.get<{ items: InboxMessage[]; total: number; unreadCount: number }>('/inbox', params),
-  
+
+  pendingCount: () =>
+    api.get<{ pending: number }>('/inbox/pending-count'),
+
   get: (id: string) =>
     api.get<{ item: InboxMessage }>(`/inbox/${id}`),
-  
+
   markRead: (id: string) =>
     api.patch<{ item: InboxMessage }>(`/inbox/${id}`, { isRead: true }),
-  
+
   markAllRead: () =>
     api.post<{ success: boolean }>('/inbox/mark-all-read'),
-  
-  updateTag: (id: string, tag: InboxMessage['tag']) =>
+
+  updateTag: (id: string, tag: InboxTag | null) =>
     api.patch<{ item: InboxMessage }>(`/inbox/${id}`, { tag }),
-  
+
   sendReply: (id: string, replyText: string) =>
     api.post<{ item: InboxMessage; delivered?: boolean }>(`/inbox/${id}/reply`, { replyText }),
-  
+
   generateReply: (id: string, tone?: string) =>
-    api.post<{ suggestedReply: string }>(`/inbox/${id}/suggest-reply`, { tone }),
+    api.post<{ suggestedReply: string; suggestions?: string[] }>(`/inbox/${id}/suggest-reply`, tone ? { tone } : {}),
 
   getSettings: () =>
     api.get<{ autoReplyEnabled: boolean }>('/inbox/settings'),
@@ -109,11 +117,11 @@ export const inboxService = {
   listRules: () =>
     api.get<{ items: AutoReplyRule[] }>('/inbox/rules'),
 
-  createRule: (data: Partial<AutoReplyRule>) =>
-    api.post<{ item: AutoReplyRule }>('/inbox/rules', data),
+  createRule: (data: RuleInput) =>
+    api.post<{ item: AutoReplyRule }>('/inbox/rules', ruleBody(data)),
 
-  updateRule: (id: string, data: Partial<AutoReplyRule>) =>
-    api.put<{ item: AutoReplyRule }>(`/inbox/rules/${id}`, data),
+  updateRule: (id: string, data: Partial<RuleInput>) =>
+    api.put<{ item: AutoReplyRule }>(`/inbox/rules/${id}`, ruleBody(data)),
 
   deleteRule: (id: string) =>
     api.delete<{ success: boolean }>(`/inbox/rules/${id}`),
@@ -130,8 +138,9 @@ export const inboxService = {
   deleteTemplate: (id: string) =>
     api.delete<{ success: boolean }>(`/inbox/templates/${id}`),
 
+  // "Turn into post" only needs the new draft's id (it opens /create?edit=<id>).
   generatePostDraft: (id: string) =>
-    api.post<{ post: any }>(`/inbox/${id}/generate-post-draft`),
+    api.post<{ post: { id: string } }>(`/inbox/${id}/generate-post-draft`),
 
   seedMockEmails: () =>
     api.post<{ items: InboxMessage[] }>('/inbox/mock/seed'),

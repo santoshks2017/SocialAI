@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import type { Lead } from '../generated/client/index.js';
+import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 
 function mapLead(l: Lead) {
   return {
@@ -18,6 +20,22 @@ function mapLead(l: Lead) {
     createdAt: new Date(l.created_at).toISOString(),
   };
 }
+
+// A message turned into a lead is tagged "lead", unless someone already chose another tag.
+async function tagMessageAsLead(dealerId: string, messageId: string): Promise<void> {
+  const message = await prisma.inboxMessage.findFirst({ where: { id: messageId, dealer_id: dealerId } });
+  if (message && (message.tag === null || message.tag === 'general')) {
+    await prisma.inboxMessage.update({ where: { id: message.id }, data: { tag: 'lead' } });
+  }
+}
+
+// Deterministic id for the lead of a given message, so two concurrent "Mark as lead" calls (or a
+// client retry) collide on create instead of each inserting their own row (mirrors inboxMessageDocId).
+export function leadDocId(dealerId: string, sourceMessageId: string): string {
+  return `lead_${createHash('sha256').update(`${dealerId}:${sourceMessageId}`).digest('hex').slice(0, 32)}`;
+}
+
+const isDuplicate = (err: unknown) => (err as { code?: unknown } | null)?.code === 'P2002';
 
 export default async function leadsRoutes(fastify: FastifyInstance) {
   // GET /v1/leads — list leads
@@ -60,39 +78,66 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     return { item: mapLead(lead) };
   });
 
-  // POST /v1/leads — create lead
-  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  // POST /v1/leads — create a lead. Leads come from the Inbox ("Mark as lead"), so this needs reply_inbox.
+  // One lead per inbox message: a repeat for the same sourceMessageId returns the existing lead (200).
+  fastify.post('/', { preHandler: [fastify.authenticate, requirePermissionHook(PERMISSIONS.REPLY_INBOX)] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string;
-    const body = request.body as {
-      customerName: string;
+    const body = (request.body ?? {}) as {
+      customerName?: string;
       customerPhone?: string;
       sourcePlatform?: string;
       sourceType?: string;
       sourcePostId?: string;
       sourceCampaignId?: string;
-      sourceMessageId?: string;
+      sourceMessageId?: unknown;
       vehicleInterest?: string;
       notes?: string;
     };
 
     if (!body.customerName) return reply.code(400).send({ error: 'customerName is required' });
+    if (body.sourceMessageId !== undefined && typeof body.sourceMessageId !== 'string') {
+      return reply.code(400).send({ error: 'sourceMessageId must be a string' });
+    }
+    const sourceMessageId = body.sourceMessageId;
 
-    const lead = await prisma.lead.create({
-      data: {
-        dealer_id,
-        customer_name: body.customerName,
-        ...(body.customerPhone !== undefined ? { customer_phone: body.customerPhone } : {}),
-        ...(body.sourcePlatform !== undefined ? { source_platform: body.sourcePlatform } : {}),
-        source_type: body.sourceType ?? 'inbox',
-        ...(body.sourcePostId !== undefined ? { source_post_id: body.sourcePostId } : {}),
-        ...(body.sourceCampaignId !== undefined ? { source_campaign_id: body.sourceCampaignId } : {}),
-        ...(body.sourceMessageId !== undefined ? { source_message_id: body.sourceMessageId } : {}),
-        ...(body.vehicleInterest !== undefined ? { vehicle_interest: body.vehicleInterest } : {}),
-        ...(body.notes !== undefined ? { notes: body.notes } : {}),
-      },
-    });
+    if (sourceMessageId) {
+      const existing = await prisma.lead.findFirst({ where: { dealer_id, source_message_id: sourceMessageId } });
+      if (existing) {
+        await tagMessageAsLead(dealer_id, sourceMessageId);
+        return reply.code(200).send({ item: mapLead(existing) });
+      }
+    }
 
-    return reply.code(201).send({ item: mapLead(lead) });
+    let lead: Lead;
+    let created = true;
+    try {
+      lead = await prisma.lead.create({
+        data: {
+          // A deterministic id when we know the message, so a racing duplicate create fails with P2002
+          // instead of inserting a second lead for the same message.
+          ...(sourceMessageId ? { id: leadDocId(dealer_id, sourceMessageId) } : {}),
+          dealer_id,
+          customer_name: body.customerName,
+          ...(body.customerPhone !== undefined ? { customer_phone: body.customerPhone } : {}),
+          ...(body.sourcePlatform !== undefined ? { source_platform: body.sourcePlatform } : {}),
+          source_type: body.sourceType ?? 'inbox',
+          ...(body.sourcePostId !== undefined ? { source_post_id: body.sourcePostId } : {}),
+          ...(body.sourceCampaignId !== undefined ? { source_campaign_id: body.sourceCampaignId } : {}),
+          ...(sourceMessageId !== undefined ? { source_message_id: sourceMessageId } : {}),
+          ...(body.vehicleInterest !== undefined ? { vehicle_interest: body.vehicleInterest } : {}),
+          ...(body.notes !== undefined ? { notes: body.notes } : {}),
+        },
+      });
+    } catch (err) {
+      if (!sourceMessageId || !isDuplicate(err)) throw err;
+      const raced = await prisma.lead.findFirst({ where: { id: leadDocId(dealer_id, sourceMessageId), dealer_id } });
+      if (!raced) throw err;
+      lead = raced;
+      created = false;
+    }
+    if (sourceMessageId) await tagMessageAsLead(dealer_id, sourceMessageId);
+
+    return reply.code(created ? 201 : 200).send({ item: mapLead(lead) });
   });
 
   // PATCH /v1/leads/:id — update lead

@@ -16,6 +16,7 @@ import { startWorkers } from './workers/index.js';
 
 import authRoutes from './routes/auth.js';
 import dealerRoutes from './routes/dealer.js';
+import dealerAnalyticsRoutes from './routes/dealerAnalytics.js';
 import platformRoutes from './routes/platform.js';
 import platformSpecRoutes from './routes/platformSpecs.js';
 import creativeRoutes from './routes/creative.js';
@@ -38,12 +39,12 @@ import generatePostRoutes from './routes/generatePost.js';
 import generateFromUrlRoutes from './routes/generateFromUrl.js';
 import platformAccountRoutes from './routes/platformAccounts.js';
 import cronRoutes from './routes/cron.js';
-import analyticsRoutes from './routes/analytics.js';
 import modelLibraryRoutes from './routes/modelLibrary.js';
 import billingRoutes from './routes/billing.js';
 import adminRoutes from './routes/admin.js';
 import apiConnectionRoutes from './routes/apiConnections.js';
 import notificationRoutes from './routes/notifications.js';
+import eventRoutes from './routes/events.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 import { getFrontendUrl } from './lib/frontendUrl.js';
 
@@ -139,6 +140,7 @@ fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request
 // Routes
 fastify.register(authRoutes,      { prefix: '/v1/auth' });
 fastify.register(dealerRoutes,    { prefix: '/v1/dealer' });
+fastify.register(dealerAnalyticsRoutes, { prefix: '/v1/dealer' });
 fastify.register(platformRoutes,  { prefix: '/v1/platforms' });
 fastify.register(platformSpecRoutes, { prefix: '/v1/platform-specs' });
 fastify.register(creativeRoutes,  { prefix: '/v1/creatives' });
@@ -161,12 +163,12 @@ fastify.register(generatePostRoutes,{ prefix: '/v1' });
 fastify.register(generateFromUrlRoutes, { prefix: '/v1' });
 fastify.register(platformAccountRoutes, { prefix: '/v1/platform-accounts' });
 fastify.register(cronRoutes,            { prefix: '/v1/cron' });
-fastify.register(analyticsRoutes,       { prefix: '/v1/analytics' });
 fastify.register(modelLibraryRoutes,    { prefix: '/v1/model-library' });
 fastify.register(billingRoutes,         { prefix: '/v1/billing' });
 fastify.register(apiConnectionRoutes,   { prefix: '/v1/admin/api-connections' });
 fastify.register(adminRoutes,           { prefix: '/v1/admin' });
 fastify.register(notificationRoutes,    { prefix: '/v1/notifications' });
+fastify.register(eventRoutes,           { prefix: '/v1/events' });
 
 fastify.get('/v1/health', async () => ({
   status: 'ok',

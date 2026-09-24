@@ -1,4 +1,4 @@
-import { describe, it, before, after, afterEach } from 'node:test';
+import { describe, it, before, after, afterEach, mock } from 'node:test';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -84,6 +84,8 @@ describe('POST /v1/cron/publish sweep (cron.ts)', () => {
   let app: FastifyInstance;
 
   before(async () => {
+    // The cron's maintenance run (post metrics, follower counts) must never reach a real platform from these tests.
+    mock.method(axios, 'get', async (url: string) => { throw new Error(`unexpected GET ${url}`); });
     process.env['NODE_ENV'] = 'test';
     delete process.env['CRON_SECRET'];
     app = Fastify();
@@ -92,6 +94,7 @@ describe('POST /v1/cron/publish sweep (cron.ts)', () => {
   });
 
   after(async () => {
+    mock.restoreAll();
     process.env['NODE_ENV'] = originalNodeEnv;
     if (originalSecret !== undefined) process.env['CRON_SECRET'] = originalSecret;
     await app.close();

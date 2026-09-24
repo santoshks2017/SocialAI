@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import { getUpcomingFestivals } from '../services/festivalCalendar.js';
+import { totalReach as postReach } from '../lib/postMetrics.js';
 
 
 
@@ -115,7 +116,9 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
   }, async (request, _reply) => {
     const dealer_id = request.user.dealer_id!;
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Month boundaries in UTC, whatever the server's time zone.
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const lastMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7);
 
     // Fetch dealer's profile to resolve their city/state for regional festivals
@@ -127,7 +130,7 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
     const [
       postsThisMonth,
       postsLastMonth,
-      reachAgg,
+      publishedPosts,
       leadsThisMonth,
       leadsLastWeek,
       inboxPending,
@@ -136,8 +139,8 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       activeBoosts,
     ] = await Promise.all([
       prisma.post.count({ where: { dealer_id, created_at: { gte: monthStart } } }),
-      prisma.post.count({ where: { dealer_id, created_at: { gte: new Date(now.getFullYear(), now.getMonth() - 1, 1), lt: monthStart } } }),
-      prisma.post.findMany({ where: { dealer_id, status: 'published' }, select: { metrics: true } }),
+      prisma.post.count({ where: { dealer_id, created_at: { gte: lastMonthStart, lt: monthStart } } }),
+      prisma.post.findMany({ where: { dealer_id, status: 'published' }, select: { metrics: true, published_at: true } }),
       prisma.lead.count({ where: { dealer_id, created_at: { gte: monthStart } } }),
       prisma.lead.count({ where: { dealer_id, created_at: { gte: weekStart } } }),
       prisma.inboxMessage.count({ where: { dealer_id, is_read: false } }),
@@ -158,18 +161,24 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
 
     const upcomingFestivals = getUpcomingFestivals(dealer?.city, dealer?.state, 3);
 
-    const totalReach = reachAgg.reduce((sum, p) => {
-      const m = p.metrics as Record<string, unknown> | null;
-      const r = (m?.facebook as Record<string,unknown>)?.reach ?? (m?.instagram as Record<string,unknown>)?.reach ?? 0;
-      return sum + (typeof r === 'number' ? r : 0);
-    }, 0);
+    // Facebook + Instagram reach plus Google Business Profile views (lib/postMetrics.ts), as Analytics counts it.
+    const totalReach = publishedPosts.reduce((sum, p) => sum + postReach(p.metrics), 0);
+    const publishedIn = (from: Date, to?: Date) =>
+      publishedPosts.filter((p) => p.published_at && p.published_at >= from && (!to || p.published_at < to));
+    const publishedBetween = (from: Date, to?: Date) => publishedIn(from, to).length;
+    const publishedThisMonth = publishedBetween(monthStart);
+    // Month-to-date reach (the Report and the monthly recap): posts published since the 1st, UTC.
+    const reachThisMonth = publishedIn(monthStart).reduce((sum, p) => sum + postReach(p.metrics), 0);
 
     return {
       success: true,
       stats: {
         postsThisMonth,
         postsChange: postsThisMonth - postsLastMonth,
+        publishedThisMonth,
+        publishedChange: publishedThisMonth - publishedBetween(lastMonthStart, monthStart),
         totalReach,
+        reachThisMonth,
         leadsGenerated: leadsThisMonth,
         leadsThisWeek: leadsLastWeek,
         inboxPending,
@@ -178,26 +187,6 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       recentPosts,
       upcomingFestivals,
       activeBoosts,
-    };
-  });
-
-  // GET /v1/dealer/analytics — dashboard insights. Engagement by post type and follower trends
-  // stay empty until post metrics and follower counts are collected; review health is live.
-  fastify.get('/analytics', { preHandler: [fastify.authenticate] }, async (request) => {
-    const dealer_id = request.user.dealer_id!;
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const messages = await prisma.inboxMessage.findMany({ where: { dealer_id, received_at: { gte: since } } });
-    const replied = messages.filter((m) => m.replied_at).length;
-
-    return {
-      success: true,
-      engagementByType: [] as Array<{ type: string; engagementRate: number }>,
-      followerTrend: [] as Array<{ platform: string; current: number; delta: number | null }>,
-      reviewSummary: {
-        avgRating: null as number | null,
-        responseRate: messages.length > 0 ? Math.round((replied / messages.length) * 100) : null,
-        totalReviews: messages.filter((m) => m.message_type === 'review').length,
-      },
     };
   });
 

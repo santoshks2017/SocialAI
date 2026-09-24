@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { KeyRound, LogOut, Plus, Settings, ShieldCheck, X } from 'lucide-react';
-import api from '../../services/api';
+import { inboxService } from '../../services/inbox';
 import { useAuth } from '../../contexts/AuthContext';
 import { isGlobalOwner } from '../../lib/permissions';
 import { roleLabel } from '../../utils/roleLabel';
@@ -28,16 +28,16 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
   const [inboxPending, setInboxPending] = useState(0);
   const initials = user?.name ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : 'U';
 
-  // Inbox badge: refreshed on mount, every minute, on window focus, and when the Inbox changes.
-  // The focus and interval refreshes skip while the tab is hidden and while the last load
-  // was recent, so backgrounded or rapidly-focused tabs don't hammer the dashboard endpoint.
+  // Inbox badge (unread count from GET /inbox/pending-count): refreshed on mount, every minute, on window
+  // focus, and when the Inbox changes. The focus and interval refreshes skip while the tab is hidden and
+  // while the last load was recent. A plan without the inbox answers 403, which leaves the badge at 0.
   useEffect(() => {
     if (owner) return;
     let lastLoadAt = 0;
     const load = () => {
       lastLoadAt = Date.now();
-      api.get<{ stats?: { inboxPending?: number } }>('/dealer/dashboard')
-        .then((res) => setInboxPending(res.stats?.inboxPending ?? 0))
+      inboxService.pendingCount()
+        .then((res) => setInboxPending(res.pending))
         .catch(() => {});
     };
     const refreshIfDue = () => {

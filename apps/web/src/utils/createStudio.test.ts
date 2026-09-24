@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addHashtag, dealerInitials, defaultPlatforms, deliveryRows, initialLanguage, instagramHandle, limitIssues, limitMessage, mergeHashtags,
+  addHashtag, dealerInitials, defaultPlatforms, deliveryRows, initialLanguage, instagramHandle, keepPreloadedCaption, limitIssues, limitMessage, mergeHashtags,
   outputFormat, outputFormatNote, parseAspect, platformOptions, reelErrorMessage, reelHandle, scheduleFromQuery, shouldFallBackToQuickRender,
   togglePlatform, truncateText, type FormatSpec, type PlatformSpecs,
 } from './createStudio.js';
@@ -122,5 +122,14 @@ describe('scheduleFromQuery', () => {
     assert.equal(scheduleFromQuery('2026-10-02', '6pm'), '2026-10-02T10:00');
     assert.equal(scheduleFromQuery('tomorrow', '18:30'), '');
     assert.equal(scheduleFromQuery(null, null), '');
+  });
+});
+
+describe('keepPreloadedCaption', () => {
+  it('keeps a drafted caption on the first generate in edit mode only', () => {
+    assert.equal(keepPreloadedCaption({ editing: true, currentCaption: 'Thank you Asha!', hasResult: false }), true);
+    assert.equal(keepPreloadedCaption({ editing: true, currentCaption: 'Thank you Asha!', hasResult: true }), false);
+    assert.equal(keepPreloadedCaption({ editing: true, currentCaption: '  ', hasResult: false }), false);
+    assert.equal(keepPreloadedCaption({ editing: false, currentCaption: 'Thank you Asha!', hasResult: false }), false);
   });
 });

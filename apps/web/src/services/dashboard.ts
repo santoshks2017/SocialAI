@@ -1,9 +1,18 @@
 import api from './api';
+import type { AnalyticsPlatform, DealerAnalytics, PostPerformance } from '../utils/analytics';
+
+export type { DealerAnalytics } from '../utils/analytics';
 
 export interface DashboardStats {
   postsThisMonth: number;
   postsChange: number;
+  /** Posts published this month (Analytics "Posts Published", the Report). */
+  publishedThisMonth: number;
+  publishedChange: number;
+  /** All-time reach of published posts (Analytics "Total Reach"). */
   totalReach: number;
+  /** Reach of posts published this month, UTC (the Report and the monthly recap). */
+  reachThisMonth: number;
   leadsGenerated: number;
   leadsThisWeek: number;
   inboxPending: number;
@@ -22,13 +31,9 @@ export interface DashboardData {
   upcomingFestivals: Festival[];
 }
 
-export interface DealerAnalytics {
-  engagementByType: Array<{ type: string; engagementRate: number }>;
-  followerTrend: Array<{ platform: string; current: number; delta: number | null }>;
-  reviewSummary: { avgRating: number | null; responseRate: number | null; totalReviews: number };
-}
-
 export const dashboardService = {
   get: () => api.get<DashboardData>('/dealer/dashboard'),
   analytics: () => api.get<DealerAnalytics>('/dealer/analytics'),
+  postPerformance: (days: number, platform?: AnalyticsPlatform) =>
+    api.get<PostPerformance>('/dealer/analytics/posts', { days, platform }),
 };

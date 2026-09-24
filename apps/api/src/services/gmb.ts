@@ -1,6 +1,8 @@
 import axios from 'axios';
 
 const GMB_BASE = 'https://mybusiness.googleapis.com/v4';
+// Cron-path reads (metrics, reviews): a hung connection must not outlast the cron's time-box.
+const READ_TIMEOUT_MS = 15_000;
 
 export interface GmbPublishResult {
   post_id: string;
@@ -46,7 +48,7 @@ export async function fetchGmbPostMetrics(
     localPostMetrics: Array<{ metricValue: Array<{ metric: string; totalValue: { value: string } }> }>;
   }>(
     `${GMB_BASE}/${postName}/insights`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
+    { headers: { Authorization: `Bearer ${accessToken}` }, timeout: READ_TIMEOUT_MS },
   );
 
   let views = 0, clicks = 0, direction_requests = 0;
@@ -59,28 +61,30 @@ export async function fetchGmbPostMetrics(
   return { views, clicks, direction_requests };
 }
 
+export interface GmbReview {
+  name: string; // accounts/{a}/locations/{l}/reviews/{r}
+  reviewer?: { displayName?: string };
+  starRating?: string; // ONE … FIVE, or STAR_RATING_UNSPECIFIED
+  comment?: string;
+  createTime?: string;
+  reviewReply?: { comment?: string; updateTime?: string };
+}
+
 export async function fetchGmbReviews(
   locationName: string,
   accessToken: string,
   pageToken?: string,
-): Promise<{
-  reviews: Array<{ name: string; reviewer: { displayName: string }; starRating: string; comment: string; createTime: string }>;
-  nextPageToken?: string;
-}> {
-  const res = await axios.get<{
-    reviews: Array<{ name: string; reviewer: { displayName: string }; starRating: string; comment: string; createTime: string }>;
-    nextPageToken?: string;
-  }>(
+): Promise<{ reviews: GmbReview[]; nextPageToken?: string }> {
+  const res = await axios.get<{ reviews?: GmbReview[]; nextPageToken?: string }>(
     `${GMB_BASE}/${locationName}/reviews`,
     {
       params: pageToken ? { pageToken } : {},
       headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: READ_TIMEOUT_MS,
     },
   );
-
-  return res.data.nextPageToken
-    ? { reviews: res.data.reviews ?? [], nextPageToken: res.data.nextPageToken }
-    : { reviews: res.data.reviews ?? [] };
+  const reviews = res.data.reviews ?? [];
+  return res.data.nextPageToken ? { reviews, nextPageToken: res.data.nextPageToken } : { reviews };
 }
 
 export async function replyToGmbReview(

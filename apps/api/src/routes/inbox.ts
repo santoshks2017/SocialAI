@@ -1,107 +1,21 @@
-import type { FastifyInstance } from "fastify"
+import type { FastifyInstance, FastifyRequest } from "fastify"
 import axios from "axios"
 import { prisma } from "../db/prisma.js"
-import type { InboxMessage } from "../generated/client/index.js"
-import { generateInboxReply as groqGenerateInboxReply, isGroqAvailable } from "../services/groq.js"
-import { generateInboxReply as openaiGenerateInboxReply } from "../services/openai.js"
+import type { InboxMessage, PlatformConnection } from "../generated/client/index.js"
 import { generateMockEmails } from "../services/emailMock.js"
-
-async function generateReplyAI(
-  messageText: string,
-  sentiment: string,
-  dealer: { name: string; city: string; brands: string[]; phone: string; whatsapp: string; language_preferences: string[] },
-  messageType: "comment" | "dm" | "review",
-  tone?: string,
-): Promise<string> {
-  if (isGroqAvailable()) {
-    try { return await groqGenerateInboxReply(messageText, sentiment, dealer, messageType, tone) } catch {}
-  }
-  return openaiGenerateInboxReply(messageText, sentiment, dealer, messageType, undefined, tone)
-}
 import { replyToGmbReview } from "../services/gmb.js"
+import { dealerReplyContext, draftTestimonial, suggestReplies } from "../lib/inboxReplies.js"
+import { mapMessages, truncateText } from "../lib/inboxView.js"
+import { ingestInboxMessage, resolvePostId } from "../lib/inboxIngest.js"
+import { can, PERMISSIONS, requirePermissionHook } from "../lib/permissions.js"
+import { isMockConnection, isMockId } from "../lib/platformMock.js"
+import { resolveAccessToken } from "../lib/publishDirect.js"
 
 const META_GRAPH_BASE = "https://graph.facebook.com/v19.0"
-
-function mapMessage(m: InboxMessage) {
-  return {
-    id: m.id,
-    dealerId: m.dealer_id,
-    platform: m.platform,
-    messageType: m.message_type,
-    platformMessageId: m.platform_message_id,
-    postId: m.post_id ?? undefined,
-    customerName: m.customer_name,
-    customerAvatarUrl: m.customer_avatar_url ?? undefined,
-    customerPlatformId: m.customer_platform_id ?? undefined,
-    emailSubject: m.email_subject ?? undefined,
-    messageText: m.message_text,
-    sentiment: m.sentiment ?? undefined,
-    tag: m.tag ?? undefined,
-    aiSuggestedReply: m.ai_suggested_reply ?? undefined,
-    replyText: m.reply_text ?? undefined,
-    repliedAt: m.replied_at?.toISOString() ?? undefined,
-    isRead: m.is_read,
-    requiresApproval: m.requires_approval,
-    receivedAt: m.received_at.toISOString(),
-  }
-}
-
-
-async function upsertInboxMessage(params: {
-  dealer_id: string
-  platform: string
-  message_type: string
-  platform_message_id: string
-  message_text: string
-  customer_name?: string
-  customer_platform_id?: string
-  customer_avatar_url?: string
-  post_id?: string
-}) {
-  const {
-    dealer_id,
-    platform,
-    message_type,
-    platform_message_id,
-    message_text,
-    customer_name,
-    customer_platform_id,
-    customer_avatar_url,
-    post_id,
-  } = params
-
-  return prisma.inboxMessage.upsert({
-    where: { platform_message_id },
-    update: {
-      message_text,
-      customer_name: customer_name ?? "Customer",
-      customer_platform_id: customer_platform_id ?? null,
-      customer_avatar_url: customer_avatar_url ?? null,
-      post_id: post_id ?? null,
-      received_at: new Date(),
-    },
-    create: {
-      dealer_id,
-      platform,
-      message_type,
-      platform_message_id,
-      message_text,
-      customer_name: customer_name ?? "Customer",
-      customer_platform_id: customer_platform_id ?? null,
-      customer_avatar_url: customer_avatar_url ?? null,
-      post_id: post_id ?? null,
-      received_at: new Date(),
-    },
-  })
-}
-
-function normalizeInboxType(value: string): "comment" | "dm" | "review" {
-  const lower = value?.toLowerCase?.()
-  if (lower === "review" || lower === "reviews") return "review"
-  if (lower === "dm" || lower === "message" || lower === "messaging")
-    return "dm"
-  return "comment"
-}
+const INBOX_TAGS = new Set(["lead", "complaint", "general", "spam"])
+const AI_NOT_CONFIGURED = { error: { code: "AI_NOT_CONFIGURED", message: "AI replies are not set up yet." } }
+const AI_FAILED = { error: { code: "AI_FAILED", message: "The AI request failed. Please try again." } }
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 function extractTextFromMetaMessage(event: any): string | null {
   if (typeof event.message?.text === "string") return event.message.text
@@ -128,48 +42,34 @@ function extractTextFromMetaChange(change: any): string | null {
   return null
 }
 
-async function sendReplyToPlatform(
-  message: InboxMessage,
-  replyText: string,
-  connection: {
-    platform: string
-    access_token: string
-    platform_account_id: string
-  },
-) {
+// Sends a reply on the platform. False (the reply is still saved) when it cannot be delivered.
+async function sendReplyToPlatform(message: InboxMessage, replyText: string, connection: PlatformConnection): Promise<boolean> {
+  // Local and demo connections carry mock_ ids; nothing may reach a real platform with them.
+  if (isMockConnection(connection) || isMockId(message.platform_message_id)) return false
   try {
-    if (connection.platform === "gmb" && message.platform_message_id) {
-      await replyToGmbReview(
-        message.platform_message_id,
-        connection.access_token,
-        replyText,
-      )
+    const accessToken = await resolveAccessToken(connection)
+    if (connection.platform === "gmb") {
+      await replyToGmbReview(message.platform_message_id, accessToken, replyText)
       return true
     }
-
-    if (
-      connection.platform === "facebook" ||
-      connection.platform === "instagram"
-    ) {
-      if (message.message_type === "comment" && message.platform_message_id) {
-        await axios.post(
-          `${META_GRAPH_BASE}/${message.platform_message_id}/comments`,
-          { message: replyText, access_token: connection.access_token },
-        )
+    if (connection.platform === "facebook" || connection.platform === "instagram") {
+      if (message.message_type === "comment") {
+        // Instagram answers a comment through /replies, Facebook through /comments.
+        const edge = connection.platform === "instagram" ? "replies" : "comments"
+        await axios.post(`${META_GRAPH_BASE}/${message.platform_message_id}/${edge}`, { message: replyText, access_token: accessToken })
         return true
       }
-
       if (message.customer_platform_id) {
         await axios.post(`${META_GRAPH_BASE}/me/messages`, {
           recipient: { id: message.customer_platform_id },
           message: { text: replyText },
-          access_token: connection.access_token,
+          access_token: accessToken,
         })
         return true
       }
     }
   } catch (err) {
-    console.error("Failed to send inbox reply to platform", err)
+    console.error("[inbox] Could not deliver a reply to the platform:", errorText(err))
   }
   return false
 }
@@ -189,189 +89,138 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
     return planGateHook(request, reply)
   })
 
-  // GET /v1/inbox — list messages
-  fastify.get("/", { preHandler: [fastify.authenticate] }, async (request) => {
-    const dealer_id = (request.user as { dealer_id: string | null })
-      .dealer_id as string
-    const {
-      platform,
-      tag,
-      isRead,
-      search,
-      page = "1",
-      pageSize = "30",
-    } = request.query as Record<string, string>
+  // Reading the inbox needs view_inbox; answering, tagging and configuring it need reply_inbox.
+  const canView = requirePermissionHook(PERMISSIONS.VIEW_INBOX)
+  const canReply = requirePermissionHook(PERMISSIONS.REPLY_INBOX)
+  const dealerOf = (request: FastifyRequest) => request.user.dealer_id as string
+
+  // GET /v1/inbox — list messages, newest first
+  fastify.get("/", { preHandler: [canView] }, async (request) => {
+    const dealer_id = dealerOf(request)
+    const { platform, tag, isRead, search, page = "1", pageSize = "30" } = request.query as Record<string, string>
 
     const where: Record<string, unknown> = { dealer_id }
     if (platform) where["platform"] = platform
     if (tag) where["tag"] = tag
     if (isRead !== undefined) where["is_read"] = isRead === "true"
-    if (search)
-      where["message_text"] = { contains: search, mode: "insensitive" }
+    if (search) where["message_text"] = { contains: search, mode: "insensitive" }
 
-    const skip = (parseInt(page) - 1) * parseInt(pageSize)
+    const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 30))
+    const skip = (Math.max(1, parseInt(page, 10) || 1) - 1) * size
     const [messages, total, unreadCount] = await Promise.all([
-      prisma.inboxMessage.findMany({
-        where,
-        orderBy: { received_at: "desc" },
-        skip,
-        take: parseInt(pageSize),
-      }),
+      prisma.inboxMessage.findMany({ where, orderBy: { received_at: "desc" }, skip, take: size }),
       prisma.inboxMessage.count({ where }),
       prisma.inboxMessage.count({ where: { dealer_id, is_read: false } }),
     ])
 
-    return { items: messages.map(mapMessage), total, unreadCount }
+    return { items: await mapMessages(dealer_id, messages), total, unreadCount }
+  })
+
+  // GET /v1/inbox/pending-count — unread messages, for the sidebar badge
+  fastify.get("/pending-count", { preHandler: [canView] }, async (request) => {
+    const pending = await prisma.inboxMessage.count({ where: { dealer_id: dealerOf(request), is_read: false } })
+    return { pending }
   })
 
   // GET /v1/inbox/:id — single message
-  fastify.get(
-    "/:id",
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      const dealer_id = (request.user as { dealer_id: string | null })
-        .dealer_id as string
-      const { id } = request.params as { id: string }
-      const message = await prisma.inboxMessage.findFirst({
-        where: { id, dealer_id },
-      })
-      if (!message) return reply.code(404).send({ error: "Not found" })
-      return { item: mapMessage(message) }
-    },
-  )
+  fastify.get("/:id", { preHandler: [canView] }, async (request, reply) => {
+    const dealer_id = dealerOf(request)
+    const { id } = request.params as { id: string }
+    const message = await prisma.inboxMessage.findFirst({ where: { id, dealer_id } })
+    if (!message) return reply.code(404).send({ error: "Not found" })
+    const [item] = await mapMessages(dealer_id, [message])
+    return { item }
+  })
 
-  // PATCH /v1/inbox/:id — mark read or update tag
-  fastify.patch(
-    "/:id",
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      const dealer_id = (request.user as { dealer_id: string | null })
-        .dealer_id as string
-      const { id } = request.params as { id: string }
-      const body = request.body as { isRead?: boolean; tag?: string }
+  // PATCH /v1/inbox/:id — { isRead } needs view_inbox; { tag } also needs reply_inbox
+  fastify.patch("/:id", { preHandler: [canView] }, async (request, reply) => {
+    const dealer_id = dealerOf(request)
+    const { id } = request.params as { id: string }
+    const body = (request.body ?? {}) as { isRead?: unknown; tag?: unknown }
 
-      const update: Record<string, unknown> = {}
-      if (body.isRead !== undefined) update["is_read"] = body.isRead
-      if (body.tag !== undefined) update["tag"] = body.tag
+    const update: Record<string, unknown> = {}
+    if (body.isRead !== undefined) {
+      if (typeof body.isRead !== "boolean") {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "isRead must be true or false" } })
+      }
+      update["is_read"] = body.isRead
+    }
+    if (body.tag !== undefined) {
+      if (!can(request.user, PERMISSIONS.REPLY_INBOX)) {
+        return reply.code(403).send({ error: { code: "FORBIDDEN", message: `Missing permission: ${PERMISSIONS.REPLY_INBOX}` } })
+      }
+      if (body.tag !== null && (typeof body.tag !== "string" || !INBOX_TAGS.has(body.tag))) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "tag must be lead, complaint, general or spam" } })
+      }
+      update["tag"] = body.tag
+    }
+    if (Object.keys(update).length === 0) {
+      return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Send isRead or tag" } })
+    }
 
-      const message = await prisma.inboxMessage.updateMany({
-        where: { id, dealer_id },
-        data: update,
-      })
-      if (message.count === 0)
-        return reply.code(404).send({ error: "Not found" })
+    const result = await prisma.inboxMessage.updateMany({ where: { id, dealer_id }, data: update })
+    if (result.count === 0) return reply.code(404).send({ error: "Not found" })
 
-      const updated = await prisma.inboxMessage.findFirst({ where: { id } })
-      return { item: mapMessage(updated!) }
-    },
-  )
+    const updated = await prisma.inboxMessage.findFirst({ where: { id, dealer_id } })
+    if (!updated) return reply.code(404).send({ error: "Not found" })
+    const [item] = await mapMessages(dealer_id, [updated])
+    return { item }
+  })
 
   // POST /v1/inbox/mark-all-read
-  fastify.post(
-    "/mark-all-read",
-    { preHandler: [fastify.authenticate] },
-    async (request) => {
-      const dealer_id = (request.user as { dealer_id: string | null })
-        .dealer_id as string
-      await prisma.inboxMessage.updateMany({
-        where: { dealer_id, is_read: false },
-        data: { is_read: true },
-      })
-      return { success: true }
-    },
-  )
+  fastify.post("/mark-all-read", { preHandler: [canView] }, async (request) => {
+    await prisma.inboxMessage.updateMany({ where: { dealer_id: dealerOf(request), is_read: false }, data: { is_read: true } })
+    return { success: true }
+  })
 
-  // POST /v1/inbox/:id/reply — send reply
-  fastify.post(
-    "/:id/reply",
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      const dealer_id = (request.user as { dealer_id: string | null })
-        .dealer_id as string
-      const { id } = request.params as { id: string }
-      const { replyText } = request.body as { replyText: string }
-      if (!replyText)
-        return reply.code(400).send({ error: "replyText is required" })
+  // POST /v1/inbox/:id/reply — saves the reply; `delivered` says whether the customer got it
+  fastify.post("/:id/reply", { preHandler: [canReply] }, async (request, reply) => {
+    const dealer_id = dealerOf(request)
+    const { id } = request.params as { id: string }
+    const { replyText } = (request.body ?? {}) as { replyText?: unknown }
+    if (typeof replyText !== "string" || !replyText.trim()) return reply.code(400).send({ error: "replyText is required" })
 
-      const message = await prisma.inboxMessage.findFirst({
-        where: { id, dealer_id },
-      })
-      if (!message) return reply.code(404).send({ error: "Not found" })
+    const message = await prisma.inboxMessage.findFirst({ where: { id, dealer_id } })
+    if (!message) return reply.code(404).send({ error: "Not found" })
 
-      const connection = await prisma.platformConnection.findFirst({
-        where: { dealer_id, platform: message.platform, is_connected: true },
-      })
+    const text = replyText.trim()
+    const connection = await prisma.platformConnection.findFirst({ where: { dealer_id, platform: message.platform, is_connected: true } })
+    const delivered = connection ? await sendReplyToPlatform(message, text, connection) : false
 
-      // The reply is saved either way; `delivered` tells the client whether the customer got it
-      const delivered = connection
-        ? await sendReplyToPlatform(message, replyText, {
-            platform: connection.platform,
-            access_token: connection.access_token,
-            platform_account_id: connection.platform_account_id,
-          })
-        : false
+    const updated = await prisma.inboxMessage.update({ where: { id }, data: { reply_text: text, replied_at: new Date() } })
+    const [item] = await mapMessages(dealer_id, [updated])
+    return { item, delivered }
+  })
 
-      const repliedAt = new Date()
-      await prisma.inboxMessage.update({
-        where: { id },
-        data: { reply_text: replyText, replied_at: repliedAt },
-      })
+  // POST /v1/inbox/:id/suggest-reply — up to three AI reply options; the first is stored
+  fastify.post("/:id/suggest-reply", { preHandler: [canReply] }, async (request, reply) => {
+    const dealer_id = dealerOf(request)
+    const { id } = request.params as { id: string }
+    const { tone } = (request.body ?? {}) as { tone?: unknown }
+    if (tone !== undefined && (typeof tone !== "string" || tone.length > 40)) {
+      return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "tone must be a short word" } })
+    }
 
-      const updated = await prisma.inboxMessage.findFirst({
-        where: { id, dealer_id },
-      })
-      return { item: mapMessage(updated!), delivered }
-    },
-  )
+    const message = await prisma.inboxMessage.findFirst({ where: { id, dealer_id } })
+    if (!message) return reply.code(404).send({ error: "Not found" })
 
-  // POST /v1/inbox/:id/suggest-reply — AI-generated reply suggestion
-  fastify.post(
-    "/:id/suggest-reply",
-    { preHandler: [fastify.authenticate] },
-    async (request, reply) => {
-      const dealer_id = (request.user as { dealer_id: string | null })
-        .dealer_id as string
-      const { id } = request.params as { id: string }
-      const { tone } = (request.body ?? {}) as { tone?: string }
+    const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
+    if (!dealer) return reply.code(404).send({ error: "Dealer not found" })
 
-      const message = await prisma.inboxMessage.findFirst({
-        where: { id, dealer_id },
-      })
-      if (!message) return reply.code(404).send({ error: "Not found" })
+    let suggestions: string[] | null
+    try {
+      suggestions = await suggestReplies({ message, dealer: dealerReplyContext(dealer), ...(typeof tone === "string" && tone ? { tone } : {}) })
+    } catch (err) {
+      request.log.error({ message: errorText(err) }, "[inbox] reply suggestions failed")
+      return reply.code(502).send(AI_FAILED)
+    }
+    if (!suggestions) return reply.code(503).send(AI_NOT_CONFIGURED)
+    const [first] = suggestions
+    if (!first) return reply.code(502).send(AI_FAILED)
 
-      if (!tone && message.ai_suggested_reply) {
-        return { suggestedReply: message.ai_suggested_reply }
-      }
-
-      const dealer = await prisma.dealer.findUnique({
-        where: { id: dealer_id },
-      })
-      if (!dealer) return reply.code(404).send({ error: "Dealer not found" })
-
-      const suggestedReply = await generateReplyAI(
-        message.message_text,
-        message.sentiment ?? "neutral",
-        {
-          name: dealer.name,
-          city: dealer.city,
-          brands: (dealer.brands as string[] | null) ?? [],
-          phone: dealer.contact_phone ?? dealer.phone,
-          whatsapp: dealer.whatsapp_number ?? dealer.phone,
-          language_preferences:
-            (dealer.language_preferences as string[] | null) ?? [],
-        },
-        normalizeInboxType(message.message_type),
-        tone,
-      )
-
-      await prisma.inboxMessage.update({
-        where: { id },
-        data: { ai_suggested_reply: suggestedReply },
-      })
-      return { suggestedReply }
-    },
-  )
-
+    await prisma.inboxMessage.update({ where: { id }, data: { ai_suggested_reply: first } })
+    return { suggestedReply: first, suggestions }
+  })
 
   // POST /v1/inbox/webhook/meta — receive Meta webhook events
   fastify.post("/webhook/meta", async (request, reply) => {
@@ -418,6 +267,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
 
       if (Array.isArray(entry.messaging)) {
         for (const event of entry.messaging) {
+          if (event.message?.is_echo) continue // the Page's own outgoing message
           const text = extractTextFromMetaMessage(event)
           const messageId =
             event.message?.mid ||
@@ -425,43 +275,43 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
             event.standby?.[0]?.message?.mid
           if (!text || !messageId) continue
 
-          await upsertInboxMessage({
+          const { created } = await ingestInboxMessage({
             dealer_id,
             platform,
             message_type: "dm",
             platform_message_id: messageId,
             message_text: text,
-            customer_name: event.sender?.name ?? "Customer",
+            customer_name: event.sender?.name,
             customer_platform_id: event.sender?.id,
             customer_avatar_url: event.sender?.profile_pic,
           })
-          imported += 1
+          if (created) imported += 1 // a re-delivery refreshes the message but is not new
         }
       }
 
       if (Array.isArray(entry.changes)) {
         for (const change of entry.changes) {
+          const value = change.value ?? {}
+          // Facebook "feed" events also cover new posts, reactions and edits; only comments belong in the inbox.
+          if (change.field === "feed" && value.item && value.item !== "comment") continue
+          if (value.verb === "remove") continue
           const text = extractTextFromMetaChange(change)
-          const messageId =
-            change.value?.comment_id ||
-            change.value?.message_id ||
-            change.value?.id
+          const messageId = value.comment_id || value.message_id || value.id
           if (!text || !messageId) continue
+          const customerId = value.from?.id ?? value.sender_id
+          if (customerId && customerId === connection.platform_account_id) continue // the Page's own comment
 
-          const customerName =
-            change.value?.from?.name ?? change.value?.sender_name ?? "Customer"
-          const customerId = change.value?.from?.id ?? change.value?.sender_id
-          await upsertInboxMessage({
+          const { created } = await ingestInboxMessage({
             dealer_id,
             platform,
             message_type: "comment",
             platform_message_id: messageId,
             message_text: text,
-            customer_name: customerName,
+            customer_name: value.from?.name ?? value.from?.username ?? value.sender_name,
             customer_platform_id: customerId,
-            post_id: change.value?.post_id ?? undefined,
+            post_id: await resolvePostId(dealer_id, platform, value.post_id ?? value.media?.id),
           })
-          imported += 1
+          if (created) imported += 1
         }
       }
     }
@@ -486,7 +336,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // GET /v1/inbox/settings — get auto-reply settings
-  fastify.get("/settings", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.get("/settings", { preHandler: [canReply] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
     if (!dealer) return reply.code(404).send({ error: "Dealer not found" })
@@ -494,7 +344,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/inbox/settings — update auto-reply settings
-  fastify.post("/settings", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post("/settings", { preHandler: [canReply] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const { autoReplyEnabled } = request.body as { autoReplyEnabled: boolean }
     
@@ -506,7 +356,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // GET /v1/inbox/rules — list rules
-  fastify.get("/rules", { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get("/rules", { preHandler: [canReply] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const rules = await prisma.autoReplyRule.findMany({
       where: { dealer_id },
@@ -517,7 +367,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/inbox/rules — create rule
-  fastify.post("/rules", { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.post("/rules", { preHandler: [canReply] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const body = request.body as {
       platform: string
@@ -548,7 +398,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // PUT /v1/inbox/rules/:id — update rule
-  fastify.put("/rules/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.put("/rules/:id", { preHandler: [canReply] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const { id } = request.params as { id: string }
     const body = request.body as {
@@ -584,7 +434,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // DELETE /v1/inbox/rules/:id — delete rule
-  fastify.delete("/rules/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.delete("/rules/:id", { preHandler: [canReply] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const { id } = request.params as { id: string }
     const rule = await prisma.autoReplyRule.findFirst({ where: { id, dealer_id } })
@@ -595,7 +445,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // GET /v1/inbox/templates — list templates
-  fastify.get("/templates", { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get("/templates", { preHandler: [canReply] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const templates = await prisma.autoReplyTemplate.findMany({
       where: { dealer_id },
@@ -605,7 +455,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/inbox/templates — create template
-  fastify.post("/templates", { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.post("/templates", { preHandler: [canReply] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const { name, text } = request.body as { name: string; text: string }
 
@@ -616,7 +466,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // PUT /v1/inbox/templates/:id — update template
-  fastify.put("/templates/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.put("/templates/:id", { preHandler: [canReply] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const { id } = request.params as { id: string }
     const { name, text } = request.body as { name?: string; text?: string }
@@ -636,7 +486,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // DELETE /v1/inbox/templates/:id — delete template
-  fastify.delete("/templates/:id", { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.delete("/templates/:id", { preHandler: [canReply] }, async (request, reply) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const { id } = request.params as { id: string }
     const template = await prisma.autoReplyTemplate.findFirst({ where: { id, dealer_id } })
@@ -647,15 +497,15 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/inbox/mock/seed — seed mock email messages
-  fastify.post("/mock/seed", { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.post("/mock/seed", { preHandler: [canReply] }, async (request) => {
     const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
     const items = await generateMockEmails(dealer_id)
-    return { items: items.map(mapMessage) }
+    return { items: await mapMessages(dealer_id, items) }
   })
 
-  // POST /v1/inbox/:id/generate-post-draft — convert positive review to post draft
-  fastify.post("/:id/generate-post-draft", { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const dealer_id = (request.user as { dealer_id: string | null }).dealer_id as string
+  // POST /v1/inbox/:id/generate-post-draft — a thank-you post draft from a review ("Turn into post")
+  fastify.post("/:id/generate-post-draft", { preHandler: [canReply] }, async (request, reply) => {
+    const dealer_id = dealerOf(request)
     const { id } = request.params as { id: string }
 
     const message = await prisma.inboxMessage.findFirst({ where: { id, dealer_id } })
@@ -664,22 +514,30 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
     const dealer = await prisma.dealer.findUnique({ where: { id: dealer_id } })
     if (!dealer) return reply.code(404).send({ error: "Dealer not found" })
 
-    const { generateTestimonialCaption } = await import("../services/openai.js")
-    const { caption, hashtags } = await generateTestimonialCaption(
-      message.message_text,
-      message.customer_name,
-      { name: dealer.name, city: dealer.city }
-    )
+    let draft: { caption: string; hashtags: string[] } | null
+    try {
+      draft = await draftTestimonial({
+        reviewText: message.message_text,
+        customerName: message.customer_name,
+        rating: message.rating,
+        dealer: { name: dealer.name, city: dealer.city },
+      })
+    } catch (err) {
+      request.log.error({ message: errorText(err) }, "[inbox] testimonial draft failed")
+      return reply.code(502).send(AI_FAILED)
+    }
+    if (!draft) return reply.code(503).send(AI_NOT_CONFIGURED)
 
     const post = await prisma.post.create({
       data: {
         dealer_id,
-        prompt_text: `Testimonial post based on review by ${message.customer_name}: "${message.message_text}"`,
-        caption_text: caption,
-        caption_hashtags: hashtags,
+        created_by: request.user.dealer_user_id,
+        prompt_text: `Thank-you post for ${message.customer_name}'s review: "${truncateText(message.message_text, 300)}"`,
+        caption_text: draft.caption,
+        caption_hashtags: draft.hashtags,
         platforms: ["facebook", "instagram"],
         status: "draft",
-      }
+      },
     })
 
     return { post }

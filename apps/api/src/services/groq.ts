@@ -118,7 +118,7 @@ export async function generateInboxReply(
     temperature: 0.6,
     max_tokens: 300,
     response_format: { type: 'json_object' },
-  });
+  }, { timeout: 15_000 });
 
   const content = response.choices[0]?.message?.content ?? '';
   try {

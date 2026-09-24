@@ -247,7 +247,7 @@ Return only the reply text — no JSON, no labels.`,
     ],
     temperature: 0.6,
     max_tokens: 300,
-  })
+  }, { timeout: 15_000 })
 
   return response.choices[0]?.message?.content?.trim() ?? ""
 }
@@ -276,7 +276,7 @@ Return JSON: { "caption": "...", "hashtags": ["#tag1", "#tag2", ...] }`,
     ],
     response_format: { type: "json_object" },
     temperature: 0.7,
-  })
+  }, { timeout: 15_000 })
 
   const content = response.choices[0]?.message?.content
   if (!content) throw new Error("Empty response from OpenAI")

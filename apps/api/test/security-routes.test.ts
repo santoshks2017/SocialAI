@@ -195,14 +195,16 @@ describe('platform connections', () => {
 });
 
 describe('permission checks', () => {
-  it('view_reports gates analytics', async () => {
+  it('view_reports gates post analytics', async () => {
     const dealerId = await newDealer('reports-dealer');
-    const res = await fastify.inject({ method: 'GET', url: '/v1/analytics/overview', headers: bearer(token(dealerId, 'user')) });
-    assert.equal(res.statusCode, 403);
+    const denied = await fastify.inject({ method: 'GET', url: '/v1/dealer/analytics/posts', headers: bearer(token(dealerId, 'user')) });
+    assert.equal(denied.statusCode, 403);
     const allowed = await fastify.inject({
-      method: 'GET', url: '/v1/analytics/posts', headers: bearer(token(dealerId, 'user', { view_reports: true })),
+      method: 'GET', url: '/v1/dealer/analytics/posts', headers: bearer(token(dealerId, 'user', { view_reports: true })),
     });
-    assert.notEqual(allowed.statusCode, 403);
+    assert.equal(allowed.statusCode, 200);
+    const gone = await fastify.inject({ method: 'GET', url: '/v1/analytics/overview', headers: bearer(token(dealerId)) });
+    assert.equal(gone.statusCode, 404);
   });
 
   it('view_billing gates billing', async () => {

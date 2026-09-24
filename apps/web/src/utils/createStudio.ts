@@ -154,6 +154,14 @@ export function deliveryRows(platforms: readonly string[], post: { status: strin
   });
 }
 
+/**
+ * Editing a draft that has a caption but no creative yet (Inbox "Turn into post"): the first generate keeps
+ * that caption and its hashtags instead of the generated copy. Once there is a result, generating behaves as usual.
+ */
+export function keepPreloadedCaption({ editing, currentCaption, hasResult }: { editing: boolean; currentCaption: string; hasResult: boolean }): boolean {
+  return editing && !hasResult && currentCaption.trim().length > 0;
+}
+
 /** `?date=YYYY-MM-DD&time=HH:mm` from the calendar as a `datetime-local` value (10:00 when the time is missing). */
 export function scheduleFromQuery(date: string | null, time: string | null): string {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
