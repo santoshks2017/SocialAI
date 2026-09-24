@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { MessageSquare, SearchX } from 'lucide-react';
+import { Lock, MessageSquare, SearchX } from 'lucide-react';
 
 export function MessageSkeleton() {
   return (
@@ -36,6 +36,19 @@ export function NoMessages() {
       title="No messages yet"
       text="Connect your Facebook, Instagram, and Google Business Profile in Accounts to receive customer reviews and comments here."
     />
+  );
+}
+
+// The list answered 403 FORBIDDEN: this role has no view_inbox permission.
+export function NoAccess() {
+  return (
+    <div className="bg-amber-50 rounded-xl border border-amber-200 p-10 text-center">
+      <div className="w-11 h-11 mx-auto rounded-full bg-white ring-1 ring-amber-100 flex items-center justify-center text-amber-600 mb-3">
+        <Lock className="w-5 h-5" />
+      </div>
+      <p className="text-sm font-semibold text-zinc-800">You don’t have access to the inbox.</p>
+      <p className="text-sm text-zinc-500 mt-1 max-w-sm mx-auto">Ask an admin to turn on Inbox for your role.</p>
+    </div>
   );
 }
 

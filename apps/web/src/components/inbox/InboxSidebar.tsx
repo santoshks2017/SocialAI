@@ -28,7 +28,7 @@ export function ResponseStatsCard({ stats }: { stats: InboxStats }) {
           label="Response Rate"
           value={`${stats.responseRate}%`}
           valueClass="text-teal-600"
-          sub="this month"
+          sub="latest messages"
           icon={<Send className="w-4 h-4 text-teal-500" />}
           iconBg="bg-teal-50"
         />

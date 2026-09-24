@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bot, CheckCheck, RefreshCw, Search } from 'lucide-react';
+import { Bot, CheckCheck, LoaderCircle, RefreshCw, Search } from 'lucide-react';
 import { AutoReplyModal } from '../components/inbox/AutoReplySettings';
 import { StatPill } from '../components/inbox/Badges';
 import { FilterBar } from '../components/inbox/FilterBar';
 import { PlatformBreakdownCard, QuickActionsCard, ResponseStatsCard } from '../components/inbox/InboxSidebar';
 import { MarkAllReadModal } from '../components/inbox/MarkAllReadModal';
 import { MessageCard } from '../components/inbox/MessageCard';
-import { MessageSkeleton, NoMessages, NoResults } from '../components/inbox/MessageList';
+import { MessageSkeleton, NoAccess, NoMessages, NoResults } from '../components/inbox/MessageList';
 import { Button, cn } from '../components/ui/Button';
 import { PageCard } from '../components/ui/PageCard';
 import { PlanGatedNotice } from '../components/ui/PlanGatedNotice';
@@ -17,11 +17,13 @@ import { can, PERMISSIONS } from '../lib/permissions';
 import { ApiError, isPlanGated } from '../services/api';
 import { inboxService, leadService } from '../services/inbox';
 import {
-  apiPlatform, DEFAULT_FILTERS, draftFromSuggestions, filterMessages, inboxStats, quickActionFilters, REVIEW_REQUEST_PROMPT,
-  toInboxItem, type DraftState, type InboxFilters, type InboxItem,
+  apiPlatform, appendPage, DEFAULT_FILTERS, draftFromSuggestions, filterMessages, INBOX_PAGE_SIZE, inboxStats, mergeFirstPage,
+  nextInboxPage, quickActionFilters, REVIEW_REQUEST_PROMPT, toInboxItem, type DraftState, type InboxFilters, type InboxItem,
 } from '../utils/inbox';
 
 const POLL_MS = 60_000;
+// Coming back to the tab refreshes only when the last load is older than this.
+const MIN_GAP_MS = 55_000;
 const SEARCH = 'pl-9 pr-4 h-9 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-zinc-400 bg-white transition-colors';
 
 const withId = (set: Set<string>, id: string) => new Set(set).add(id);
@@ -40,9 +42,14 @@ export default function InboxPage() {
   const canReply = can(user, PERMISSIONS.REPLY_INBOX);
 
   const [items, setItems] = useState<InboxItem[]>([]);
+  // Inbox-wide, from the API: every message and the unread ones, not only the loaded pages.
+  const [total, setTotal] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [planGated, setPlanGated] = useState<string | null>(null);
+  const [forbidden, setForbidden] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [filters, setFilters] = useState<InboxFilters>(DEFAULT_FILTERS);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -56,25 +63,71 @@ export default function InboxPage() {
   const [markAllOpen, setMarkAllOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [autoReplyOpen, setAutoReplyOpen] = useState(false);
+  // Bumped when a reply or mark starts and when it settles: a list request sent before then is stale.
+  const mutations = useRef(0);
+  const markAllRuns = useRef(0);
+  const lastLoadAt = useRef(0);
+  // Replies sent from this page, kept on screen until the server reports them.
+  const repliedHere = useRef<Set<string>>(new Set());
 
-  // List failures stay silent, as in the reference; a plan without the inbox gets the upgrade notice.
-  const load = useCallback(() =>
-    inboxService.list({ pageSize: 50 })
+  const mutated = () => { mutations.current += 1; };
+
+  // Reloads the first page and keeps older pages already loaded. List failures stay silent, as in the
+  // reference; a plan without the inbox gets the upgrade notice, a role without view_inbox a short notice.
+  const load = useCallback(() => {
+    const started = mutations.current;
+    lastLoadAt.current = Date.now();
+    return inboxService.list({ page: 1, pageSize: INBOX_PAGE_SIZE })
       .then((res) => {
-        setItems(res.items.map(toInboxItem));
+        if (started !== mutations.current) return;
+        setItems((prev) => mergeFirstPage(prev, res.items.map(toInboxItem), repliedHere.current));
+        setTotal(res.total);
+        setUnreadCount(res.unreadCount);
         setNow(Date.now());
         setPlanGated(null);
+        setForbidden(false);
       })
       .catch((err: unknown) => {
         if (isPlanGated(err)) setPlanGated(err.message);
+        else if (err instanceof ApiError && err.code === 'FORBIDDEN') setForbidden(true);
       })
-      .finally(() => setLoading(false)), []);
+      .finally(() => setLoading(false));
+  }, []);
 
+  // Polls every minute while the tab is visible, and once on return when the last load is stale.
   useEffect(() => {
     void load();
-    const id = setInterval(() => { void load(); }, POLL_MS);
-    return () => clearInterval(id);
+    const refreshIfDue = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoadAt.current < MIN_GAP_MS) return;
+      void load();
+    };
+    const id = setInterval(refreshIfDue, POLL_MS);
+    document.addEventListener('visibilitychange', refreshIfDue);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', refreshIfDue);
+    };
   }, [load]);
+
+  const loadMore = () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    const started = mutations.current;
+    const markAllBefore = markAllRuns.current;
+    inboxService.list({ page: nextInboxPage(items.length), pageSize: INBOX_PAGE_SIZE })
+      .then((res) => {
+        // A "Mark all read" that finished meanwhile covers these older messages too.
+        const older = res.items.map(toInboxItem).map((m) => (markAllRuns.current !== markAllBefore ? { ...m, isRead: true } : m));
+        setItems((prev) => appendPage(prev, older));
+        if (started === mutations.current) {
+          setTotal(res.total);
+          setUnreadCount(res.unreadCount);
+        }
+      })
+      .catch(() => addToast({ type: 'error', title: 'Could not load more messages', message: 'Please try again.' }))
+      .finally(() => setLoadingMore(false));
+  };
 
   const refresh = () => {
     setRefreshing(true);
@@ -101,8 +154,10 @@ export default function InboxPage() {
       setDrafts((prev) => ({ ...prev, [item.id]: draftFromSuggestions([item.aiSuggestedReply ?? '']) }));
     }
     if (opening && !item.isRead) {
+      mutated();
       setItems((prev) => prev.map((m) => (m.id === item.id ? { ...m, isRead: true } : m)));
-      inboxService.markRead(item.id).then(inboxChanged).catch(() => {});
+      setUnreadCount((c) => Math.max(0, c - 1));
+      inboxService.markRead(item.id).then(inboxChanged).catch(() => {}).finally(mutated);
     }
   };
 
@@ -126,9 +181,11 @@ export default function InboxPage() {
   };
 
   const send = async (item: InboxItem, text: string) => {
+    mutated();
     setSending((s) => withId(s, item.id));
     try {
       const res = await inboxService.sendReply(item.id, text.trim());
+      repliedHere.current.add(item.id);
       setItems((prev) => prev.map((m) => (m.id === item.id ? toInboxItem(res.item) : m)));
       setDrafts((prev) => {
         const next = { ...prev };
@@ -145,11 +202,13 @@ export default function InboxPage() {
       if (planToast(err, true)) return;
       addToast({ type: 'error', title: 'Reply failed', message: 'Could not post your reply. Please try again.' });
     } finally {
+      mutated();
       setSending((s) => withoutId(s, item.id));
     }
   };
 
   const createLead = async (item: InboxItem) => {
+    mutated();
     setLeadBusy((s) => withId(s, item.id));
     try {
       await leadService.create({ customerName: item.customerName, sourcePlatform: apiPlatform(item.platform), sourceMessageId: item.id });
@@ -159,16 +218,20 @@ export default function InboxPage() {
     } catch {
       addToast({ type: 'error', title: 'Failed to create lead', message: 'Please try again.' });
     } finally {
+      mutated();
       setLeadBusy((s) => withoutId(s, item.id));
     }
   };
 
   const markNotSpam = async (item: InboxItem) => {
+    mutated();
     try {
       await inboxService.updateTag(item.id, 'general');
       setItems((prev) => prev.map((m) => (m.id === item.id ? { ...m, tag: 'general' } : m)));
     } catch {
       addToast({ type: 'error', title: 'Could not update message', message: 'Please try again.' });
+    } finally {
+      mutated();
     }
   };
 
@@ -189,16 +252,20 @@ export default function InboxPage() {
   };
 
   const markAllRead = async () => {
+    mutated();
     setMarkingAll(true);
     try {
       await inboxService.markAllRead();
+      markAllRuns.current += 1;
       setItems((prev) => prev.map((m) => ({ ...m, isRead: true })));
+      setUnreadCount(0);
       setMarkAllOpen(false);
       inboxChanged();
       addToast({ type: 'success', title: 'Marked all read' });
     } catch {
       addToast({ type: 'error', title: 'Failed', message: 'Please try again.' });
     } finally {
+      mutated();
       setMarkingAll(false);
     }
   };
@@ -216,7 +283,7 @@ export default function InboxPage() {
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Inbox</h1>
           {items.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <StatPill value={stats.unread} label="unread" dot="bg-orange-500" strong={stats.unread > 0} />
+              <StatPill value={unreadCount} label="unread" dot="bg-orange-500" strong={unreadCount > 0} />
               <StatPill value={stats.replied} label="replied" dot="bg-teal-500" />
               <StatPill value={stats.avgRating.toFixed(1)} label="★ avg" dot="bg-yellow-400" />
               <StatPill value={`${stats.responseRate}%`} label="response rate" dot="bg-emerald-500" />
@@ -236,7 +303,7 @@ export default function InboxPage() {
               <span className="hidden sm:inline">Auto-reply</span>
             </Button>
           )}
-          {stats.unread > 0 && (
+          {unreadCount > 0 && (
             <Button variant="secondary" onClick={() => setMarkAllOpen(true)}>
               <CheckCheck className="w-4 h-4" />
               <span className="hidden sm:inline">Mark All Read</span>
@@ -258,6 +325,8 @@ export default function InboxPage() {
           <FilterBar items={items} filters={filters} onChange={setFilters} />
           {loading ? (
             <div className="space-y-3">{[0, 1, 2, 3].map((i) => <MessageSkeleton key={i} />)}</div>
+          ) : forbidden ? (
+            <NoAccess />
           ) : items.length === 0 ? (
             <NoMessages />
           ) : visible.length === 0 ? (
@@ -288,6 +357,15 @@ export default function InboxPage() {
               ))}
             </div>
           )}
+          {!loading && items.length > 0 && items.length < total && (
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+              <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore && <LoaderCircle className="w-4 h-4 animate-spin" />}
+                Load more
+              </Button>
+              <span className="text-xs text-zinc-500">Showing {items.length} of {total}</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -301,7 +379,7 @@ export default function InboxPage() {
         </div>
       </div>
 
-      <MarkAllReadModal open={markAllOpen} count={stats.unread} busy={markingAll} onClose={() => setMarkAllOpen(false)} onConfirm={() => void markAllRead()} />
+      <MarkAllReadModal open={markAllOpen} count={unreadCount} busy={markingAll} onClose={() => setMarkAllOpen(false)} onConfirm={() => void markAllRead()} />
       <AutoReplyModal open={autoReplyOpen} onClose={() => setAutoReplyOpen(false)} />
     </PageCard>
   );

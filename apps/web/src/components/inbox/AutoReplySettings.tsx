@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Info, Pencil, Trash2 } from 'lucide-react';
 import { Button, cn } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { ThemedSelect } from '../ui/ThemedSelect';
@@ -92,7 +92,7 @@ function AutoReplySettings() {
       addToast({
         type: 'success',
         title: next ? 'Auto-reply is on' : 'Auto-reply is off',
-        message: next ? 'Matching messages get a reply automatically.' : 'AI drafts wait for your approval in the inbox.',
+        message: next ? 'Your rules are saved. Reply from the inbox for now.' : 'Your rules are kept for later.',
       });
     } catch {
       setEnabled(!next);
@@ -197,16 +197,22 @@ function AutoReplySettings() {
 
   return (
     <div className="space-y-5">
+      <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs font-medium text-amber-800">
+          Auto-reply rules are saved, but they don’t run on Facebook, Instagram or Google messages yet — you’ll reply from the inbox for now.
+        </p>
+      </div>
       <div className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-zinc-50/60 p-4">
         <div>
-          <p className="text-sm font-semibold text-zinc-900">Send replies automatically</p>
-          <p className="text-xs text-zinc-500 mt-0.5">When off, AI drafts wait for your approval in the inbox.</p>
+          <p className="text-sm font-semibold text-zinc-900">Use auto-reply rules</p>
+          <p className="text-xs text-zinc-500 mt-0.5">Your choice is saved for when auto-reply runs on your platforms.</p>
         </div>
         <button
           type="button"
           role="switch"
           aria-checked={!!enabled}
-          aria-label="Send replies automatically"
+          aria-label="Use auto-reply rules"
           disabled={enabled === null}
           onClick={() => void toggleEnabled()}
           className={cn('relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50', enabled ? 'bg-emerald-500' : 'bg-zinc-300')}
@@ -293,7 +299,7 @@ function AutoReplySettings() {
               Rules <span className="text-xs font-normal text-zinc-400">· the first match decides</span>
             </p>
             {rules.length === 0 ? (
-              <p className="text-xs text-zinc-400 py-8 text-center rounded-xl border border-dashed border-zinc-200">No rules yet. New messages get an AI reply by default.</p>
+              <p className="text-xs text-zinc-400 py-8 text-center rounded-xl border border-dashed border-zinc-200">No rules yet. Add one to choose how each kind of message is handled.</p>
             ) : (
               <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                 {rules.map((rule) => (

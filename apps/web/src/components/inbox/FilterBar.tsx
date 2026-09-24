@@ -8,7 +8,8 @@ interface Option {
   label: string;
 }
 
-// The reference's inline filter dropdown: the closed trigger shows the chosen option; `label` names it for screen readers.
+// The reference's inline filter dropdown: the closed trigger shows the chosen option, and screen readers hear
+// "<label>: <option>". Options are plain toggle buttons (aria-pressed); there is no arrow-key listbox pattern.
 function FilterDropdown({ label, value, options, onChange }: { label: string; value: string; options: Option[]; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -26,12 +27,12 @@ function FilterDropdown({ label, value, options, onChange }: { label: string; va
   }, [open]);
 
   const selected = options.find((o) => o.value === value) ?? options[0];
+  const selectedLabel = selected?.label ?? '';
   return (
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        aria-label={label}
-        aria-haspopup="listbox"
+        aria-label={`${label}: ${selectedLabel}`}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
@@ -39,19 +40,18 @@ function FilterDropdown({ label, value, options, onChange }: { label: string; va
           value !== 'all' ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 focus:border-zinc-400',
         )}
       >
-        {selected?.label}
+        {selectedLabel}
         <ChevronDown className={cn('w-4 h-4 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
-        <div role="listbox" className="absolute right-0 z-50 mt-1.5 min-w-[180px] bg-white rounded-xl border border-zinc-200 shadow-lg py-1">
+        <div className="absolute right-0 z-50 mt-1.5 min-w-[180px] bg-white rounded-xl border border-zinc-200 shadow-lg py-1">
           {options.map((o) => {
             const isSelected = o.value === value;
             return (
               <button
                 key={o.value}
                 type="button"
-                role="option"
-                aria-selected={isSelected}
+                aria-pressed={isSelected}
                 onClick={() => { onChange(o.value); setOpen(false); }}
                 className={cn(
                   'w-full text-left flex items-center justify-between gap-3 px-3 py-2 text-sm font-medium transition-colors',
@@ -82,15 +82,14 @@ export function FilterBar({ items, filters, onChange }: { items: InboxItem[]; fi
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex gap-1 bg-zinc-100/80 rounded-xl p-1" role="tablist" aria-label="Message type">
+      <div className="inline-flex max-w-full overflow-x-auto gap-1 bg-zinc-100/80 rounded-xl p-1" role="group" aria-label="Message type">
         {tabs.map((tab) => {
           const active = filters.type === tab.id;
           return (
             <button
               key={tab.id}
               type="button"
-              role="tab"
-              aria-selected={active}
+              aria-pressed={active}
               onClick={() => onChange({ ...filters, type: tab.id })}
               className={cn('px-3 py-1.5 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-all', active ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800')}
             >

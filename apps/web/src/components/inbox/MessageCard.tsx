@@ -129,7 +129,11 @@ export function MessageCard(props: MessageCardProps) {
         <span className="flex-1 min-w-0">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className={cn('text-sm leading-tight', item.isRead ? 'font-medium text-zinc-600' : 'font-bold text-zinc-900')}>{item.customerName}</span>
-            {!item.isRead && <span aria-label="Unread" title="Unread" className="w-2 h-2 bg-orange-600 rounded-full flex-shrink-0" />}
+            {!item.isRead && (
+              <span title="Unread" className="w-2 h-2 bg-orange-600 rounded-full flex-shrink-0">
+                <span className="sr-only">Unread</span>
+              </span>
+            )}
             <SentimentBadge sentiment={item.sentiment} />
             <TagBadge tag={item.tag} />
             <span className="ml-auto text-[11px] text-zinc-400 whitespace-nowrap">{item.timestamp}</span>

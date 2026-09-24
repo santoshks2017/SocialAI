@@ -130,18 +130,56 @@ export interface InboxStats {
   responseRate: number;
 }
 
+/** Spam needs no answer, so it counts in neither the response rate nor the pending replies. */
 export function inboxStats(items: readonly InboxItem[]): InboxStats {
   const unread = items.filter((m) => !m.isRead).length;
   const replied = items.filter((m) => m.responded).length;
+  const answerable = items.filter((m) => m.tag !== 'spam');
+  const answered = answerable.filter((m) => m.responded).length;
   const rated = items.filter((m) => typeof m.rating === 'number');
   return {
     total: items.length,
     unread,
     replied,
-    pending: items.length - replied,
+    pending: answerable.length - answered,
     avgRating: rated.length ? rated.reduce((sum, m) => sum + (m.rating ?? 0), 0) / rated.length : 0,
-    responseRate: items.length ? Math.round((replied / items.length) * 100) : 0,
+    responseRate: answerable.length ? Math.round((answered / answerable.length) * 100) : 0,
   };
+}
+
+// ─── Paging (GET /v1/inbox pages of INBOX_PAGE_SIZE, newest first) ──────────
+
+export const INBOX_PAGE_SIZE = 50;
+
+/** The page after the loaded messages. New messages only shift older ones down, so overlaps are de-duplicated, never skipped. */
+export function nextInboxPage(loaded: number, pageSize = INBOX_PAGE_SIZE): number {
+  return Math.floor(loaded / pageSize) + 1;
+}
+
+/** "Load more": an older page's new messages go after the list; ones already on screen stay as they are. */
+export function appendPage(current: readonly InboxItem[], older: readonly InboxItem[]): InboxItem[] {
+  const seen = new Set(current.map((m) => m.id));
+  const added: InboxItem[] = [];
+  for (const m of older) {
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    added.push(m);
+  }
+  return [...current, ...added];
+}
+
+/**
+ * The refreshed first page replaces its messages and keeps the older pages already loaded after it.
+ * A message replied to here (`localReplies`) keeps its reply until the server reports it.
+ */
+export function mergeFirstPage(current: readonly InboxItem[], fresh: readonly InboxItem[], localReplies: ReadonlySet<string> = new Set()): InboxItem[] {
+  const byId = new Map(current.map((m) => [m.id, m]));
+  const first = fresh.map((m) => {
+    const local = byId.get(m.id);
+    return !m.responded && local?.responded && localReplies.has(m.id) ? local : m;
+  });
+  const shown = new Set(first.map((m) => m.id));
+  return [...first, ...current.filter((m) => !shown.has(m.id))];
 }
 
 const PLATFORMS: readonly InboxPlatform[] = ['google', 'facebook', 'instagram', 'youtube', 'email'];
@@ -254,7 +292,7 @@ export function markAllDescription(count: number): string {
   return `This will mark all ${count} unread message${count === 1 ? '' : 's'} as read.`;
 }
 
-/** 4–5★ reviews can become a thank-you post ("Turn into post"). */
+/** 4–5★ reviews, not marked spam, can become a thank-you post ("Turn into post"). */
 export function canTurnIntoPost(item: InboxItem): boolean {
-  return item.type === 'review' && (item.rating ?? 0) >= 4;
+  return item.type === 'review' && item.tag !== 'spam' && (item.rating ?? 0) >= 4;
 }

@@ -1,9 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  apiPlatform, avgRatingFor, canTurnIntoPost, DEFAULT_FILTERS, displayPlatform, draftFromSuggestions, filterMessages, iconPlatform,
-  inboxStats, initials, markAllDescription, platformCounts, quickActionFilters, REVIEW_REQUEST_PROMPT, selectDraftOption,
-  sentimentCounts, toInboxItem, toneLabel, typeCounts, unreadByPlatform, weeklyPlatformCounts, type ApiInboxMessage,
+  apiPlatform, appendPage, avgRatingFor, canTurnIntoPost, DEFAULT_FILTERS, displayPlatform, draftFromSuggestions, filterMessages, iconPlatform,
+  inboxStats, initials, markAllDescription, mergeFirstPage, nextInboxPage, platformCounts, quickActionFilters, REVIEW_REQUEST_PROMPT,
+  selectDraftOption, sentimentCounts, toInboxItem, toneLabel, typeCounts, unreadByPlatform, weeklyPlatformCounts, type ApiInboxMessage,
 } from './inbox.js';
 
 const NOW = Date.parse('2026-09-24T10:00:00Z');
@@ -58,6 +58,12 @@ describe('stats and counts', () => {
   it('counts replies from repliedAt, not from reading', () => {
     assert.deepEqual(inboxStats(items), { total: 4, unread: 2, replied: 1, pending: 3, avgRating: 3.5, responseRate: 25 });
     assert.deepEqual(inboxStats([]), { total: 0, unread: 0, replied: 0, pending: 0, avgRating: 0, responseRate: 0 });
+  });
+
+  it('leaves spam out of the response rate and pending replies', () => {
+    const spam = toInboxItem(api({ id: 's', tag: 'spam' }));
+    assert.deepEqual(inboxStats([...items, spam]), { total: 5, unread: 3, replied: 1, pending: 3, avgRating: 3.5, responseRate: 25 });
+    assert.deepEqual(inboxStats([spam]), { total: 1, unread: 1, replied: 0, pending: 0, avgRating: 0, responseRate: 0 });
   });
 
   it('counts types, platforms, sentiment and this week', () => {
@@ -115,5 +121,39 @@ describe('labels and drafts', () => {
     assert.equal(canTurnIntoPost(toInboxItem(api({ messageType: 'review', rating: 4 }))), true);
     assert.equal(canTurnIntoPost(toInboxItem(api({ messageType: 'review', rating: 3 }))), false);
     assert.equal(canTurnIntoPost(toInboxItem(api({ messageType: 'comment', rating: 5 }))), false);
+    assert.equal(canTurnIntoPost(toInboxItem(api({ messageType: 'review', rating: 5, tag: 'spam' }))), false);
+  });
+});
+
+describe('paging', () => {
+  const item = (id: string, over: Partial<ApiInboxMessage> = {}) => toInboxItem(api({ id, ...over }));
+  const ids = (list: Array<{ id: string }>) => list.map((i) => i.id);
+
+  it('asks for the page after the loaded messages', () => {
+    assert.equal(nextInboxPage(50, 50), 2);
+    assert.equal(nextInboxPage(53, 50), 2);
+    assert.equal(nextInboxPage(100, 50), 3);
+    assert.equal(nextInboxPage(0, 50), 1);
+  });
+
+  it('appends an older page once per message, keeping what is on screen', () => {
+    const current = [item('a'), item('b', { isRead: true })];
+    const merged = appendPage(current, [item('b'), item('c')]);
+    assert.deepEqual(ids(merged), ['a', 'b', 'c']);
+    assert.equal(merged[1]!.isRead, true);
+  });
+
+  it('refreshes the first page without dropping older pages', () => {
+    const current = [item('b'), item('c'), item('old1'), item('old2')];
+    const merged = mergeFirstPage(current, [item('new'), item('b', { isRead: true }), item('c')]);
+    assert.deepEqual(ids(merged), ['new', 'b', 'c', 'old1', 'old2']);
+    assert.equal(merged[1]!.isRead, true);
+  });
+
+  it('keeps a reply sent here until the server reports it', () => {
+    const replied = item('a', { repliedAt: '2026-09-24T09:00:00Z' });
+    const stale = item('a');
+    assert.equal(mergeFirstPage([replied], [stale], new Set(['a']))[0]!.responded, true);
+    assert.equal(mergeFirstPage([replied], [stale])[0]!.responded, false);
   });
 });
