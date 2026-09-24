@@ -1,5 +1,6 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { randomUUID } from 'node:crypto';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
@@ -7,9 +8,20 @@ import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
 import { claimVideoJob, createVideoJob, QUEUED_GRACE_MS } from '../src/lib/videoJobs.js';
 import { runVideoJob, sweepVideoJobs, type ReelRenderers } from '../src/lib/videoJobRunner.js';
 import { kenBurnsOverlays, ReelRenderError, veoError } from '../src/services/reelRenderers.js';
+import { invalidateAiKeyCache } from '../src/lib/aiKeys.js';
+import { invalidateAiModelCache } from '../src/lib/aiModels.js';
 
 before(async () => { await fastify.ready(); });
 after(async () => { await fastify.close(); });
+// A developer .env can pin a real GEMINI_API_KEY; clear it (and any stored model/engine choice) so
+// the engine-default tests below see the same "nothing configured" state regardless of local environment.
+beforeEach(async () => {
+  await prisma.apiConnectionSecret.deleteMany({});
+  await prisma.apiConnection.deleteMany({});
+  delete process.env['GEMINI_API_KEY'];
+  invalidateAiKeyCache();
+  invalidateAiModelCache();
+});
 
 async function team() {
   const dealer = await prisma.dealer.create({ data: { name: 'Reel Motors', city: 'Nashik', phone: `phone-${randomUUID()}` } });
@@ -163,5 +175,83 @@ describe('reel renderer helpers', () => {
     assert.equal(veoError(new Error('RESOURCE_EXHAUSTED: quota')).code, 'VEO_QUOTA_EXCEEDED');
     assert.equal(veoError(new Error('Permission denied for model')).code, 'VEO_ACCESS_DENIED');
     assert.equal(veoError(new Error('boom')).code, 'VEO_GENERATION_FAILED');
+    const httpError = (status: number) => new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_REQUEST', undefined, undefined, {
+      status, statusText: '', data: {}, headers: {}, config: { headers: new AxiosHeaders() },
+    });
+    const missing = veoError(httpError(404));
+    assert.deepEqual([missing.code, missing.message], ['VEO_ACCESS_DENIED', 'The selected video model isn’t available to this key.']);
+    assert.equal(veoError(httpError(403)).code, 'VEO_ACCESS_DENIED');
+    assert.equal(veoError(httpError(429)).code, 'VEO_QUOTA_EXCEEDED');
+  });
+});
+
+describe('reel engine default', () => {
+  const post = (t: Awaited<ReturnType<typeof team>>, payload: object) =>
+    fastify.inject({ method: 'POST', url: '/v1/creatives/generate-video', headers: t.headers, payload });
+
+  it('falls back to a quick render with no Gemini key', async () => {
+    const t = await team();
+    const res = await post(t, { prompt: 'Creta summer offer' });
+    assert.equal(res.statusCode, 202);
+    assert.equal((res.json() as { engine: string }).engine, 'kenburns');
+  });
+
+  it('uses AI video when a Gemini key is configured and no reel setting is stored', async () => {
+    process.env['GEMINI_API_KEY'] = 'test-key-0000';
+    invalidateAiKeyCache();
+    invalidateAiModelCache();
+    const t = await team();
+    const res = await post(t, { prompt: 'Creta summer offer' });
+    assert.equal(res.statusCode, 202);
+    assert.equal((res.json() as { engine: string }).engine, 'veo');
+  });
+
+  it('honours a stored quick-render reel setting even with a key configured', async () => {
+    process.env['GEMINI_API_KEY'] = 'test-key-0000';
+    await prisma.apiConnection.create({ data: { name: 'Deploy key', provider: 'google-gemini', reel_engine: 'quick' } });
+    invalidateAiKeyCache();
+    invalidateAiModelCache();
+    const t = await team();
+    const res = await post(t, { prompt: 'Creta summer offer' });
+    assert.equal(res.statusCode, 202);
+    assert.equal((res.json() as { engine: string }).engine, 'kenburns');
+  });
+
+  it('falls back to a quick render once the AI reel cap is used up, unless AI video was asked for', async (ctx) => {
+    const saved = { ai: process.env['REEL_DAILY_LIMIT'], quick: process.env['REEL_QUICK_DAILY_LIMIT'] };
+    ctx.after(() => {
+      for (const [name, value] of [['REEL_DAILY_LIMIT', saved.ai], ['REEL_QUICK_DAILY_LIMIT', saved.quick]] as const) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    });
+    process.env['REEL_DAILY_LIMIT'] = '1';
+    process.env['REEL_QUICK_DAILY_LIMIT'] = '1';
+    process.env['GEMINI_API_KEY'] = 'test-key-0000';
+    invalidateAiKeyCache();
+    invalidateAiModelCache();
+    const t = await team();
+
+    const first = await post(t, { prompt: 'Creta summer offer' });
+    assert.deepEqual([first.statusCode, (first.json() as { engine: string }).engine], [202, 'veo']);
+    const second = await post(t, { prompt: 'Creta summer offer', duration_seconds: 20 });
+    assert.deepEqual([second.statusCode, (second.json() as { engine: string }).engine], [202, 'kenburns']);
+    const stored = await prisma.videoJob.findUnique({ where: { id: (second.json() as { job_id: string }).job_id } });
+    assert.deepEqual([stored?.engine, stored?.duration_seconds], ['kenburns', 20]);
+
+    const explicit = await post(t, { prompt: 'Creta summer offer', engine: 'veo' });
+    assert.equal(explicit.statusCode, 429);
+    const both = await post(t, { prompt: 'Creta summer offer' });
+    assert.deepEqual([both.statusCode, (both.json() as { error: { code: string } }).error.code], [429, 'REEL_DAILY_LIMIT_REACHED']);
+  });
+
+  it('lets an explicit engine in the body win over the default', async () => {
+    process.env['GEMINI_API_KEY'] = 'test-key-0000';
+    invalidateAiKeyCache();
+    invalidateAiModelCache();
+    const t = await team();
+    const res = await post(t, { prompt: 'Creta summer offer', engine: 'kenburns' });
+    assert.equal(res.statusCode, 202);
+    assert.equal((res.json() as { engine: string }).engine, 'kenburns');
   });
 });

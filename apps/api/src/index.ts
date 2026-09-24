@@ -11,6 +11,7 @@ import { registerActivityLog } from './plugins/activityLog.js';
 import { registerPlanGate } from './plugins/planGate.js';
 import { createOriginChecker } from './lib/corsOrigins.js';
 import { redactApprovalToken } from './lib/logRedaction.js';
+import { installHttpErrorRedaction, serializeError } from './lib/httpErrorRedaction.js';
 import { startWorkers } from './workers/index.js';
 
 import authRoutes from './routes/auth.js';
@@ -46,10 +47,14 @@ import notificationRoutes from './routes/notifications.js';
 import { UPLOADS_ROOT } from './routes/upload.js';
 import { getFrontendUrl } from './lib/frontendUrl.js';
 
+// Scrub API keys and tokens from every axios error before any route can log one.
+installHttpErrorRedaction();
+
 // Cloud Run's front end proxies every request, so the socket address is its own
 // (169.254.169.126); trustProxy makes req.ip the client from X-Forwarded-For.
 // The req serializer mirrors Fastify's default, but keeps the raw approval-link token
-// (a bearer credential in the URL) out of the logs.
+// (a bearer credential in the URL) out of the logs. The err serializer redacts HTTP client
+// errors (keys in request headers, tokens in query strings) before the standard one runs.
 const fastify = Fastify({
   logger: {
     serializers: {
@@ -60,6 +65,7 @@ const fastify = Fastify({
         remoteAddress: req.ip,
         ...(req.socket?.remotePort !== undefined ? { remotePort: req.socket.remotePort } : {}),
       }),
+      err: serializeError,
     },
   },
   trustProxy: true,

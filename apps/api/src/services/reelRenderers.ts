@@ -3,8 +3,9 @@ import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import axios from 'axios';
+import sharp from 'sharp';
 import { generateGeminiImage } from './geminiImage.js';
-import { compositeVideoOverlays, generateGeminiVideo, generateReelCaptionAndMetadata, REELS_DIR, type VideoOverlayBeat } from './geminiVideo.js';
+import { compositeVideoOverlays, generateGeminiVideo, generateReelCaptionAndMetadata, REELS_DIR, type VideoImageInput, type VideoOverlayBeat } from './geminiVideo.js';
 import { extractThumbnail, reelDimensions, renderKenBurns } from './kenBurns.js';
 import { uploadFile } from '../lib/storage.js';
 import { loadImageFromUrl } from '../lib/uploadPaths.js';
@@ -73,7 +74,7 @@ export async function renderKenBurnsReel(input: ReelRenderInput): Promise<Render
 
     const final = path.join(dir, 'final.mp4');
     const overlays = kenBurnsOverlays(meta.headline, input.dealerName, input.durationSeconds, input.language);
-    const withText = await compositeVideoOverlays(clean, final, overlays, input.aspectRatio === '16:9' ? '16:9' : '9:16');
+    const withText = await compositeVideoOverlays(clean, final, overlays, { width, height });
     const videoPath = withText ? final : clean;
     const thumbPath = path.join(dir, 'thumb.jpg');
     await extractThumbnail(videoPath, thumbPath);
@@ -93,8 +94,11 @@ export async function renderKenBurnsReel(input: ReelRenderInput): Promise<Render
 export function veoError(err: unknown): ReelRenderError {
   const status = axios.isAxiosError(err) ? err.response?.status : undefined;
   const message = err instanceof Error ? err.message : String(err);
+  if (status === 404) {
+    return new ReelRenderError('VEO_ACCESS_DENIED', 'The selected video model isn’t available to this key.');
+  }
   if (status === 403 || /permission|access denied/i.test(message)) {
-    return new ReelRenderError('VEO_ACCESS_DENIED', 'Your Google project doesn’t have Veo (video) access enabled yet.');
+    return new ReelRenderError('VEO_ACCESS_DENIED', 'Your Google project doesn’t have access to the selected video model yet.');
   }
   if (status === 429 || /quota|rate limit|RESOURCE_EXHAUSTED/i.test(message)) {
     return new ReelRenderError('VEO_QUOTA_EXCEEDED', 'Video generation quota reached. Try again later.');
@@ -102,13 +106,47 @@ export function veoError(err: unknown): ReelRenderError {
   return new ReelRenderError('VEO_GENERATION_FAILED', 'AI video generation failed.');
 }
 
+/**
+ * The dealer's photo as the video model's reference: upright (EXIF orientation applied), transparent
+ * areas on white, at most 1280 px, JPEG. Null (message logged) when it can't be decoded — e.g. a HEIC
+ * this sharp build can't read — so the reel carries on as text-to-video.
+ */
+export async function prepareReferenceImage(buffer: Buffer): Promise<VideoImageInput | null> {
+  try {
+    const data = await sharp(buffer)
+      .rotate()
+      .flatten({ background: '#ffffff' })
+      .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { data, mimeType: 'image/jpeg' };
+  } catch (err) {
+    console.warn(`[reels] Could not decode the reference photo; continuing without it: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+/** Loads and prepares the attached photo; undefined when it can't be read, so the reel still renders. */
+export async function referenceImage(imageUrl: string): Promise<VideoImageInput | undefined> {
+  let buffer: Buffer;
+  try {
+    ({ buffer } = await loadImageFromUrl(imageUrl, { timeoutMs: 20_000 }));
+  } catch (err) {
+    console.warn(`[reels] Could not load the reference photo; continuing without it: ${err instanceof Error ? err.message : String(err)}`);
+    return undefined;
+  }
+  return (await prepareReferenceImage(buffer)) ?? undefined;
+}
+
 export async function renderVeoReel(input: ReelRenderInput): Promise<RenderedReel> {
   if (!(await hasGeminiKey())) throw new ReelRenderError('GEMINI_NOT_CONFIGURED', NOT_CONFIGURED);
+  const image = input.imageUrl ? await referenceImage(input.imageUrl) : undefined;
   try {
     const result = await generateGeminiVideo({
       prompt: input.prompt, duration_seconds: input.durationSeconds,
       aspect_ratio: input.aspectRatio === '16:9' ? '16:9' : '9:16',
       dealerName: input.dealerName, city: input.city, language: input.language,
+      ...(image ? { image } : {}),
     });
     return { videoUrl: result.videoUrl, thumbnailUrl: result.thumbnailUrl || null, caption: result.caption ?? '', hashtags: result.hashtags ?? [] };
   } catch (err) {

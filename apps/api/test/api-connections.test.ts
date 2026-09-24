@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { invalidateAiKeyCache, resolveGeminiKey } from '../src/lib/aiKeys.js';
+import { invalidateAiModelCache } from '../src/lib/aiModels.js';
 import { resolvePermissions, type JwtUser, type Role } from '../src/lib/permissions.js';
 
 const BASE = '/v1/admin/api-connections';
@@ -19,8 +20,9 @@ after(async () => { await fastify.close(); });
 beforeEach(async () => {
   await prisma.apiConnectionSecret.deleteMany({});
   await prisma.apiConnection.deleteMany({});
-  delete process.env['GEMINI_API_KEY'];
+  for (const k of ['GEMINI_API_KEY', 'GEMINI_TEXT_MODEL', 'GEMINI_IMAGE_MODEL', 'GEMINI_VIDEO_MODEL', 'GEMINI_OMNI_RESOLUTION', 'VIDEO_DEFAULT_ENGINE']) delete process.env[k];
   invalidateAiKeyCache();
+  invalidateAiModelCache();
 });
 
 async function firstConnectionId(): Promise<string> {
@@ -54,7 +56,7 @@ describe('API connections', () => {
     assert.equal(body.items[0]!.hasKey, false);
     assert.equal(body.activeKey.source, 'env');
     assert.equal(body.envKeyPresent, true);
-    assert.deepEqual(body.providers, [{ id: 'google-gemini', label: 'Google — Gemini / Veo' }]);
+    assert.deepEqual(body.providers, [{ id: 'google-gemini', label: 'Google — Gemini / Omni' }]);
     const second = await fastify.inject({ method: 'GET', url: BASE, headers: owner });
     assert.equal((second.json() as { items: unknown[] }).items.length, 1);
   });
@@ -94,10 +96,17 @@ describe('API connections', () => {
     const id = await firstConnectionId();
     await fastify.inject({ method: 'PUT', url: `${BASE}/${id}/key`, headers: owner, payload: { key: KEY } });
     const fetchMock = t.mock.method(globalThis, 'fetch', async () =>
-      new Response(JSON.stringify({ models: [{ name: 'models/veo-3.1-fast-generate-preview' }, { name: 'models/gemini-2.5-flash-image' }] }), { status: 200 }));
+      new Response(JSON.stringify({ models: [
+        { name: 'models/gemini-3.8-flash' }, { name: 'models/gemini-3.1-flash-image' }, { name: 'models/gemini-omni-1.1-flash' },
+      ] }), { status: 200 }));
     const res = await fastify.inject({ method: 'POST', url: `${BASE}/${id}/test`, headers: owner });
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.json(), { ok: true, detail: 'Key works — image models available, Veo video available.', source: 'saved', canGenerateImages: true, canGenerateVideo: true });
+    const body = res.json() as { ok: boolean; detail: string; source: string; canGenerateImages: boolean; canGenerateVideo: boolean };
+    assert.equal(body.ok, true);
+    assert.equal(body.source, 'saved');
+    assert.equal(body.canGenerateImages, true);
+    assert.equal(body.canGenerateVideo, true);
+    assert.equal(body.detail, 'Key works — Gemini 3.8 Flash ✓, Nano Banana 2 ✓, Gemini Omni 1.1 Flash ✓.');
     assert.equal(((fetchMock.mock.calls[0]!.arguments[1] as RequestInit).headers as Record<string, string>)['x-goog-api-key'], KEY);
   });
 
@@ -124,5 +133,72 @@ describe('API connections', () => {
     assert.equal((await fastify.inject({ method: 'DELETE', url: `${BASE}/${id}`, headers: owner })).statusCode, 200);
     assert.equal(await prisma.apiConnectionSecret.count({ where: { connection_id: id } }), 0);
     assert.equal((await fastify.inject({ method: 'PATCH', url: `${BASE}/${id}`, headers: owner, payload: { name: 'Y' } })).statusCode, 404);
+  });
+});
+
+describe('model choices', () => {
+  it('lists options and defaults, and saves or clears choices', async () => {
+    const list = (await fastify.inject({ method: 'GET', url: BASE, headers: owner })).json() as {
+      modelOptions: { text: Array<{ id: string }>; video: Array<{ id: string }>; videoResolutions: string[] };
+      modelDefaults: { text: string; video: string; videoResolution: string };
+      items: Array<{ providerLabel: string; models: Record<string, unknown> }>;
+    };
+    assert.equal(list.modelOptions.text[0]!.id, 'gemini-3.8-flash');
+    assert.equal(list.modelOptions.video[0]!.id, 'gemini-omni-1.1-flash');
+    assert.deepEqual(list.modelOptions.videoResolutions, ['360p', '720p', '1080p', '4k']);
+    assert.deepEqual([list.modelDefaults.text, list.modelDefaults.video, list.modelDefaults.videoResolution], ['gemini-3.8-flash', 'gemini-omni-1.1-flash', '720p']);
+    assert.equal(list.items[0]!.providerLabel, 'Google — Gemini / Omni');
+    assert.deepEqual(list.items[0]!.models, { text: null, image: null, video: null, videoResolution: null, reelEngine: null });
+
+    const id = await firstConnectionId();
+    const patch = (payload: object) => fastify.inject({ method: 'PATCH', url: `${BASE}/${id}`, headers: owner, payload });
+    const saved = await patch({ imageModel: 'gemini-3-pro-image', videoModel: 'gemini-omni-1.2-flash', videoResolution: '1080p', reelEngine: 'quick' });
+    assert.equal(saved.statusCode, 200);
+    assert.deepEqual((saved.json() as { models: unknown }).models, { text: null, image: 'gemini-3-pro-image', video: 'gemini-omni-1.2-flash', videoResolution: '1080p', reelEngine: 'quick' });
+    assert.equal((await patch({ imageModel: null })).statusCode, 200);
+    for (const bad of [{ textModel: 'Bad Model' }, { videoResolution: '8k' }, { reelEngine: 'veo' }, { videoModel: 42 }]) {
+      assert.equal((await patch(bad)).statusCode, 400, JSON.stringify(bad));
+    }
+  });
+
+  it('logs which model fields a save changed, without other values', async (t) => {
+    const id = await firstConnectionId();
+    const logged: Array<Record<string, unknown>> = [];
+    const makeChild = fastify.log.child.bind(fastify.log);
+    t.mock.method(fastify.log, 'child', (...args: Parameters<typeof fastify.log.child>) => {
+      const child = makeChild(...args);
+      const info = child.info.bind(child);
+      child.info = ((obj: unknown, ...rest: unknown[]) => {
+        if (typeof obj === 'object' && obj !== null) logged.push(obj as Record<string, unknown>);
+        return (info as (...a: unknown[]) => void)(obj, ...rest);
+      }) as typeof child.info;
+      return child;
+    });
+    const patch = (payload: object) => fastify.inject({ method: 'PATCH', url: `${BASE}/${id}`, headers: owner, payload });
+    const changes = () => logged.filter((entry) => entry['action'] === 'api_connection.models_changed');
+
+    await patch({ textModel: null, imageModel: 'gemini-3-pro-image', videoResolution: '1080p', notes: 'secret-ish note' });
+    assert.deepEqual(changes(), [{ action: 'api_connection.models_changed', connectionId: id, by: 'owner-user-1', fields: ['imageModel', 'videoResolution'] }]);
+
+    await patch({ name: 'Renamed' });
+    assert.equal(changes().length, 1);
+  });
+
+  it('tests which chosen models the key can use', async (t) => {
+    const id = await firstConnectionId();
+    await fastify.inject({ method: 'PUT', url: `${BASE}/${id}/key`, headers: owner, payload: { key: KEY } });
+    t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ models: [
+      { name: 'models/gemini-3.8-flash' }, { name: 'models/gemini-3.1-flash-image' },
+    ] }), { status: 200 }));
+    const res = (await fastify.inject({ method: 'POST', url: `${BASE}/${id}/test`, headers: owner })).json() as {
+      ok: boolean; canGenerateImages: boolean; canGenerateVideo: boolean; models: Array<{ kind: string; id: string; available: boolean }>; detail: string;
+    };
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.models.map((m) => [m.kind, m.id, m.available]), [
+      ['text', 'gemini-3.8-flash', true], ['image', 'gemini-3.1-flash-image', true], ['video', 'gemini-omni-1.1-flash', false],
+    ]);
+    assert.equal(res.canGenerateImages, true);
+    assert.equal(res.canGenerateVideo, false);
+    assert.match(res.detail, /Gemini Omni 1\.1 Flash/);
   });
 });

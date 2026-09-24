@@ -1,9 +1,11 @@
 import axios from "axios";
 import sharp from "sharp";
 import { getGeminiApiKey, hasGeminiKey } from "../lib/aiKeys.js";
+import { resolveAiModels } from "../lib/aiModels.js";
+import { GOOGLE_AI_BASE, generateContentUrl, googleAiHeaders } from "../lib/googleAi.js";
 
 /**
- * Generates an image using Google AI Studio (Gemini / Imagen 3 model).
+ * Generates an image with the chosen Gemini image model (Nano Banana 2 by default).
  * Returns a Buffer of the generated image.
  */
 export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffer, modelName?: string): Promise<Buffer> {
@@ -12,12 +14,12 @@ export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffe
     throw new Error("Gemini API key is not configured. Save one in Admin → APIs & models or set GEMINI_API_KEY on the server.");
   }
 
-  const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
+  const model = (await resolveAiModels()).image;
 
   if (model.startsWith("gemini-") || model.includes("banana")) {
-    // Use generateContent API for Gemini-based image models (e.g. gemini-3.1-flash-image-preview / nano-banana-pro-preview)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    
+    // Use generateContent API for Gemini-based image models (e.g. gemini-3.1-flash-image / nano-banana-pro)
+    const url = generateContentUrl(model);
+
     let payloadBuffer = carImageBuffer;
     if (carImageBuffer) {
       try {
@@ -26,7 +28,7 @@ export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffe
           .jpeg({ quality: 85 })
           .toBuffer();
       } catch (err) {
-        console.error("Failed to resize car image buffer for Gemini payload:", err);
+        console.error("Failed to resize car image buffer for Gemini payload:", err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -57,7 +59,7 @@ export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffe
     };
 
     const response = await axios.post(url, payload, {
-      headers: { "Content-Type": "application/json" },
+      headers: googleAiHeaders(apiKey),
       timeout: 60000, // 60 seconds timeout for image generation
     });
 
@@ -84,7 +86,7 @@ export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffe
     return Buffer.from(b64, "base64");
   } else {
     // Use predict API for Imagen models (e.g. imagen-3.0-generate-002)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`;
+    const url = `${GOOGLE_AI_BASE}/models/${encodeURIComponent(model)}:predict`;
     const payload = {
       instances: [
         {
@@ -98,7 +100,7 @@ export async function generateGeminiImage(prompt: string, carImageBuffer?: Buffe
     };
 
     const response = await axios.post(url, payload, {
-      headers: { "Content-Type": "application/json" },
+      headers: googleAiHeaders(apiKey),
       timeout: 45000, // 45 seconds timeout for image generation
     });
 

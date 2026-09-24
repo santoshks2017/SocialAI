@@ -5,8 +5,11 @@ import { isGlobalOwner } from '../lib/permissions.js';
 import { GEMINI_PROVIDER, invalidateAiKeyCache, resolveGeminiKey, type ResolvedGeminiKey } from '../lib/aiKeys.js';
 import { KeyStorageUnavailableError, isKeyStorageReady, openSecret, sealSecret } from '../lib/secretBox.js';
 import { checkGeminiKey } from '../lib/geminiKeyCheck.js';
+import {
+  MODEL_OPTIONS, VIDEO_RESOLUTIONS, invalidateAiModelCache, isReelEngine, isValidModelId, isVideoResolution, pickModels,
+} from '../lib/aiModels.js';
 
-const PROVIDERS: Record<string, string> = { [GEMINI_PROVIDER]: 'Google — Gemini / Veo' };
+const PROVIDERS: Record<string, string> = { [GEMINI_PROVIDER]: 'Google — Gemini / Omni' };
 
 function view(c: ApiConnection, active: ResolvedGeminiKey) {
   return {
@@ -21,8 +24,21 @@ function view(c: ApiConnection, active: ResolvedGeminiKey) {
     keyUpdatedAt: c.key_updated_at ? new Date(c.key_updated_at).toISOString() : null,
     keyUpdatedBy: c.key_updated_by ?? null,
     inUse: active.source === 'saved' && active.connectionId === c.id,
+    models: {
+      text: c.text_model ?? null,
+      image: c.image_model ?? null,
+      video: c.video_model ?? null,
+      videoResolution: c.video_resolution ?? null,
+      reelEngine: c.reel_engine ?? null,
+    },
   };
 }
+
+// Body field → stored column, for the model-change audit log.
+const MODEL_FIELDS = [
+  ['textModel', 'text_model'], ['imageModel', 'image_model'], ['videoModel', 'video_model'],
+  ['videoResolution', 'video_resolution'], ['reelEngine', 'reel_engine'],
+] as const;
 
 const bad = (reply: FastifyReply, message: string) =>
   reply.code(400).send({ error: { code: 'INVALID_INPUT', message } });
@@ -57,6 +73,8 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
       activeKey: { source: active.source, connectionId: active.connectionId },
       envKeyPresent: !!process.env['GEMINI_API_KEY']?.trim(),
       keyStorageReady: isKeyStorageReady(),
+      modelOptions: { ...MODEL_OPTIONS, videoResolutions: [...VIDEO_RESOLUTIONS] },
+      modelDefaults: pickModels(null),
     };
   });
 
@@ -72,8 +90,13 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
 
   fastify.patch('/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { name, notes, enabled } = (request.body ?? {}) as { name?: string; notes?: string | null; enabled?: boolean };
-    if (!(await load(id))) return notFound(reply);
+    const { name, notes, enabled, textModel, imageModel, videoModel, videoResolution, reelEngine } = (request.body ?? {}) as {
+      name?: string; notes?: string | null; enabled?: boolean;
+      textModel?: string | null; imageModel?: string | null; videoModel?: string | null;
+      videoResolution?: string | null; reelEngine?: string | null;
+    };
+    const existing = await load(id);
+    if (!existing) return notFound(reply);
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
       const cleanName = name.trim();
@@ -88,8 +111,40 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
       if (typeof enabled !== 'boolean') return bad(reply, 'enabled must be true or false');
       data['enabled'] = enabled;
     }
+    if (textModel !== undefined) {
+      if (textModel === null) data['text_model'] = null;
+      else if (isValidModelId(textModel)) data['text_model'] = textModel;
+      else return bad(reply, 'textModel must be a model id like gemini-3.8-flash');
+    }
+    if (imageModel !== undefined) {
+      if (imageModel === null) data['image_model'] = null;
+      else if (isValidModelId(imageModel)) data['image_model'] = imageModel;
+      else return bad(reply, 'imageModel must be a model id like gemini-3.8-flash');
+    }
+    if (videoModel !== undefined) {
+      if (videoModel === null) data['video_model'] = null;
+      else if (isValidModelId(videoModel)) data['video_model'] = videoModel;
+      else return bad(reply, 'videoModel must be a model id like gemini-3.8-flash');
+    }
+    if (videoResolution !== undefined) {
+      if (videoResolution === null) data['video_resolution'] = null;
+      else if (isVideoResolution(videoResolution)) data['video_resolution'] = videoResolution;
+      else return bad(reply, 'videoResolution must be 360p, 720p, 1080p or 4k');
+    }
+    if (reelEngine !== undefined) {
+      if (reelEngine === null) data['reel_engine'] = null;
+      else if (isReelEngine(reelEngine)) data['reel_engine'] = reelEngine;
+      else return bad(reply, 'reelEngine must be ai or quick');
+    }
     const updated = await prisma.apiConnection.update({ where: { id }, data });
     invalidateAiKeyCache();
+    invalidateAiModelCache();
+    const body = { textModel, imageModel, videoModel, videoResolution, reelEngine };
+    if (Object.values(body).some((value) => value !== undefined)) {
+      // Field names only: the audit trail says what changed, not the values.
+      const fields = MODEL_FIELDS.filter(([field, column]) => body[field] !== undefined && data[column] !== (existing[column] ?? null)).map(([field]) => field);
+      request.log.info({ action: 'api_connection.models_changed', connectionId: id, by: request.user.dealer_user_id, fields });
+    }
     return view(updated, await resolveGeminiKey());
   });
 
@@ -99,6 +154,7 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
     await prisma.apiConnectionSecret.deleteMany({ where: { connection_id: id } });
     await prisma.apiConnection.delete({ where: { id } });
     invalidateAiKeyCache();
+    invalidateAiModelCache();
     request.log.info({ action: 'api_connection.deleted', connectionId: id, by: request.user.dealer_user_id });
     return { success: true };
   });
@@ -129,6 +185,7 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
       data: { has_key: true, key_last4: cleanKey.slice(-4), key_updated_at: new Date(), key_updated_by: request.user.dealer_user_id },
     });
     invalidateAiKeyCache();
+    invalidateAiModelCache();
     request.log.info({ action: 'api_key.saved', connectionId: id, by: request.user.dealer_user_id });
     return view(updated, await resolveGeminiKey());
   });
@@ -142,6 +199,7 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
       data: { has_key: false, key_last4: null, key_updated_at: new Date(), key_updated_by: request.user.dealer_user_id },
     });
     invalidateAiKeyCache();
+    invalidateAiModelCache();
     request.log.info({ action: 'api_key.removed', connectionId: id, by: request.user.dealer_user_id });
     return view(updated, await resolveGeminiKey());
   });
@@ -170,7 +228,8 @@ export default async function apiConnectionRoutes(fastify: FastifyInstance) {
     key ??= process.env['GEMINI_API_KEY']?.trim() || null;
     if (!key) return reply.code(400).send({ error: { code: 'NO_KEY', message: 'No key saved here and no GEMINI_API_KEY on the server.' } });
 
-    const result = await checkGeminiKey(key);
+    const effective = pickModels(connection);
+    const result = await checkGeminiKey(key, { text: effective.text, image: effective.image, video: effective.video });
     request.log.info({ action: 'api_key.tested', connectionId: id, by: request.user.dealer_user_id, ok: result.ok });
     return { ...result, source };
   });
