@@ -15,6 +15,7 @@ import {
   isLegacySuccess, isSuccessfulResult, mergePlatformResult, outcomeLabels, storedOutcome, toPlatformResult,
   type AccountOutcome, type PlatformPublishResult,
 } from './publishResults.js';
+import { shortsMetadata, uploadShort } from './youtubeUpload.js';
 
 export { platformLabel } from './connections.js';
 export { isSuccessfulResult } from './publishResults.js';
@@ -195,6 +196,13 @@ async function sendVideoToPlatform(data: PublishDirectData): Promise<{ platform_
     return { platform_post_id: result.post_id, url: result.url };
   }
   if (platform === 'gmb') throw new Error(GMB_NO_VIDEO);
+  if (platform === 'youtube') {
+    // An empty caption line falls back to the dealership's name as the Short's title.
+    const dealer = await prisma.dealer.findUnique({ where: { id: data.dealer_id } });
+    const meta = shortsMetadata({ captionText: data.caption_text, fullCaption: caption, hashtags: data.hashtags, dealerName: dealer?.name ?? '' });
+    const result = await uploadShort({ accessToken: access_token, videoUrl: video_url, ...meta });
+    return { platform_post_id: result.platform_post_id, url: result.url };
+  }
   throw new Error(`${platformLabel(platform)} video publishing isn't available yet.`);
 }
 
