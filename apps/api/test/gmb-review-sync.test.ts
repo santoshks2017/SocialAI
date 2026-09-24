@@ -1,20 +1,23 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import axios from 'axios';
 import { prisma } from '../src/db/prisma.js';
 import { pickReviewConnections, REVIEW_SYNC_INTERVAL_MS, starRating, syncGoogleReviews } from '../src/lib/gmbReviewSync.js';
+import { getFreshGoogleAccessToken } from '../src/lib/googleToken.js';
+import { fetchGmbPostMetrics } from '../src/services/gmb.js';
 
 const HOUR = 3_600_000;
 
-async function googleDealer() {
+// By default the connection was synced before, so new reviews notify; lastSyncAt null is its first sync.
+async function googleDealer({ lastSyncAt = new Date(Date.now() - 2 * HOUR), account }: { lastSyncAt?: Date | null; account?: string } = {}) {
   const dealer = await prisma.dealer.create({ data: { name: 'Review Motors', city: 'Pune', phone: `phone-${randomUUID()}`, plan: 'growth' } });
   const admin = await prisma.dealerUser.create({ data: { phone: `u-${randomUUID()}`, name: 'Admin', role: 'admin', dealer_id: dealer.id, is_active: true } });
-  const location = `accounts/1/locations/${randomUUID()}`;
+  const location = account ?? `accounts/1/locations/${randomUUID()}`;
   const connection = await prisma.platformConnection.create({
     data: {
       dealer_id: dealer.id, platform: 'gmb', platform_account_id: location, access_token: 'ya29.test-token',
-      token_expires_at: new Date(Date.now() + 2 * HOUR), is_connected: true,
+      token_expires_at: new Date(Date.now() + 2 * HOUR), is_connected: true, last_sync_at: lastSyncAt,
     },
   });
   return { dealerId: dealer.id, admin, location, connection };
@@ -57,6 +60,9 @@ describe('helpers', () => {
 });
 
 describe('syncGoogleReviews', () => {
+  // Each test syncs only its own connection.
+  beforeEach(async () => { await prisma.platformConnection.deleteMany({ where: { platform: 'gmb' } }); });
+
   it('imports reviews with stars, replies and a verdict, and notifies once', async (t) => {
     const g = await googleDealer();
     const calls: Array<{ url: string; auth: string | undefined }> = [];
@@ -130,5 +136,80 @@ describe('syncGoogleReviews', () => {
     const logged = errors.mock.calls.map((call) => call.arguments);
     assert.ok(logged.some((args) => args.some((a) => typeof a === 'string' && a.includes('PERMISSION_DENIED'))));
     assert.ok(logged.every((args) => args.every((a) => typeof a === 'string')));
+  });
+
+  it('claims the connection before calling Google, with a 15 s timeout', async (t) => {
+    const g = await googleDealer();
+    const seen: Array<{ stampedAt: number | undefined; timeout: number | undefined }> = [];
+    t.mock.method(axios, 'get', async (_url: string, config: { timeout?: number }) => {
+      const stored = await prisma.platformConnection.findUnique({ where: { id: g.connection.id } });
+      seen.push({ stampedAt: stored?.last_sync_at?.getTime(), timeout: config.timeout });
+      throw new Error('socket hang up');
+    });
+    t.mock.method(console, 'error', () => {});
+    const now = new Date();
+
+    await syncGoogleReviews(now);
+
+    assert.deepEqual(seen, [{ stampedAt: now.getTime(), timeout: 15_000 }]);
+  });
+
+  it('skips an account without a location quietly, but still stamps it', async (t) => {
+    const g = await googleDealer({ account: 'accounts/1' });
+    const get = t.mock.method(axios, 'get', async () => ({ data: { reviews: [] } }));
+    const errors = t.mock.method(console, 'error', () => {});
+    const now = new Date();
+
+    assert.equal(await syncGoogleReviews(now), 0);
+
+    assert.equal(get.mock.callCount(), 0);
+    assert.equal(errors.mock.callCount(), 0);
+    assert.equal((await prisma.platformConnection.findUnique({ where: { id: g.connection.id } }))?.last_sync_at?.getTime(), now.getTime());
+  });
+
+  it('brings in the first sync as read history without notifying, then treats new reviews as new', async (t) => {
+    const g = await googleDealer({ lastSyncAt: null });
+    const reviews = [review(g.location, 1), review(g.location, 2, { starRating: 'TWO', comment: 'Delivery was late' })];
+    t.mock.method(axios, 'get', async () => ({ data: { reviews } }));
+    const now = new Date();
+
+    assert.equal(await syncGoogleReviews(now), 2);
+
+    const two = await byPlatformId(`${g.location}/reviews/r2`);
+    assert.deepEqual([two?.is_read, two?.needs_classification ?? null, two?.sentiment, two?.tag], [true, null, 'negative', 'complaint']);
+    assert.equal((await prisma.notification.findMany({ where: { user_id: g.admin.id } })).length, 0);
+
+    reviews.push(review(g.location, 3));
+    assert.equal(await syncGoogleReviews(new Date(now.getTime() + REVIEW_SYNC_INTERVAL_MS + 60_000)), 1);
+
+    assert.equal((await byPlatformId(`${g.location}/reviews/r3`))?.is_read, false);
+    assert.equal((await prisma.notification.findMany({ where: { user_id: g.admin.id } })).length, 1);
+  });
+});
+
+describe('Google call timeouts', () => {
+  it('bounds the post metrics request', async (t) => {
+    const get = t.mock.method(axios, 'get', async () => ({ data: { localPostMetrics: [] } }));
+    await fetchGmbPostMetrics('accounts/1/locations/2/localPosts/3', 'ya29.test-token');
+    assert.equal((get.mock.calls[0]!.arguments[1] as { timeout?: number }).timeout, 15_000);
+  });
+
+  it('bounds the token refresh', async (t) => {
+    const saved = { id: process.env['GOOGLE_CLIENT_ID'], secret: process.env['GOOGLE_CLIENT_SECRET'] };
+    process.env['GOOGLE_CLIENT_ID'] = 'test-client-id';
+    process.env['GOOGLE_CLIENT_SECRET'] = 'test-client-secret';
+    t.after(() => {
+      for (const [key, value] of [['GOOGLE_CLIENT_ID', saved.id], ['GOOGLE_CLIENT_SECRET', saved.secret]] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+    const g = await googleDealer();
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ access_token: 'ya29.renewed', expires_in: 3600 }), { status: 200 }));
+
+    const token = await getFreshGoogleAccessToken({ id: g.connection.id, access_token: 'ya29.old', refresh_token: '1//test-refresh', token_expires_at: new Date(Date.now() - HOUR) });
+
+    assert.equal(token, 'ya29.renewed');
+    assert.ok((fetchMock.mock.calls[0]!.arguments[1] as RequestInit).signal instanceof AbortSignal);
   });
 });

@@ -275,7 +275,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
             event.standby?.[0]?.message?.mid
           if (!text || !messageId) continue
 
-          await ingestInboxMessage({
+          const { created } = await ingestInboxMessage({
             dealer_id,
             platform,
             message_type: "dm",
@@ -285,7 +285,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
             customer_platform_id: event.sender?.id,
             customer_avatar_url: event.sender?.profile_pic,
           })
-          imported += 1
+          if (created) imported += 1 // a re-delivery refreshes the message but is not new
         }
       }
 
@@ -301,7 +301,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
           const customerId = value.from?.id ?? value.sender_id
           if (customerId && customerId === connection.platform_account_id) continue // the Page's own comment
 
-          await ingestInboxMessage({
+          const { created } = await ingestInboxMessage({
             dealer_id,
             platform,
             message_type: "comment",
@@ -311,7 +311,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
             customer_platform_id: customerId,
             post_id: await resolvePostId(dealer_id, platform, value.post_id ?? value.media?.id),
           })
-          imported += 1
+          if (created) imported += 1
         }
       }
     }

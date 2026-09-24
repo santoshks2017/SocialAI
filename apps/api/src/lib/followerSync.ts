@@ -20,8 +20,9 @@ export function snapshotId(dealerId: string, platform: string, day: string): str
 
 /**
  * Cron step: today's follower count for up to 5 live Facebook/Instagram connections that have none yet.
- * Uses the connection's own (page) token. Each attempt stamps the connection's last_sync_at, and the
- * least recently tried go first, so a failing connection cannot starve the others. Returns snapshots saved.
+ * Uses the connection's own (page) token. Each attempt first claims the connection (stamps last_sync_at),
+ * and the least recently tried go first, so a failing or hanging connection cannot starve the others.
+ * Returns snapshots saved.
  */
 export async function syncFollowerSnapshots(now: Date): Promise<number> {
   const day = utcDay(now);
@@ -38,6 +39,12 @@ export async function syncFollowerSnapshots(now: Date): Promise<number> {
 
   let saved = 0;
   for (const conn of due) {
+    try {
+      await prisma.platformConnection.update({ where: { id: conn.id }, data: { last_sync_at: now } });
+    } catch (err) {
+      console.error(`[followers] Could not stamp connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
+      continue;
+    }
     try {
       const token = await resolveAccessToken(conn);
       const followers = conn.platform === 'facebook'
@@ -57,12 +64,6 @@ export async function syncFollowerSnapshots(now: Date): Promise<number> {
       }
     } catch (err) {
       console.error(`[followers] ${conn.platform} follower count failed for connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
-    } finally {
-      try {
-        await prisma.platformConnection.update({ where: { id: conn.id }, data: { last_sync_at: now } });
-      } catch (err) {
-        console.error(`[followers] Could not stamp connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
-      }
     }
   }
   return saved;

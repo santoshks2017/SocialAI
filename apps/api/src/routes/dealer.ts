@@ -116,8 +116,9 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
   }, async (request, _reply) => {
     const dealer_id = request.user.dealer_id!;
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    // Month boundaries in UTC, whatever the server's time zone.
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const lastMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7);
 
     // Fetch dealer's profile to resolve their city/state for regional festivals
@@ -162,9 +163,12 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
 
     // Facebook + Instagram reach plus Google Business Profile views (lib/postMetrics.ts), as Analytics counts it.
     const totalReach = publishedPosts.reduce((sum, p) => sum + postReach(p.metrics), 0);
-    const publishedBetween = (from: Date, to?: Date) =>
-      publishedPosts.filter((p) => p.published_at && p.published_at >= from && (!to || p.published_at < to)).length;
+    const publishedIn = (from: Date, to?: Date) =>
+      publishedPosts.filter((p) => p.published_at && p.published_at >= from && (!to || p.published_at < to));
+    const publishedBetween = (from: Date, to?: Date) => publishedIn(from, to).length;
     const publishedThisMonth = publishedBetween(monthStart);
+    // Month-to-date reach (the Report and the monthly recap): posts published since the 1st, UTC.
+    const reachThisMonth = publishedIn(monthStart).reduce((sum, p) => sum + postReach(p.metrics), 0);
 
     return {
       success: true,
@@ -174,6 +178,7 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
         publishedThisMonth,
         publishedChange: publishedThisMonth - publishedBetween(lastMonthStart, monthStart),
         totalReach,
+        reachThisMonth,
         leadsGenerated: leadsThisMonth,
         leadsThisWeek: leadsLastWeek,
         inboxPending,

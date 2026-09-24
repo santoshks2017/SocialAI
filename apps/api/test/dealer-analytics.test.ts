@@ -192,4 +192,33 @@ describe('GET /v1/dealer/dashboard', () => {
     const { stats } = res.json() as { stats: { totalReach: number; postsThisMonth: number; publishedThisMonth: number; publishedChange: number } };
     assert.deepEqual([stats.totalReach, stats.postsThisMonth, stats.publishedThisMonth, stats.publishedChange], [190, 2, 1, 1]);
   });
+
+  it('reports reach this month apart from all-time reach, on UTC month boundaries', async () => {
+    const dealerId = await dealer();
+    const now = new Date();
+    const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    await publishedPost(dealerId, { published_at: new Date(monthStart), metrics: { facebook: { reach: 100 }, gmb: { views: 20 } } });
+    // An hour before the UTC month began: last month, whatever the machine's time zone.
+    await publishedPost(dealerId, { published_at: new Date(monthStart - 3_600_000), metrics: { facebook: { reach: 70 } } });
+
+    const res = await fastify.inject({ method: 'GET', url: '/v1/dealer/dashboard', headers: headers(dealerId) });
+
+    const { stats } = res.json() as { stats: { totalReach: number; reachThisMonth: number; publishedThisMonth: number; publishedChange: number } };
+    assert.deepEqual([stats.totalReach, stats.reachThisMonth, stats.publishedThisMonth, stats.publishedChange], [190, 120, 1, 0]);
+  });
+});
+
+describe('GET /v1/boost (Analytics ad spend)', () => {
+  it("returns this month's totals with a one-item page", async () => {
+    const d = await prisma.dealer.create({ data: { name: 'Boost Motors', city: 'Surat', phone: `phone-${randomUUID()}`, plan: 'growth' } });
+    for (const spent of [300, 200]) {
+      await prisma.boostCampaign.create({ data: { dealer_id: d.id, post_id: `p-${randomUUID()}`, daily_budget: 100, duration_days: 3, total_spent: spent, status: 'active' } });
+    }
+
+    const res = await fastify.inject({ method: 'GET', url: '/v1/boost?pageSize=1', headers: headers(d.id) });
+
+    assert.equal(res.statusCode, 200);
+    const body = res.json() as { items: unknown[]; total: number; stats: { totalSpendThisMonth: number } };
+    assert.deepEqual([body.items.length, body.total, body.stats.totalSpendThisMonth], [1, 2, 500]);
+  });
 });

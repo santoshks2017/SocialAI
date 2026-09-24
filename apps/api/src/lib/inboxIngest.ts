@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { InboxMessage } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
+import { classifyFromRating } from './inboxClassifier.js';
 import { notifyInboxMessage } from './inboxNotifications.js';
 import { isSuccessfulResult } from './publishDirect.js';
 
@@ -32,39 +33,66 @@ export function inboxMessageDocId(platformMessageId: string): string {
 
 const isDuplicate = (err: unknown) => (err as { code?: unknown } | null)?.code === 'P2002';
 
-async function refresh(existing: InboxMessage, input: InboxIngestInput, shared: Record<string, unknown>): Promise<InboxMessage> {
+// Tags the stars or the classifier set; a lead or spam tag is someone's call and stays.
+const MACHINE_TAGS: ReadonlySet<string> = new Set(['general', 'complaint']);
+const sameTime = (a: Date | null | undefined, b: Date | null | undefined) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
+
+/** What a refresh changes; empty when the platform still shows the same message. */
+function refreshPatch(existing: InboxMessage, input: InboxIngestInput): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (input.message_text !== existing.message_text) patch['message_text'] = input.message_text;
+  // Only what the event carries: a missing name or id never replaces a known one.
+  const name = input.customer_name?.trim();
+  if (name && name !== existing.customer_name) patch['customer_name'] = name;
+  if (input.customer_platform_id && input.customer_platform_id !== existing.customer_platform_id) patch['customer_platform_id'] = input.customer_platform_id;
+  if (input.customer_avatar_url && input.customer_avatar_url !== existing.customer_avatar_url) patch['customer_avatar_url'] = input.customer_avatar_url;
+  if (input.post_id !== undefined && input.post_id !== existing.post_id) patch['post_id'] = input.post_id;
+  if (input.reply_text) {
+    if (input.reply_text !== existing.reply_text) {
+      patch['reply_text'] = input.reply_text;
+      patch['replied_at'] = input.replied_at ?? new Date();
+    } else if (input.replied_at && !sameTime(input.replied_at, existing.replied_at)) {
+      patch['replied_at'] = input.replied_at;
+    }
+  }
+  if (input.rating !== undefined && input.rating !== existing.rating) {
+    patch['rating'] = input.rating;
+    if (input.rating) {
+      const verdict = classifyFromRating(input.rating);
+      if (verdict.sentiment !== existing.sentiment) patch['sentiment'] = verdict.sentiment;
+      if ((!existing.tag || MACHINE_TAGS.has(existing.tag)) && verdict.tag !== existing.tag) patch['tag'] = verdict.tag;
+    }
+  } else {
+    if (input.sentiment && input.sentiment !== existing.sentiment) patch['sentiment'] = input.sentiment;
+    // A tag someone chose, or the classifier set, is never overwritten.
+    if (input.tag && !existing.tag) patch['tag'] = input.tag;
+  }
+  return patch;
+}
+
+async function refresh(existing: InboxMessage, input: InboxIngestInput): Promise<InboxMessage> {
   // Platform ids are unique, but never move a message between dealerships.
   if (existing.dealer_id !== input.dealer_id) return existing;
-  return prisma.inboxMessage.update({
-    where: { id: existing.id },
-    data: {
-      ...shared,
-      ...(input.sentiment ? { sentiment: input.sentiment } : {}),
-      // A tag someone chose, or the classifier set, is never overwritten.
-      ...(input.tag && !existing.tag ? { tag: input.tag } : {}),
-    },
-  });
+  const data = refreshPatch(existing, input);
+  if (Object.keys(data).length === 0) return existing;
+  return prisma.inboxMessage.update({ where: { id: existing.id }, data });
+}
+
+export interface IngestOptions {
+  /** A connection's first sync: its history arrives read, without notifications or the classifier queue. */
+  initialImport?: boolean;
 }
 
 /**
  * Creates or refreshes a message by its platform id (Meta webhook, Google review sync).
- * - New: notifies the team, and waits for the classifier unless a sentiment was given.
- * - Known: updates text, customer, post, rating and a platform reply; never moves received_at or a tag.
+ * - New: notifies the team, and waits for the classifier unless a sentiment was given (not on an initial import).
+ * - Known: writes only what changed (text, customer, post, rating and a platform reply); never moves received_at.
+ *   A new rating re-reads the sentiment, and the tag unless someone set it to lead or spam.
  */
-export async function ingestInboxMessage(input: InboxIngestInput): Promise<{ message: InboxMessage; created: boolean }> {
+export async function ingestInboxMessage(input: InboxIngestInput, options: IngestOptions = {}): Promise<{ message: InboxMessage; created: boolean }> {
   const where = { platform_message_id: input.platform_message_id };
-  const shared = {
-    message_text: input.message_text,
-    customer_name: input.customer_name?.trim() || 'Customer',
-    customer_platform_id: input.customer_platform_id ?? null,
-    customer_avatar_url: input.customer_avatar_url ?? null,
-    ...(input.post_id !== undefined ? { post_id: input.post_id } : {}),
-    ...(input.rating !== undefined ? { rating: input.rating } : {}),
-    ...(input.reply_text ? { reply_text: input.reply_text, replied_at: input.replied_at ?? new Date() } : {}),
-  };
-
   const existing = await prisma.inboxMessage.findUnique({ where });
-  if (existing) return { message: await refresh(existing, input, shared), created: false };
+  if (existing) return { message: await refresh(existing, input), created: false };
 
   let message: InboxMessage;
   try {
@@ -75,11 +103,17 @@ export async function ingestInboxMessage(input: InboxIngestInput): Promise<{ mes
         platform: input.platform,
         message_type: input.message_type,
         platform_message_id: input.platform_message_id,
-        ...shared,
+        message_text: input.message_text,
+        customer_name: input.customer_name?.trim() || 'Customer',
+        customer_platform_id: input.customer_platform_id ?? null,
+        customer_avatar_url: input.customer_avatar_url ?? null,
+        ...(input.post_id !== undefined ? { post_id: input.post_id } : {}),
+        ...(input.rating !== undefined ? { rating: input.rating } : {}),
+        ...(input.reply_text ? { reply_text: input.reply_text, replied_at: input.replied_at ?? new Date() } : {}),
         received_at: input.received_at ?? new Date(),
         sentiment: input.sentiment ?? null,
         tag: input.tag ?? null,
-        ...(input.sentiment ? {} : { needs_classification: true }),
+        ...(options.initialImport ? { is_read: true } : input.sentiment ? {} : { needs_classification: true }),
       },
     });
   } catch (err) {
@@ -87,7 +121,7 @@ export async function ingestInboxMessage(input: InboxIngestInput): Promise<{ mes
     if (!raced) throw err;
     return { message: raced, created: false };
   }
-  await notifyInboxMessage(message);
+  if (!options.initialImport) await notifyInboxMessage(message);
   return { message, created: true };
 }
 

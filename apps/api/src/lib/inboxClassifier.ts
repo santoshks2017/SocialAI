@@ -62,6 +62,9 @@ export function parseAiClassifications(value: unknown): Map<string, Classificati
   return out;
 }
 
+// Each model gets 8 s, so the cron's time-box bounds the work instead of leaving the call running.
+const CLASSIFY_TIMEOUT_MS = 8_000;
+
 /** One Gemini JSON call for a batch. Null when no key is configured; throws when the call failed. */
 export async function classifyWithAi(items: Array<{ id: string; text: string; type: string }>): Promise<Map<string, Classification> | null> {
   const answer = await geminiJson([
@@ -70,7 +73,7 @@ export async function classifyWithAi(items: Array<{ id: string; text: string; ty
     'tag: lead (asks about price, EMI, finance, a test drive, booking, offers or availability) | complaint (unhappy with service, delivery, staff or the car) | spam (ads, scams, unrelated links) | general (anything else).',
     'Return JSON only: an array of {"id": "…", "sentiment": "…", "tag": "…"} with one entry per message.',
     `Messages: ${JSON.stringify(items.map((i) => ({ id: i.id, type: i.type, text: i.text.slice(0, 500) })))}`,
-  ].join('\n'));
+  ].join('\n'), { timeoutMs: CLASSIFY_TIMEOUT_MS });
   return answer ? parseAiClassifications(answer.value) : null;
 }
 

@@ -1,6 +1,8 @@
 import axios from 'axios';
 
 const GMB_BASE = 'https://mybusiness.googleapis.com/v4';
+// Cron-path reads (metrics, reviews): a hung connection must not outlast the cron's time-box.
+const READ_TIMEOUT_MS = 15_000;
 
 export interface GmbPublishResult {
   post_id: string;
@@ -46,7 +48,7 @@ export async function fetchGmbPostMetrics(
     localPostMetrics: Array<{ metricValue: Array<{ metric: string; totalValue: { value: string } }> }>;
   }>(
     `${GMB_BASE}/${postName}/insights`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
+    { headers: { Authorization: `Bearer ${accessToken}` }, timeout: READ_TIMEOUT_MS },
   );
 
   let views = 0, clicks = 0, direction_requests = 0;
@@ -78,6 +80,7 @@ export async function fetchGmbReviews(
     {
       params: pageToken ? { pageToken } : {},
       headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: READ_TIMEOUT_MS,
     },
   );
   const reviews = res.data.reviews ?? [];

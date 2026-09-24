@@ -59,8 +59,10 @@ describe('syncPostMetrics', () => {
     const mock = await published({ platforms: ['facebook'], publish_results: { facebook: result('mock_fb_post_1') } });
     const old = await published({ platforms: ['facebook'], published_at: new Date(now.getTime() - 40 * DAY), publish_results: { facebook: result('fb-old') } });
     const urls: string[] = [];
-    t.mock.method(axios, 'get', async (url: string) => {
+    const timeouts: Array<number | undefined> = [];
+    t.mock.method(axios, 'get', async (url: string, config: { timeout?: number }) => {
       urls.push(url);
+      timeouts.push(config.timeout);
       if (url.endsWith('/fb-m1')) {
         return { data: { insights: { data: [{ name: 'post_reach', values: [{ value: 150 }] }] }, likes: { summary: { total_count: 12 } }, shares: { count: 3 }, comments: { summary: { total_count: 4 } } } };
       }
@@ -83,6 +85,7 @@ describe('syncPostMetrics', () => {
     assert.equal((await prisma.post.findUnique({ where: { id: mock.id } }))?.metrics_last_fetched?.getTime(), now.getTime());
     assert.equal((await prisma.post.findUnique({ where: { id: old.id } }))?.metrics_last_fetched, null);
     assert.ok(urls.every((u) => !u.includes('mock_') && !u.includes('fb-old')));
+    assert.deepEqual(timeouts, [15_000, 15_000]);
   });
 
   it('keeps the previous numbers when a platform fails', async (t) => {
@@ -133,8 +136,9 @@ describe('syncFollowerSnapshots', () => {
     await connect(dealerId, 'instagram', 'ig-f1');
     await connect(await newDealer(), 'facebook', 'mock_fb_page_id', 'mock_fb_page_token');
     const urls: string[] = [];
-    t.mock.method(axios, 'get', async (url: string, config: { params: Record<string, string> }) => {
+    t.mock.method(axios, 'get', async (url: string, config: { params: Record<string, string>; timeout?: number }) => {
       urls.push(url);
+      assert.equal(config.timeout, 15_000);
       if (url.endsWith('/page-f1')) {
         assert.equal(config.params['fields'], 'followers_count,fan_count');
         return { data: { fan_count: 1500 } };
@@ -154,6 +158,22 @@ describe('syncFollowerSnapshots', () => {
 
     assert.equal(await syncFollowerSnapshots(new Date(now.getTime() + 60_000)), 0);
     assert.equal(urls.length, 2);
+  });
+
+  it('claims each connection before asking Meta', async (t) => {
+    await prisma.platformConnection.deleteMany({ where: { platform: { in: ['facebook', 'instagram'] } } });
+    const conn = await connect(await newDealer(), 'facebook', 'page-f2');
+    const now = new Date();
+    const stampedAt: Array<number | undefined> = [];
+    t.mock.method(axios, 'get', async () => {
+      stampedAt.push((await prisma.platformConnection.findUnique({ where: { id: conn.id } }))?.last_sync_at?.getTime());
+      throw new Error('socket hang up');
+    });
+    t.mock.method(console, 'error', () => {});
+
+    assert.equal(await syncFollowerSnapshots(now), 0);
+
+    assert.deepEqual(stampedAt, [now.getTime()]);
   });
 });
 

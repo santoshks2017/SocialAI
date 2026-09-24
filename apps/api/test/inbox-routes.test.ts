@@ -115,6 +115,18 @@ describe('GET /v1/inbox', () => {
     assert.deepEqual(items[0]!.replies, []);
   });
 
+  it('reports the inbox-wide total and unread count on every page', async () => {
+    const dealerId = await newDealer();
+    await newMessage(dealerId, { is_read: true, received_at: new Date(Date.now() - 60_000) });
+    await newMessage(dealerId);
+    await newMessage(dealerId);
+
+    const res = await fastify.inject({ method: 'GET', url: '/v1/inbox?page=2&pageSize=2', headers: headers(dealerId) });
+
+    const body = res.json() as { items: Item[]; total: number; unreadCount: number };
+    assert.deepEqual([body.items.length, body.items[0]?.isRead, body.total, body.unreadCount], [1, true, 3, 2]);
+  });
+
   it('needs view_inbox', async () => {
     const dealerId = await newDealer();
     const denied = headers(dealerId, 'user', { view_inbox: false });
@@ -227,9 +239,9 @@ describe('POST /v1/inbox/:id/suggest-reply', () => {
     process.env['GEMINI_API_KEY'] = TEST_KEY;
     const dealerId = await newDealer();
     const m = await newMessage(dealerId, { sentiment: 'negative', message_text: 'Worst service ever' });
-    const calls: Array<{ url: string; key: string | undefined; prompt: string }> = [];
-    t.mock.method(axios, 'post', async (url: string, body: { contents: Array<{ parts: Array<{ text: string }> }> }, config: { headers: Record<string, string> }) => {
-      calls.push({ url, key: config.headers['x-goog-api-key'], prompt: body.contents[0]!.parts[0]!.text });
+    const calls: Array<{ url: string; key: string | undefined; prompt: string; timeout: number | undefined }> = [];
+    t.mock.method(axios, 'post', async (url: string, body: { contents: Array<{ parts: Array<{ text: string }> }> }, config: { headers: Record<string, string>; timeout?: number }) => {
+      calls.push({ url, key: config.headers['x-goog-api-key'], prompt: body.contents[0]!.parts[0]!.text, timeout: config.timeout });
       return geminiAnswer('```json\n{"replies":["Sorry Ravi, our manager will call you.","We apologise.","Please call us."]}\n```');
     });
 
@@ -244,6 +256,7 @@ describe('POST /v1/inbox/:id/suggest-reply', () => {
     assert.doesNotMatch(calls[0]!.url, /key=/);
     assert.equal(calls[0]!.key, TEST_KEY);
     assert.match(calls[0]!.prompt, /call-back from the manager/);
+    assert.equal(calls[0]!.timeout, 12_000);
     assert.equal((await prisma.inboxMessage.findUnique({ where: { id: m.id } }))?.ai_suggested_reply, 'Sorry Ravi, our manager will call you.');
   });
 

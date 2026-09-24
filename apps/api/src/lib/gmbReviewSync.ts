@@ -32,7 +32,12 @@ function validDate(value: string | undefined): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-async function importReview(conn: PlatformConnection, review: GmbReview): Promise<boolean> {
+/** Review sync needs a location ("accounts/{a}/locations/{l}"); an account alone has no reviews to list. */
+export function isGoogleLocation(accountId: string): boolean {
+  return accountId.includes('/locations/');
+}
+
+async function importReview(conn: PlatformConnection, review: GmbReview, initialImport: boolean): Promise<boolean> {
   const rating = starRating(review.starRating);
   const verdict = rating ? classifyFromRating(rating) : null;
   const receivedAt = validDate(review.createTime);
@@ -48,33 +53,42 @@ async function importReview(conn: PlatformConnection, review: GmbReview): Promis
     ...(receivedAt ? { received_at: receivedAt } : {}),
     ...(review.reviewReply?.comment ? { reply_text: review.reviewReply.comment, ...(repliedAt ? { replied_at: repliedAt } : {}) } : {}),
     ...(verdict ? { sentiment: verdict.sentiment, tag: verdict.tag } : {}),
-  });
+  }, { initialImport });
   return created;
+}
+
+async function stamp(conn: PlatformConnection, now: Date): Promise<boolean> {
+  try {
+    await prisma.platformConnection.update({ where: { id: conn.id }, data: { last_sync_at: now } });
+    return true;
+  } catch (err) {
+    console.error(`[reviews] Could not stamp connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
+    return false;
+  }
 }
 
 /**
  * Cron step: brings Google reviews into the inbox for up to 3 due connections (first page, newest reviews).
- * New reviews notify the team (coalesced). last_sync_at is stamped even when Google fails, so a broken
- * connection waits its turn instead of blocking the others. Returns how many reviews were new.
+ * Each connection is claimed (last_sync_at stamped) before Google is called, so a failing or hanging one
+ * waits its turn instead of being picked first every tick. A connection's first sync brings its history in
+ * as read, without notifications; later new reviews notify the team (coalesced). Accounts without a location
+ * are skipped quietly. Returns how many reviews were new.
  */
 export async function syncGoogleReviews(now: Date): Promise<number> {
   const conns = pickReviewConnections(await prisma.platformConnection.findMany({ where: { platform: 'gmb' } }), now);
   let created = 0;
   for (const conn of conns) {
+    const firstSync = !conn.last_sync_at;
+    if (!(await stamp(conn, now))) continue;
+    if (!isGoogleLocation(conn.platform_account_id)) continue;
     try {
       const token = await resolveAccessToken(conn);
       const { reviews } = await fetchGmbReviews(conn.platform_account_id, token);
       for (const review of reviews) {
-        if (review.name && (await importReview(conn, review))) created++;
+        if (review.name && (await importReview(conn, review, firstSync))) created++;
       }
     } catch (err) {
       console.error(`[reviews] Google review sync failed for connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
-    } finally {
-      try {
-        await prisma.platformConnection.update({ where: { id: conn.id }, data: { last_sync_at: now } });
-      } catch (err) {
-        console.error(`[reviews] Could not stamp connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
-      }
     }
   }
   return created;

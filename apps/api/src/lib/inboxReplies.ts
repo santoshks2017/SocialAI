@@ -46,6 +46,8 @@ export interface SuggestRepliesInput {
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+// Per Gemini model: the suggestion request (and its fallbacks) stays well under Hosting's 60 s.
+const SUGGEST_TIMEOUT_MS = 12_000;
 const openAiConfigured = () => !!process.env['OPENAI_API_KEY']?.trim();
 
 function repliesPrompt({ message, dealer, tone }: SuggestRepliesInput): string {
@@ -79,7 +81,7 @@ export function parseReplies(value: unknown): string[] {
 export async function suggestReplies(input: SuggestRepliesInput): Promise<string[] | null> {
   const failures: string[] = [];
   try {
-    const answer = await geminiJson(repliesPrompt(input));
+    const answer = await geminiJson(repliesPrompt(input), { timeoutMs: SUGGEST_TIMEOUT_MS });
     if (answer) {
       const replies = parseReplies(answer.value);
       if (replies.length > 0) return replies;

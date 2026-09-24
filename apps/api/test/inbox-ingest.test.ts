@@ -142,6 +142,67 @@ describe('ingestInboxMessage', () => {
     assert.equal(await resolvePostId(dealerId, 'facebook', 'page1_7788'), null);
     assert.equal(await resolvePostId(dealerId, 'facebook', undefined), null);
   });
+
+  const review = (dealerId: string, extra: Record<string, unknown> = {}) => ({
+    dealer_id: dealerId, platform: 'gmb', message_type: 'review' as const, platform_message_id: `r-${randomUUID()}`,
+    message_text: 'Smooth delivery', customer_name: 'Asha', rating: 5, reply_text: 'Thank you!',
+    replied_at: new Date('2026-09-20T09:30:00Z'), ...classifyFromRating(5), ...extra,
+  });
+
+  it('skips the write when a re-synced review is unchanged', async (t) => {
+    const { dealerId } = await dealerWithTeam();
+    const input = review(dealerId);
+    await ingestInboxMessage(input);
+    const update = t.mock.method(prisma.inboxMessage, 'update');
+
+    const again = await ingestInboxMessage({ ...input, replied_at: new Date('2026-09-20T09:30:00Z') });
+
+    assert.equal(again.created, false);
+    assert.equal(update.mock.callCount(), 0);
+  });
+
+  it('writes only the changed fields and keeps the customer when a refresh lacks them', async (t) => {
+    const { dealerId } = await dealerWithTeam();
+    const input = {
+      dealer_id: dealerId, platform: 'facebook', message_type: 'dm' as const, platform_message_id: `dm-${randomUUID()}`,
+      message_text: 'Hi', customer_name: 'Ravi', customer_platform_id: 'cust-1', customer_avatar_url: 'https://cdn.test/ravi.jpg',
+    };
+    await ingestInboxMessage(input);
+    const update = t.mock.method(prisma.inboxMessage, 'update');
+
+    const again = await ingestInboxMessage({ dealer_id: dealerId, platform: 'facebook', message_type: 'dm', platform_message_id: input.platform_message_id, message_text: 'Hi, is the Creta available?' });
+
+    assert.deepEqual(Object.keys((update.mock.calls[0]!.arguments[0] as { data: object }).data), ['message_text']);
+    assert.deepEqual(
+      [again.message.message_text, again.message.customer_name, again.message.customer_platform_id, again.message.customer_avatar_url],
+      ['Hi, is the Creta available?', 'Ravi', 'cust-1', 'https://cdn.test/ravi.jpg'],
+    );
+  });
+
+  it('re-reads sentiment and a machine tag from a changed rating, never a tag someone chose', async () => {
+    const { dealerId } = await dealerWithTeam();
+    const input = review(dealerId);
+    await ingestInboxMessage(input);
+    const { rating: _r, sentiment: _s, tag: _t, ...unrated } = input;
+
+    const lowered = await ingestInboxMessage({ ...unrated, rating: 2 });
+    assert.deepEqual([lowered.message.rating, lowered.message.sentiment, lowered.message.tag], [2, 'negative', 'complaint']);
+
+    await prisma.inboxMessage.update({ where: { id: lowered.message.id }, data: { tag: 'lead' } });
+    const raised = await ingestInboxMessage({ ...unrated, rating: 4 });
+    assert.deepEqual([raised.message.rating, raised.message.sentiment, raised.message.tag], [4, 'positive', 'lead']);
+  });
+
+  it('imports history as read, without notifying or queueing classification', async () => {
+    const { dealerId, admin } = await dealerWithTeam();
+    const rated = await ingestInboxMessage(review(dealerId), { initialImport: true });
+    const unrated = await ingestInboxMessage(review(dealerId, { rating: null, sentiment: undefined, tag: undefined }), { initialImport: true });
+
+    assert.equal(rated.created, true);
+    assert.deepEqual([rated.message.is_read, rated.message.needs_classification ?? null, rated.message.sentiment], [true, null, 'positive']);
+    assert.deepEqual([unrated.message.is_read, unrated.message.needs_classification ?? null], [true, null]);
+    assert.equal((await inboxNotices(admin.id)).length, 0);
+  });
 });
 
 describe('POST /v1/inbox/webhook/meta', () => {
@@ -178,7 +239,8 @@ describe('POST /v1/inbox/webhook/meta', () => {
     assert.deepEqual([stored?.post_id, stored?.customer_name, stored?.needs_classification], [post.id, 'Ravi Kumar', true]);
     assert.equal((await inboxNotices(admin.id)).length, 1);
 
-    await fastify.inject({ method: 'POST', url: '/v1/inbox/webhook/meta', payload });
+    const again = await fastify.inject({ method: 'POST', url: '/v1/inbox/webhook/meta', payload });
+    assert.equal((again.json() as { imported: number }).imported, 0);
     assert.equal((await prisma.inboxMessage.findMany({ where: { platform_message_id: commentId } })).length, 1);
     assert.equal((await inboxNotices(admin.id)).length, 1);
   });
@@ -226,6 +288,7 @@ describe('classifyPendingMessages', () => {
     assert.equal(await classifyPendingMessages(), 2);
 
     assert.equal(post.mock.callCount(), 1);
+    assert.equal((post.mock.calls[0]!.arguments[2] as { timeout?: number }).timeout, 8_000);
     assert.equal((await read(one.id))?.tag, 'lead');
     const second = await read(two.id);
     assert.deepEqual([second?.sentiment, second?.tag], ['positive', 'general']);

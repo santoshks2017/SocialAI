@@ -199,6 +199,9 @@ export async function getPageAccessToken(userAccessToken: string, pageId: string
 
 // ─── Post metrics ─────────────────────────────────────────────────────────────
 
+// Cron-path reads (post metrics, follower counts): a hung connection must not outlast the cron's time-box.
+const METRICS_TIMEOUT_MS = 15_000;
+
 export async function fetchFacebookPostMetrics(
   postId: string,
   accessToken: string,
@@ -215,6 +218,7 @@ export async function fetchFacebookPostMetrics(
         fields: 'insights.metric(post_reach),likes.summary(true),shares,comments.summary(true)',
         access_token: accessToken,
       },
+      timeout: METRICS_TIMEOUT_MS,
     },
   );
 
@@ -242,7 +246,7 @@ export async function fetchInstagramPostMetrics(
 ): Promise<{ reach: number; likes: number; comments: number; saved: number }> {
   const res = await axios.get<{ data?: InsightRow[] }>(
     `${META_GRAPH_BASE}/${mediaId}/insights`,
-    { params: { metric: 'reach,likes,comments,saved', access_token: accessToken } },
+    { params: { metric: 'reach,likes,comments,saved', access_token: accessToken }, timeout: METRICS_TIMEOUT_MS },
   );
   const rows = res.data.data;
   return {
@@ -264,7 +268,7 @@ export async function fetchPageFollowers(pageId: string, accessToken: string): P
   if (pageId.startsWith('mock_') || accessToken.startsWith('mock_')) return null;
   const res = await axios.get<{ followers_count?: number; fan_count?: number }>(
     `${META_GRAPH_BASE}/${pageId}`,
-    { params: { fields: 'followers_count,fan_count', access_token: accessToken } },
+    { params: { fields: 'followers_count,fan_count', access_token: accessToken }, timeout: METRICS_TIMEOUT_MS },
   );
   return followerCount(res.data.followers_count ?? res.data.fan_count);
 }
@@ -273,7 +277,7 @@ export async function fetchInstagramFollowers(igUserId: string, accessToken: str
   if (igUserId.startsWith('mock_') || accessToken.startsWith('mock_')) return null;
   const res = await axios.get<{ followers_count?: number }>(
     `${META_GRAPH_BASE}/${igUserId}`,
-    { params: { fields: 'followers_count', access_token: accessToken } },
+    { params: { fields: 'followers_count', access_token: accessToken }, timeout: METRICS_TIMEOUT_MS },
   );
   return followerCount(res.data.followers_count);
 }
