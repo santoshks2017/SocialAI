@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { useToast } from '../ui/Toast';
+import { useDealerProfile } from '../../contexts/DealerProfileContext';
 import { billingService, type BillingStatus } from '../../services/billing';
-import { NOTIFICATION_KEYS } from '../../utils/settings';
+import { NOTIFICATION_KEYS, addBrand } from '../../utils/settings';
 
 interface ProfileResponse {
   success: boolean;
   profile: {
     name: string; city: string; contact_phone?: string; whatsapp_number?: string;
-    primary_color?: string; brands?: string[]; language_preferences?: string[]; region?: string;
-    logo_url?: string; font?: string; address?: string;
-    showroom_type?: string[];
+    primary_color?: string; secondary_color?: string; use_brand_theme?: boolean;
+    brands?: string[]; language_preferences?: string[]; region?: string;
+    logo_url?: string; font?: string; address?: string; showroom_type?: string[];
   };
 }
 
-// Profile and Preferences share one form and one PUT /dealer/profile (moved from SettingsPage).
+// Business Profile and Preferences share one form and one PUT /dealer/profile, as in the reference.
 export function useProfileForm() {
   const { addToast } = useToast();
+  const { reload: reloadProfile } = useDealerProfile();
   // Empty until GET /dealer/profile answers; Save stays disabled so blanks never overwrite the dealer.
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
@@ -28,6 +30,8 @@ export function useProfileForm() {
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#1877F2');
+  const [secondaryColor, setSecondaryColor] = useState('');
+  const [useBrandTheme, setUseBrandTheme] = useState(false);
   const [defaultRadius, setDefaultRadius] = useState(25);
   const [notifications, setNotifications] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('sg_notifications');
@@ -35,10 +39,10 @@ export function useProfileForm() {
     return new Set(NOTIFICATION_KEYS.filter((n) => n.defaultOn).map((n) => n.key));
   });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [logoUrl, setLogoUrl] = useState('');
   const [font, setFont] = useState('Arial');
   const [address, setAddress] = useState('');
-  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showroomType, setShowroomType] = useState('new');
 
   useEffect(() => {
@@ -50,7 +54,9 @@ export function useProfileForm() {
       if (p.contact_phone) setPhone(p.contact_phone);
       if (p.whatsapp_number) setWhatsapp(p.whatsapp_number);
       if (p.primary_color) setPrimaryColor(p.primary_color);
-      if (p.brands?.length) setSelectedBrands(p.brands as string[]);
+      if (p.secondary_color) setSecondaryColor(p.secondary_color);
+      setUseBrandTheme(p.use_brand_theme === true);
+      if (p.brands?.length) setSelectedBrands(p.brands);
       if (p.language_preferences?.length) setSelectedLangs(p.language_preferences);
       if (p.region) setSelectedRegion(p.region);
       if (p.logo_url) setLogoUrl(p.logo_url);
@@ -71,43 +77,49 @@ export function useProfileForm() {
     setSelectedLangs((prev) => prev.includes(code) ? prev.filter((l) => l !== code) : [...prev, code]);
   };
 
-  const toggleBrand = (brand: string) => {
-    setSelectedBrands((prev) => prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]);
-  };
+  const addSelectedBrand = (raw: string) => setSelectedBrands((prev) => addBrand(prev, raw));
+  const removeSelectedBrand = (brand: string) => setSelectedBrands((prev) => prev.filter((b) => b !== brand));
 
-  const handleSave = () => {
-    if (!profileLoaded) return;
-    api.put('/dealer/profile', {
-      name: dealerName,
-      city,
-      contact_phone: phone,
-      whatsapp_number: whatsapp,
-      primary_color: primaryColor,
-      brands: selectedBrands,
-      language_preferences: selectedLangs,
-      region: selectedRegion,
-      logo_url: logoUrl,
-      font,
-      address,
-      showroom_type: [showroomType],
-    })
-      .then(() => {
-        addToast({ type: 'success', title: 'Settings Saved', message: 'Your dealership profile has been updated successfully.' });
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-      })
-      .catch((err) => {
-        addToast({ type: 'error', title: 'Error Saving Settings', message: 'Failed to update settings. Please try again.' });
-        console.error(err);
-      });
+  const handleSave = async (): Promise<boolean> => {
+    if (!profileLoaded) return false;
+    setSaving(true);
     localStorage.setItem('sg_notifications', JSON.stringify([...notifications]));
+    try {
+      await api.put('/dealer/profile', {
+        name: dealerName,
+        city,
+        contact_phone: phone,
+        whatsapp_number: whatsapp,
+        primary_color: primaryColor,
+        ...(secondaryColor ? { secondary_color: secondaryColor } : {}),
+        use_brand_theme: useBrandTheme,
+        brands: selectedBrands,
+        language_preferences: selectedLangs,
+        region: selectedRegion,
+        logo_url: logoUrl,
+        font,
+        address,
+        showroom_type: [showroomType],
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      // The brand theme and every page that reads the profile pick up the change.
+      reloadProfile();
+      return true;
+    } catch {
+      addToast({ type: 'error', title: 'Error Saving Settings', message: 'Failed to update settings. Please try again.' });
+      return false;
+    } finally {
+      setSaving(false);
+    }
   };
 
   return {
-    profileLoaded, billing, selectedLangs, setSelectedLangs, selectedRegion, setSelectedRegion, selectedBrands, setSelectedBrands,
-    dealerName, setDealerName, city, setCity, phone, setPhone, whatsapp, setWhatsapp, primaryColor, setPrimaryColor,
-    defaultRadius, setDefaultRadius, notifications, setNotifications, saved, logoUrl, setLogoUrl, font, setFont,
-    address, setAddress, uploadingLogo, setUploadingLogo, showroomType, setShowroomType, toggleLang, toggleBrand, handleSave,
+    profileLoaded, billing, selectedLangs, setSelectedLangs, selectedRegion, setSelectedRegion, selectedBrands,
+    addSelectedBrand, removeSelectedBrand, dealerName, setDealerName, city, setCity, phone, setPhone, whatsapp, setWhatsapp,
+    primaryColor, setPrimaryColor, secondaryColor, setSecondaryColor, useBrandTheme, setUseBrandTheme,
+    defaultRadius, setDefaultRadius, notifications, setNotifications, saved, saving, logoUrl, setLogoUrl, font, setFont,
+    address, setAddress, showroomType, setShowroomType, toggleLang, handleSave,
   };
 }
 

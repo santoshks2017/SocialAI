@@ -90,3 +90,25 @@ export interface SyncJobStatus {
 }
 
 export const IDLE_SYNC: SyncJobStatus = { status: 'idle', brands: {}, progress: 0, currentBrand: '', isCompleted: false };
+
+export const SHOWROOM_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'new', label: 'New Cars Showroom' },
+  { value: 'pre-owned', label: 'True Value / Certified Used Cars' },
+  { value: 'multi-brand', label: 'Multi-brand Car Dealership' },
+];
+
+export const FONT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'Arial', label: 'Arial (Standard Clean)' },
+  { value: 'Helvetica', label: 'Helvetica (Modern Neue)' },
+  { value: 'Georgia', label: 'Georgia (Classic Serif)' },
+  { value: 'Impact', label: 'Impact (Heavy Title / Bold)' },
+  { value: 'Trebuchet MS', label: 'Trebuchet MS (Friendly Sans)' },
+  { value: 'Courier New', label: 'Courier New (Technical Monospace)' },
+];
+
+/** Brands & categories: trimmed, single-spaced, and a case-insensitive duplicate is ignored. */
+export function addBrand(brands: readonly string[], raw: string): string[] {
+  const name = raw.trim().replace(/\s+/g, ' ');
+  if (!name || brands.some((b) => b.toLowerCase() === name.toLowerCase())) return [...brands];
+  return [...brands, name];
+}

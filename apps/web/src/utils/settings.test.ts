@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveSettingsTab, visibleSettingsTabs } from './settings.js';
+import { addBrand, resolveSettingsTab, visibleSettingsTabs } from './settings.js';
 
 const everyone = { manageTeam: true, viewBilling: true };
 
@@ -20,5 +20,14 @@ describe('settings tabs', () => {
     assert.equal(resolveSettingsTab('team', tabs), 'profile');
     assert.equal(resolveSettingsTab('nonsense', tabs), 'profile');
     assert.equal(resolveSettingsTab(null, tabs), 'profile');
+  });
+});
+
+describe('brands & categories', () => {
+  it('adds trimmed names once, ignoring case and blanks', () => {
+    assert.deepEqual(addBrand(['Hyundai'], '  Kia  '), ['Hyundai', 'Kia']);
+    assert.deepEqual(addBrand(['Hyundai'], 'hyundai'), ['Hyundai']);
+    assert.deepEqual(addBrand(['Hyundai'], '   '), ['Hyundai']);
+    assert.deepEqual(addBrand([], 'Pre-owned   SUVs'), ['Pre-owned SUVs']);
   });
 });

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import api from '../services/api';
 import { useAuth } from './AuthContext';
+import { AppearanceSync } from '../components/shell/AppearanceSync';
 
 export interface DealerProfile {
   id: string;
@@ -13,6 +14,9 @@ export interface DealerProfile {
   phone?: string;
   whatsapp_number?: string;
   logo_url?: string;
+  font?: string;
+  address?: string;
+  use_brand_theme?: boolean;
   primary_color?: string;
   secondary_color?: string;
   language_preferences: string[];
@@ -48,9 +52,13 @@ export function DealerProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Business Profile → "Use my brand colours as the app theme" recolours the app for the whole dealership.
+  const brandColor = user && profile?.use_brand_theme ? profile.primary_color ?? null : null;
+
   return (
     <DealerProfileContext.Provider value={{ profile, loading, reload: load }}>
       {children}
+      <AppearanceSync brandColor={brandColor} />
     </DealerProfileContext.Provider>
   );
 }
