@@ -2,10 +2,12 @@ import type { PlatformConnection } from '../generated/client/index.js';
 import { prisma } from '../db/prisma.js';
 import { fetchInstagramFollowers, fetchPageFollowers } from '../services/meta.js';
 import { fetchYouTubeSubscribers } from '../services/youtube.js';
+import { forEachLimited } from './concurrency.js';
 import { isMockConnection } from './platformMock.js';
 import { resolveAccessToken } from './publishDirect.js';
 
 export const FOLLOWER_BATCH = 5;
+export const FOLLOWER_ACCOUNT_CONCURRENCY = 5;
 export const FOLLOWER_TTL_DAYS = 400;
 const FOLLOWER_PLATFORMS = ['facebook', 'instagram', 'youtube'];
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,7 +48,9 @@ interface FollowerGroup {
  * A pair's snapshot is saved only once every one of its live accounts answers with a count; if any of them
  * fails (or, for YouTube, hides its count), nothing is saved for that pair today, so a later run retries it.
  * Every account is claimed (last_sync_at stamped) before it is asked, and the pairs tried least recently go
- * first, so a failing or hanging account cannot starve the others. Returns snapshots saved.
+ * first, so a failing or hanging account cannot starve the others. A group's own accounts are asked with
+ * bounded concurrency (5 at a time), so a dealership with many accounts on one platform can't alone eat the
+ * maintenance step's time box. Returns snapshots saved.
  */
 export async function syncFollowerSnapshots(now: Date): Promise<number> {
   const day = utcDay(now);
@@ -72,12 +76,14 @@ export async function syncFollowerSnapshots(now: Date): Promise<number> {
   for (const group of due) {
     let followers = 0;
     let counted = 0;
-    for (const conn of group.conns) {
+    // Each account's own claim-then-fetch stays in order; up to 5 accounts run at once so the sum stays
+    // deterministic (addition doesn't care which finishes first) while a large group can't run unbounded.
+    await forEachLimited(group.conns, FOLLOWER_ACCOUNT_CONCURRENCY, async (conn) => {
       try {
         await prisma.platformConnection.update({ where: { id: conn.id }, data: { last_sync_at: now } });
       } catch (err) {
         console.error(`[followers] Could not stamp connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
-        continue;
+        return;
       }
       try {
         const count = await fetchFollowers(conn, await resolveAccessToken(conn));
@@ -88,7 +94,7 @@ export async function syncFollowerSnapshots(now: Date): Promise<number> {
       } catch (err) {
         console.error(`[followers] ${conn.platform} follower count failed for connection ${conn.id}:`, err instanceof Error ? err.message : String(err));
       }
-    }
+    });
     // Every live account of this platform must have answered; a partial sum would misreport the day's audience,
     // and leaving the snapshot unwritten lets the next run retry (the row stays out of `taken`).
     if (counted !== group.conns.length) continue;

@@ -82,7 +82,7 @@ export function postMetricsBags(metrics: unknown, only?: MetricPlatform): PostBa
   return { byPlatform, total };
 }
 
-/** Reach across Facebook, Instagram and Google Business Profile (views). */
+/** Reach across Facebook, Instagram, Google Business Profile (views) and YouTube (views). */
 export function totalReach(metrics: unknown): number {
   return postMetricsBags(metrics).total.reach;
 }

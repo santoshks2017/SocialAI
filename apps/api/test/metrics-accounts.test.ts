@@ -117,6 +117,21 @@ describe('post metrics across accounts', () => {
     assert.equal(totalReach(metrics), 1200);
     assert.deepEqual(seen, [{ url: 'https://www.googleapis.com/youtube/v3/videos', params: { part: 'statistics', id: 'vid-1' }, auth: 'Bearer ya29.yt' }]);
   });
+
+  it('keeps the previous numbers when a YouTube video no longer answers (deleted or private)', async (t) => {
+    const dealerId = await newDealer();
+    const channel = await connect(dealerId, 'youtube', 'UC-gone', 'ya29.gone');
+    const post = await published(
+      dealerId, ['youtube'],
+      { youtube: { ...account('vid-gone'), accounts: { [channel.id]: account('vid-gone') } } },
+      { youtube: { views: 999, reach: 999, likes: 50, comments: 5 } },
+    );
+    t.mock.method(axios, 'get', async () => ({ data: { items: [] } }));
+
+    await syncPostMetrics(new Date());
+
+    assert.deepEqual((await metricsOf(post.id))['youtube'], { views: 999, reach: 999, likes: 50, comments: 5 });
+  });
 });
 
 describe('follower snapshots across accounts', () => {
@@ -195,5 +210,29 @@ describe('follower snapshots across accounts', () => {
     const day = utcDay(now);
     const snap = await prisma.followerSnapshot.findUnique({ where: { id: snapshotId(dealerId, 'youtube', day) } });
     assert.equal(snap?.followers, 400);
+  });
+
+  it('bounds a group with many accounts to 5 concurrent requests and still sums correctly', async (t) => {
+    await prisma.platformConnection.deleteMany({ where: { platform: { in: ['facebook', 'instagram', 'youtube'] } } });
+    const dealerId = await newDealer();
+    const accountCount = 8;
+    for (let i = 0; i < accountCount; i++) await connect(dealerId, 'facebook', `fmany-${i}`, `token-${i}`);
+    const now = new Date();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    t.mock.method(axios, 'get', async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      inFlight--;
+      return { data: { fan_count: 10 } };
+    });
+
+    assert.equal(await syncFollowerSnapshots(now), 1);
+
+    assert.ok(maxInFlight <= 5, `expected at most 5 concurrent requests, saw ${maxInFlight}`);
+    const day = utcDay(now);
+    const snap = await prisma.followerSnapshot.findUnique({ where: { id: snapshotId(dealerId, 'facebook', day) } });
+    assert.equal(snap?.followers, 10 * accountCount);
   });
 });

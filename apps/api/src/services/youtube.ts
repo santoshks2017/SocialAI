@@ -30,14 +30,19 @@ export async function fetchYouTubeChannels(accessToken: string): Promise<YouTube
   return (res.data.items ?? []).flatMap((item) => (item.id ? [{ id: item.id, title: item.snippet?.title?.trim() || item.id }] : []));
 }
 
-/** A video's public numbers: views also count as reach (as Google Business Profile views do), plus likes and comments. */
-export async function fetchYouTubeVideoMetrics(videoId: string, accessToken: string): Promise<Record<string, number>> {
+/**
+ * A video's public numbers: views also count as reach (as Google Business Profile views do), plus likes and
+ * comments. Null when the video isn't in the response (deleted, made private, or otherwise inaccessible),
+ * not a zeroed answer, so the caller keeps the post's last-known-good numbers instead of overwriting them.
+ */
+export async function fetchYouTubeVideoMetrics(videoId: string, accessToken: string): Promise<Record<string, number> | null> {
   if (isMockId(videoId) || isMockId(accessToken)) return {};
   const res = await axios.get<{ items?: Array<{ statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }> }>(
     `${YOUTUBE_API_BASE}/videos`,
     { params: { part: 'statistics', id: videoId }, headers: bearer(accessToken), timeout: TIMEOUT_MS },
   );
-  const stats = res.data.items?.[0]?.statistics;
+  if (!res.data.items?.length) return null;
+  const stats = res.data.items[0]?.statistics;
   const views = youtubeCount(stats?.viewCount) ?? 0;
   return { views, reach: views, likes: youtubeCount(stats?.likeCount) ?? 0, comments: youtubeCount(stats?.commentCount) ?? 0 };
 }

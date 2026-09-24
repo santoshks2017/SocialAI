@@ -31,7 +31,8 @@ export function pickMetricsCandidates<T extends Candidate>(posts: T[], now: Date
     .slice(0, limit);
 }
 
-export async function fetchPlatformMetrics(platform: MetricPlatform, platformPostId: string, accessToken: string): Promise<Record<string, number>> {
+// Null only from the YouTube branch (a video that no longer answers); the others always return numbers.
+export async function fetchPlatformMetrics(platform: MetricPlatform, platformPostId: string, accessToken: string): Promise<Record<string, number> | null> {
   if (platform === 'facebook') return fetchFacebookPostMetrics(platformPostId, accessToken);
   if (platform === 'instagram') return fetchInstagramPostMetrics(platformPostId, accessToken);
   if (platform === 'youtube') return fetchYouTubeVideoMetrics(platformPostId, accessToken);
@@ -49,8 +50,10 @@ export function addMetrics(a: Record<string, number>, b: Record<string, number>)
 
 // One platform's numbers for a post, summed over the accounts that have it, each read with its own token.
 // A result written before per-account publishing names no account, so the primary account reads it.
-// Null when nothing could be measured (mock publishes, accounts no longer connected). A failing account
-// throws, so the caller keeps the previous numbers instead of storing a partial sum.
+// Null when nothing could be measured (mock publishes, accounts no longer connected, or, for YouTube, a
+// video that no longer answers). A failing or null-answering account means the caller keeps the previous
+// numbers instead of storing a partial or zeroed sum; a failing account throws, a null-answering one returns
+// null here directly.
 async function platformMetrics(platform: MetricPlatform, entry: unknown, conns: readonly PlatformConnection[]): Promise<Record<string, number> | null> {
   let sum: Record<string, number> | null = null;
   for (const ref of successfulPostRefs(entry)) {
@@ -60,7 +63,9 @@ async function platformMetrics(platform: MetricPlatform, entry: unknown, conns: 
       : primaryConnection(conns, platform);
     if (!conn || isMockConnection(conn)) continue;
     const token = await resolveAccessToken(conn);
-    sum = addMetrics(sum ?? {}, await fetchPlatformMetrics(platform, ref.post_id, token));
+    const numbers = await fetchPlatformMetrics(platform, ref.post_id, token);
+    if (!numbers) return null;
+    sum = addMetrics(sum ?? {}, numbers);
   }
   return sum;
 }
