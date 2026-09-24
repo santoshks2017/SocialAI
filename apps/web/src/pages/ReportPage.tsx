@@ -8,7 +8,7 @@ import { Button, cn } from '../components/ui/Button';
 import { useDealerProfile } from '../contexts/DealerProfileContext';
 import { dashboardService, type DashboardStats, type DealerAnalytics } from '../services/dashboard';
 import { trackEvent } from '../services/events';
-import { monthLabel, responseRateColor } from '../utils/analytics';
+import { formatDuration, monthLabel, responseRateColor } from '../utils/analytics';
 
 const TABLE = 'rounded-xl border border-zinc-200/80 overflow-hidden';
 const TILE = 'bg-white rounded-xl border border-zinc-200/80 shadow-sm p-4 print:shadow-none';
@@ -77,7 +77,7 @@ export default function ReportPage() {
             <SectionHeading title="Key metrics" subtitle="Month-to-date performance overview" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:grid-cols-4">
               <ReportStatTile loading={statsLoading} icon={<Send className="w-4 h-4 text-orange-600" />} accent="bg-orange-50" label="Posts published" value={stats ? String(stats.publishedThisMonth) : '—'} />
-              <ReportStatTile loading={statsLoading} icon={<Eye className="w-4 h-4 text-blue-600" />} accent="bg-blue-50" label="Total reach" value={stats ? stats.totalReach.toLocaleString('en-IN') : '—'} />
+              <ReportStatTile loading={statsLoading} icon={<Eye className="w-4 h-4 text-blue-600" />} accent="bg-blue-50" label="Total reach" value={stats ? stats.reachThisMonth.toLocaleString('en-IN') : '—'} />
               <ReportStatTile loading={statsLoading} icon={<Users className="w-4 h-4 text-violet-600" />} accent="bg-violet-50" label="Leads generated" value={stats ? String(stats.leadsGenerated) : '—'} />
               <ReportStatTile
                 loading={sectionsLoading}
@@ -163,7 +163,7 @@ export default function ReportPage() {
                 </div>
                 <div className={TILE}>
                   <p className="text-xs text-zinc-500 font-medium">Avg. response time</p>
-                  <p className="text-2xl font-bold tracking-tight text-zinc-900 mt-1">{summary?.avgResponseMinutes == null ? '—' : `${summary.avgResponseMinutes}m`}</p>
+                  <p className="text-2xl font-bold tracking-tight text-zinc-900 mt-1">{formatDuration(summary?.avgResponseMinutes ?? null)}</p>
                   {summary?.avgResponseMinutes != null && <p className="text-[11px] text-zinc-400 mt-1">per review on average</p>}
                 </div>
               </div>

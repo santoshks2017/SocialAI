@@ -1,14 +1,14 @@
 import { Download, FileText, Trophy } from 'lucide-react';
 import { Button } from '../ui/Button';
 import type { DashboardStats } from '../../services/dashboard';
-import { formatINR, type PostMetric } from '../../utils/analytics';
+import { formatINR, topPosts, topPostsSubtitle, type AnalyticsPlatform, type PostMetric } from '../../utils/analytics';
 import { CardEmpty, DeltaBadge, PlatformIconRow, SectionShell, StatTile } from './AnalyticsParts';
 
-// Always the first five of the fetched posts (the API orders them by reach).
-export function TopPostsCard({ posts }: { posts: PostMetric[] | null }) {
-  const top = (posts ?? []).slice(0, 5);
+// The five fetched posts with the most reach (posts that reached no one are left out), on the chosen platform.
+export function TopPostsCard({ posts, platform }: { posts: PostMetric[] | null; platform: 'all' | AnalyticsPlatform }) {
+  const top = topPosts(posts ?? []);
   return (
-    <SectionShell title="Top Performing Posts" subtitle="Ranked by reach across all platforms" bodyClassName="p-0">
+    <SectionShell title="Top Performing Posts" subtitle={topPostsSubtitle(platform)} bodyClassName="p-0">
       {posts === null ? (
         <div className="p-5 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-10 rounded-lg bg-zinc-50 animate-pulse" />)}</div>
       ) : top.length === 0 ? (
@@ -70,7 +70,7 @@ export function MonthlyRecapCard({ month, stats, adSpend, costPerLead, onShare }
           value={stats ? stats.publishedThisMonth.toLocaleString('en-IN') : '—'}
           sub={stats && change !== 0 ? <DeltaBadge value={`${change > 0 ? '+' : ''}${change}`} up={change > 0} sub="vs last month" /> : 'vs last month'}
         />
-        <StatTile label="Total reach" value={stats ? stats.totalReach.toLocaleString('en-IN') : '—'} sub="across all platforms" />
+        <StatTile label="Total reach" value={stats ? stats.reachThisMonth.toLocaleString('en-IN') : '—'} sub="across all platforms" />
         <StatTile
           label="Leads"
           value={stats ? stats.leadsGenerated.toLocaleString('en-IN') : '—'}

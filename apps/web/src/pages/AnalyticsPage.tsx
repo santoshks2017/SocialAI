@@ -26,7 +26,8 @@ export default function AnalyticsPage() {
     dashboardService.get().then((d) => setStats(d.stats)).catch(() => setStats(null));
     dashboardService.analytics().then(setInsights).catch(() => setInsights(null));
     // This month's boost spend; Boost is plan-gated, and without it there is no spend to show.
-    boostService.list({ pageSize: 50 }).then((res) => setAdSpend(res.stats.totalSpendThisMonth)).catch(() => setAdSpend(null));
+    // The totals cover the whole month whatever the page size, so one campaign is enough.
+    boostService.list({ pageSize: 1 }).then((res) => setAdSpend(res.stats.totalSpendThisMonth)).catch(() => setAdSpend(null));
   }, []);
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <KpiRow stats={stats ?? null} loading={stats === undefined && insights === undefined} costPerLead={cpl} />
+      <KpiRow stats={stats ?? null} loading={stats === undefined} costPerLead={cpl} />
 
       <PostPerformanceCard perf={perf} platform={platform} onPlatform={changePlatform} />
 
@@ -78,7 +79,7 @@ export default function AnalyticsPage() {
 
       <ReviewSummaryCard summary={insights?.reviewSummary ?? null} trend={insights?.reviewTrend ?? []} loading={insightsLoading} />
 
-      <TopPostsCard posts={perf ? perf.posts : null} />
+      <TopPostsCard posts={perf ? perf.posts : null} platform={platform} />
 
       <MonthlyRecapCard month={month} stats={stats ?? null} adSpend={adSpend} costPerLead={cpl} onShare={() => navigate('/report')} />
     </PageCard>

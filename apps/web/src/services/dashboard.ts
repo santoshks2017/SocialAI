@@ -9,7 +9,10 @@ export interface DashboardStats {
   /** Posts published this month (Analytics "Posts Published", the Report). */
   publishedThisMonth: number;
   publishedChange: number;
+  /** All-time reach of published posts (Analytics "Total Reach"). */
   totalReach: number;
+  /** Reach of posts published this month, UTC (the Report and the monthly recap). */
+  reachThisMonth: number;
   leadsGenerated: number;
   leadsThisWeek: number;
   inboxPending: number;

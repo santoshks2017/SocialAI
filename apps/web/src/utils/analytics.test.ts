@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   captionEventFor, costPerLead, emptyPerformance, engagementRate, formatDuration, formatINR, formatPercent, metricParts,
-  monthLabel, platformAbbrev, platformName, relativeWidth, responseRateColor, signed, sortPosts, topPlatform, type PostMetric,
+  monthLabel, platformAbbrev, platformName, relativeWidth, responseRateColor, signed, sortPosts, topPlatform, topPosts, topPostsSubtitle, type PostMetric,
 } from './analytics.js';
 
 const post = (id: string, over: Partial<PostMetric> = {}): PostMetric => ({
@@ -69,13 +69,29 @@ describe('formatting', () => {
     assert.equal(responseRateColor(10), 'bg-red-500');
   });
 
-  it('lists only the metrics that have a value, combining views and clicks', () => {
+  it('lists only the metrics that have a value, with Google views in reach, not clicks', () => {
+    // Google views are already counted in reach, so Clicks are clicks only.
     const parts = metricParts({ ...emptyPerformance().totals, reach: 120, likes: 4, videoViews: 3, plays: 2, clicks: 1, views: 6, inboxMessages: 2 });
     assert.deepEqual(parts, [
       { label: 'Reach', value: 120 }, { label: 'Likes', value: 4 }, { label: 'Video views', value: 5 },
-      { label: 'Clicks', value: 7 }, { label: 'Inbox', value: 2 },
+      { label: 'Clicks', value: 1 }, { label: 'Inbox', value: 2 },
     ]);
+    assert.deepEqual(metricParts({ ...emptyPerformance().totals, reach: 40, views: 40 }), [{ label: 'Reach', value: 40 }]);
     assert.deepEqual(metricParts(emptyPerformance().totals), []);
+  });
+});
+
+describe('top posts', () => {
+  it('keeps the five best posts that reached anyone', () => {
+    const posts = [post('a', { reach: 50 }), post('b', { reach: 0 }), post('c', { reach: 10 }), post('d', { reach: 9 }), post('e', { reach: 8 }), post('f', { reach: 7 }), post('g', { reach: 6 })];
+    assert.deepEqual(topPosts(posts).map((p) => p.id), ['a', 'c', 'd', 'e', 'f']);
+    assert.deepEqual(topPosts([post('z')]), []);
+  });
+
+  it('names the platform the ranking is for', () => {
+    assert.equal(topPostsSubtitle('all'), 'Ranked by reach across all platforms');
+    assert.equal(topPostsSubtitle('instagram'), 'Ranked by reach on Instagram');
+    assert.equal(topPostsSubtitle('gmb'), 'Ranked by reach on GMB');
   });
 });
 

@@ -116,6 +116,15 @@ export function sortPosts(posts: readonly PostMetric[], sort: PostSort): PostMet
   });
 }
 
+/** Top Performing Posts: the five with the most reach, leaving out posts that reached no one. */
+export function topPosts(posts: readonly PostMetric[], limit = 5): PostMetric[] {
+  return sortPosts(posts.filter((p) => p.reach > 0), 'reach').slice(0, limit);
+}
+
+export function topPostsSubtitle(platform: 'all' | AnalyticsPlatform): string {
+  return platform === 'all' ? 'Ranked by reach across all platforms' : `Ranked by reach on ${platformName(platform)}`;
+}
+
 /** Ad spend ÷ leads, rounded; null when either is missing. */
 export function costPerLead(adSpend: number | null, leads: number): number | null {
   return adSpend !== null && adSpend > 0 && leads > 0 ? Math.round(adSpend / leads) : null;
@@ -151,7 +160,7 @@ export interface MetricPart {
   value: number;
 }
 
-/** The "Reach · Impressions · Likes · …" line of a post, only the metrics above zero. */
+/** The "Reach · Impressions · Likes · …" line of a post, only the metrics above zero. Google views already count as reach. */
 export function metricParts(m: PerformanceBag): MetricPart[] {
   const parts: MetricPart[] = [
     { label: 'Reach', value: m.reach },
@@ -161,7 +170,7 @@ export function metricParts(m: PerformanceBag): MetricPart[] {
     { label: 'Shares', value: m.shares },
     { label: 'Saved', value: m.saved },
     { label: 'Video views', value: m.videoViews + m.plays },
-    { label: 'Clicks', value: m.clicks + m.views },
+    { label: 'Clicks', value: m.clicks },
     { label: 'Engaged', value: m.engagedUsers },
     { label: 'Engagement', value: m.engagement },
     { label: 'Inbox', value: m.inboxMessages },
