@@ -3,6 +3,7 @@ import axios from "axios";
 import { replyToGmbReview } from "./gmb.js";
 import { generateInboxReply as openaiGenerateInboxReply } from "./openai.js";
 import { generateInboxReply as groqGenerateInboxReply, isGroqAvailable } from "./groq.js";
+import { replyConnection } from "../lib/connectionStore.js";
 
 const META_GRAPH_BASE = "https://graph.facebook.com/v19.0";
 
@@ -101,7 +102,7 @@ async function generateAIReply(
     try {
       return await groqGenerateInboxReply(messageText, sentiment, dealerContext, normType, tone);
     } catch (e) {
-      console.warn("Groq failed, falling back to OpenAI:", e);
+      console.warn("Groq failed, falling back to OpenAI:", e instanceof Error ? e.message : String(e));
     }
   }
   return openaiGenerateInboxReply(messageText, sentiment, dealerContext, normType, undefined, tone);
@@ -145,7 +146,7 @@ async function sendReply(message: any, replyText: string, connection: any): Prom
       }
     }
   } catch (err) {
-    console.error(`Failed to send auto-reply to ${message.platform}`, err);
+    console.error(`Failed to send auto-reply to ${message.platform}:`, err instanceof Error ? err.message : String(err));
   }
 
   return false;
@@ -233,13 +234,7 @@ export async function processIncomingMessage(messageId: string): Promise<void> {
     });
   } else {
     // Auto Mode: Reply automatically
-    const connection = await prisma.platformConnection.findFirst({
-      where: {
-        dealer_id: dealer.id,
-        platform: message.platform,
-        is_connected: true,
-      },
-    });
+    const connection = await replyConnection(dealer.id, message);
 
     const sent = await sendReply(message, replyText, connection);
     

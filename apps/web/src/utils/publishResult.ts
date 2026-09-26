@@ -3,6 +3,13 @@
 
 type ErrorLike = string | { message?: string } | null | undefined;
 
+export interface PublishAccountResult {
+  connection_id?: string;
+  account_name?: string;
+  success?: boolean;
+  error?: ErrorLike;
+}
+
 export interface PublishPlatformResult {
   platform?: string;
   success?: boolean;
@@ -11,6 +18,7 @@ export interface PublishPlatformResult {
   url?: string;
   error?: ErrorLike;
   message?: string;
+  accounts?: PublishAccountResult[];
 }
 
 export interface PublishResponse {
@@ -36,6 +44,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   instagram: 'Instagram',
   gmb: 'Google Business',
   google: 'Google Business',
+  youtube: 'YouTube',
 };
 
 export function platformName(platform: string): string {
@@ -64,6 +73,20 @@ function describeFailures(failed: PublishPlatformResult[]): string | null {
     const name = r.platform ? platformName(r.platform) : 'A platform';
     return reason ? `${name}: ${reason}` : `${name} failed`;
   });
+  return parts.length ? parts.join('; ') : null;
+}
+
+// Accounts that failed on a platform that still went live on another of its accounts.
+function describeAccountFailures(results: PublishPlatformResult[]): string | null {
+  const parts = results
+    .filter((r) => !isFailed(r))
+    .flatMap((r) => (r.accounts ?? [])
+      .filter((a) => a.success === false)
+      .map((a) => {
+        const name = `${r.platform ? platformName(r.platform) : 'A platform'} (${a.account_name ?? 'an account'})`;
+        const reason = errorText(a.error);
+        return reason ? `${name}: ${reason}` : `${name} failed`;
+      }));
   return parts.length ? parts.join('; ') : null;
 }
 
@@ -101,6 +124,8 @@ export function summarizePublishResult(res: PublishResponse | null | undefined, 
   const warnings: string[] = [];
   const failureText = describeFailures(failed);
   if (failureText) warnings.push(failureText);
+  const accountText = describeAccountFailures(results);
+  if (accountText) warnings.push(accountText);
   if (skipped.length) warnings.push(`Skipped (not connected): ${skipped.map(platformName).join(', ')}`);
   return { ok: true, message: warnings.length ? warnings.join('. ') : null };
 }

@@ -75,6 +75,18 @@ describe('summarizePublishResult', () => {
     const out = summarizePublishResult({ success: true, status: 'published', results: [{ platform: 'facebook', success: true }], failed_platforms: ['gmb'] }, ['facebook', 'gmb']);
     assert.deepEqual(out, { ok: true, message: 'Google Business failed' });
   });
+
+  it('names accounts that failed on a platform that still went live', () => {
+    const out = summarizePublishResult({
+      success: true,
+      status: 'published',
+      results: [
+        { platform: 'facebook', success: true, accounts: [{ account_name: 'Apex Motors', success: true }, { account_name: 'Apex Used', success: false, error: 'Token expired' }] },
+        { platform: 'youtube', success: true },
+      ],
+    }, ['facebook', 'youtube']);
+    assert.deepEqual(out, { ok: true, message: 'Facebook (Apex Used): Token expired' });
+  });
 });
 
 describe('publishErrorMessage', () => {

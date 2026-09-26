@@ -7,7 +7,7 @@ import {
 } from '../../utils/analytics';
 import { MetricRow, PlatformIconRow, SectionShell, StatTile } from './AnalyticsParts';
 
-const DOTS: Record<AnalyticsPlatform, string> = { facebook: 'bg-[#1877F2]', instagram: 'bg-pink-500', gmb: 'bg-[#4285F4]' };
+const DOTS: Record<AnalyticsPlatform, string> = { facebook: 'bg-[#1877F2]', instagram: 'bg-pink-500', gmb: 'bg-[#4285F4]', youtube: 'bg-[#FF0000]' };
 const INBOX_TRACKED_TITLE = 'Counts the comments, DMs and reviews our inbox sync linked to these posts. It can differ from Meta’s own comment count.';
 
 function PlatformBreakdownInline({ byPlatform, highlight }: { byPlatform: PostPerformance['byPlatform']; highlight: 'all' | AnalyticsPlatform }) {

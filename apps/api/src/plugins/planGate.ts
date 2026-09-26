@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../db/prisma.js';
+import { connectedPlatformCount } from '../lib/connectionStore.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -64,13 +65,9 @@ export async function registerPlanGate(fastify: FastifyInstance) {
       // 3. Platform connections limit check (Starter: 2, Growth: 5)
       if (feature === 'platforms') {
         const limit = plan === 'starter' ? 2 : plan === 'growth' ? 5 : 999;
-        
-        const connectionsCount = await prisma.platformConnection.count({
-          where: {
-            dealer_id: dealerId,
-            is_connected: true,
-          },
-        });
+
+        // Platforms, not accounts: a second Facebook Page or Google location doesn't use up the plan.
+        const connectionsCount = await connectedPlatformCount(dealerId);
 
         if (connectionsCount >= limit) {
           return reply.code(403).send({

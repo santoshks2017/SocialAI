@@ -132,7 +132,7 @@ export default async function cronRoutes(fastify: FastifyInstance) {
         for (const result of outcome.results) results.push({ post_id: post.id, ...result });
       } catch (err) {
         // A claimed post left in 'publishing' is failed by recoverStuckPosts later.
-        fastify.log.error({ err, post_id: post.id }, '[cron] failed to publish scheduled post');
+        fastify.log.error({ message: err instanceof Error ? err.message : String(err), post_id: post.id }, '[cron] failed to publish scheduled post');
         results.push({ post_id: post.id, platform: '*', success: false, error: (err as Error).message });
       }
     });

@@ -1,24 +1,53 @@
-import type { FastifyInstance } from 'fastify';
-import { prisma } from '../db/prisma.js';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import axios from 'axios';
-import { exchangeForLongLivedToken, getPageAccessToken } from '../services/meta.js';
+import { prisma } from '../db/prisma.js';
+import { exchangeForLongLivedToken, fetchManagedPages, type ManagedPage } from '../services/meta.js';
+import { fetchGmbLocations, type GmbLocation } from '../services/gmb.js';
+import { NO_YOUTUBE_CHANNEL, YOUTUBE_SCOPES, fetchYouTubeChannels } from '../services/youtube.js';
 import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { issueHandoffCode, type SessionHandoff } from '../lib/oauthHandoff.js';
 import { signOAuthState, verifyOAuthState } from '../lib/oauthState.js';
 import { needsReconnect } from '../lib/platformHealth.js';
+import { ACCOUNT_LIMIT_MESSAGE, MAX_CONNECTED_ACCOUNTS, byAge } from '../lib/connections.js';
+import { saveConnection, saveConnections, type ConnectionInput } from '../lib/connectionStore.js';
+import { discoverInstagram, instagramConnection } from '../lib/instagramDiscovery.js';
+import { mapWithConcurrency } from '../lib/concurrency.js';
 
 const META_APP_ID     = process.env['META_APP_ID']     ?? '';
 const META_APP_SECRET = process.env['META_APP_SECRET'] ?? '';
-const GOOGLE_CLIENT_ID     = process.env['GOOGLE_CLIENT_ID']     ?? '';
-const GOOGLE_CLIENT_SECRET = process.env['GOOGLE_CLIENT_SECRET'] ?? '';
 
 // API_BASE_URL must be set to the deployed API URL in production (e.g. https://xxx.a.run.app)
-const API_BASE_URL      = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
-const FRONTEND_URL      = getFrontendUrl();
+const API_BASE_URL = process.env['API_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3001}`;
+const FRONTEND_URL = getFrontendUrl();
 
-// Redirect URIs — these must be registered in Meta App Dashboard / Google Cloud Console
+// Redirect URIs, registered in the Meta App Dashboard and Google Cloud Console. Google Business Profile and
+// YouTube share the Google one.
 const META_CALLBACK_URI   = `${API_BASE_URL}/v1/platforms/callback/meta`;
 const GOOGLE_CALLBACK_URI = `${API_BASE_URL}/v1/platforms/callback/google`;
+const GOOGLE_TOKEN_URL    = 'https://oauth2.googleapis.com/token';
+const GOOGLE_TIMEOUT_MS   = 15_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Shown on the OAuth return toast (the Google Business Profile copy is the reference's).
+const NO_GBP_LOCATIONS = 'No Google Business locations found on this account. Make sure you have a verified Business Profile, then try again.';
+const GBP_READ_FAILED = 'Could not read your Google Business Profile. Please try again, or contact support if it persists.';
+const NO_INSTAGRAM = 'No Instagram Business account is linked to your Facebook Pages. Link one in Meta Business Suite, then try again.';
+const INSTAGRAM_LOOKUP_FAILED = 'Couldn\u2019t reach Facebook to check your Pages. Try again, or reconnect Facebook if this keeps happening.';
+const YOUTUBE_UPLOAD_SCOPE_MISSING = 'YouTube upload permission wasn\u2019t granted. Connect again and allow uploading videos.';
+
+// Instagram discovery calls one Graph endpoint per Page; running several in flight keeps a dealer with many
+// Pages from stalling the OAuth redirect (or the sync request) while staying well under Meta's rate limits.
+const DISCOVERY_CONCURRENCY = 5;
+// Graph calls in the connect callback get the same bound as every other Meta call.
+const META_TIMEOUT_MS = 15_000;
+
+// Local and demo connects: two Pages; lib/instagramDiscovery.ts links a mock Instagram account to the first.
+const MOCK_PAGES: ManagedPage[] = [
+  { id: 'mock_fb_page_id', name: 'Mock Dealership Page', access_token: 'mock_fb_page_token' },
+  { id: 'mock_fb_page_id_2', name: 'Mock Dealership Page 2', access_token: 'mock_fb_page_token_2' },
+];
+
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 // Page and OAuth tokens never leave the server.
 function publicConnection(conn: Record<string, any>) {
@@ -28,13 +57,57 @@ function publicConnection(conn: Record<string, any>) {
 
 type PlatformState = { dealer_id: string | null; platform?: string; signin?: boolean };
 
-// Twitter and YouTube are mock integrations that store fake tokens.
+// Twitter (and YouTube without a Google client) are mock integrations that store fake tokens.
 function mockPlatformsDisabled(): boolean {
   return process.env['NODE_ENV'] === 'production';
 }
 
+/** The Google OAuth client, read per request so tests (and a key rotation) see the current values. */
+function googleClient(): { id: string; secret: string } | null {
+  const id = process.env['GOOGLE_CLIENT_ID'];
+  return id ? { id, secret: process.env['GOOGLE_CLIENT_SECRET'] ?? '' } : null;
+}
+
+/** The Google consent URL shared by every Google OAuth connect (Business Profile, YouTube). */
+function googleConsentUrl(clientId: string, scope: string, state: string): string {
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('redirect_uri', GOOGLE_CALLBACK_URI);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', scope);
+  url.searchParams.set('access_type', 'offline');
+  url.searchParams.set('prompt', 'consent');
+  url.searchParams.set('state', state);
+  return url.toString();
+}
+
+// `scope` is the space-separated set Google actually granted (Google's granular consent can drop one of the
+// scopes the dealer was asked for); it is absent on some token responses, which callers must not treat as a
+// denial.
+async function exchangeGoogleCode(code: string): Promise<{ access_token: string; refresh_token?: string; expires_in: number; scope?: string }> {
+  const client = googleClient();
+  const res = await axios.post<{ access_token: string; refresh_token?: string; expires_in: number; scope?: string }>(
+    GOOGLE_TOKEN_URL,
+    { code, client_id: client?.id ?? '', client_secret: client?.secret ?? '', redirect_uri: GOOGLE_CALLBACK_URI, grant_type: 'authorization_code' },
+    { timeout: GOOGLE_TIMEOUT_MS },
+  );
+  return res.data;
+}
+
+// How many accounts a connect saved, for the return toast: accounts=<total>, plus fb / ig / google / youtube.
+const COUNT_KEYS: ReadonlyArray<readonly [string, string]> = [['facebook', 'fb'], ['instagram', 'ig'], ['gmb', 'google'], ['youtube', 'youtube']];
+
+function savedCountQuery(saved: ReadonlyArray<{ platform: string }>): string {
+  const params = new URLSearchParams({ accounts: String(saved.length) });
+  for (const [platform, key] of COUNT_KEYS) {
+    const count = saved.filter((c) => c.platform === platform).length;
+    if (count > 0) params.set(key, String(count));
+  }
+  return params.toString();
+}
+
 export default async function platformRoutes(fastify: FastifyInstance) {
-  // GET /v1/platforms  — list all connections for dealer
+  // GET /v1/platforms: list all connections for dealer
   fastify.get('/', {
     preHandler: [fastify.authenticate],
   }, async (request, _reply) => {
@@ -44,17 +117,20 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     return { success: true, platforms: connections.map(publicConnection) };
   });
 
-  // GET /v1/platforms/connect/:platform  — return OAuth URL as JSON
+  // GET /v1/platforms/connect/:platform: return OAuth URL as JSON
   // Supports two modes:
   //   - Default (requires auth JWT): links the platform to the existing dealer account
   //   - ?signin=1 (no auth required): creates a new account via social sign-in
   fastify.get('/connect/:platform', async (request, reply) => {
-    const { platform } = request.params as { platform: string };
+    const { platform: rawPlatform } = request.params as { platform: string };
+    // google is the design's public name for the gmb platform.
+    const platform = rawPlatform === 'google' ? 'gmb' : rawPlatform;
     const { signin, mock } = request.query as { signin?: string; mock?: string };
     const isSignin = signin === '1';
     const isMock = mock === 'true';
 
-    if ((platform === 'twitter' || platform === 'youtube') && mockPlatformsDisabled()) {
+    // Twitter is mock-only; YouTube is mock-only until the Google client is configured.
+    if ((platform === 'twitter' || (platform === 'youtube' && !googleClient())) && mockPlatformsDisabled()) {
       return reply.code(501).send({ error: { code: 'NOT_AVAILABLE', message: `${platform} connections are not available yet` } });
     }
 
@@ -109,22 +185,15 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     }
 
     if (platform === 'gmb') {
-      if (!GOOGLE_CLIENT_ID) {
+      const google = googleClient();
+      if (!google) {
         return reply.code(500).send({ error: { code: 'CONFIG_ERROR', message: 'GOOGLE_CLIENT_ID not configured' } });
       }
       const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform, signin: isSignin });
-      const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-      url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
-      url.searchParams.set('redirect_uri', GOOGLE_CALLBACK_URI);
-      url.searchParams.set('response_type', 'code');
-      url.searchParams.set('scope', 'https://www.googleapis.com/auth/business.manage email profile');
-      url.searchParams.set('access_type', 'offline');
-      url.searchParams.set('prompt', 'consent');
-      url.searchParams.set('state', state);
-      return { success: true, redirect_url: url.toString() };
+      return { success: true, redirect_url: googleConsentUrl(google.id, 'https://www.googleapis.com/auth/business.manage email profile', state) };
     }
 
-    // ── Twitter/X mock OAuth ──────────────────────────────────────────────────
+    // Twitter/X: mock OAuth only
     if (platform === 'twitter') {
       if (!dealer_id) {
         return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
@@ -135,23 +204,25 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       return { success: true, redirect_url: callbackUrl };
     }
 
-    // ── YouTube mock OAuth ────────────────────────────────────────────────────
+    // YouTube: Google OAuth with the YouTube scopes. It returns to the registered Google callback, which
+    // tells YouTube from Business Profile by the state. The mock runs without a Google client, or with
+    // ?mock=true outside production.
     if (platform === 'youtube') {
       if (!dealer_id) {
         return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Authentication required to link platforms' } });
       }
       const state = signOAuthState(fastify, 'platform_oauth', { dealer_id, platform });
-      const callbackUrl = `${API_BASE_URL}/v1/platforms/callback/youtube?code=mock_youtube_code&state=${state}`;
-      return { success: true, redirect_url: callbackUrl };
+      const google = googleClient();
+      if (!google || (isMock && process.env['NODE_ENV'] !== 'production')) {
+        return { success: true, redirect_url: `${API_BASE_URL}/v1/platforms/callback/youtube?code=mock_youtube_code&state=${state}` };
+      }
+      return { success: true, redirect_url: googleConsentUrl(google.id, YOUTUBE_SCOPES, state) };
     }
 
     return reply.code(400).send({ error: { code: 'INVALID_PLATFORM', message: `Unknown platform: ${platform}` } });
   });
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // GET /v1/platforms/callback/twitter
-  // Mock Twitter/X OAuth callback — upserts a demo PlatformConnection.
-  // ─────────────────────────────────────────────────────────────────────────────
+  // GET /v1/platforms/callback/twitter: mock Twitter/X OAuth callback: saves a demo connection.
   fastify.get('/callback/twitter', async (request, reply) => {
     const { code, state, error: oauthError } = request.query as {
       code?: string;
@@ -160,23 +231,17 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     };
 
     const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=twitter`);
 
     if (mockPlatformsDisabled()) {
       return reply.code(501).send({ error: { code: 'NOT_AVAILABLE', message: 'twitter connections are not available yet' } });
     }
 
-    if (oauthError || !code || !state) {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'Twitter login cancelled')}&platform=twitter`);
-    }
+    if (oauthError || !code || !state) return fail(oauthError ?? 'Twitter login cancelled');
 
     const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
-    if (!stateData || stateData.platform !== 'twitter') {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=twitter`);
-    }
-
-    if (!stateData.dealer_id) {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=twitter`);
-    }
+    if (!stateData || stateData.platform !== 'twitter') return fail('Invalid state');
+    if (!stateData.dealer_id) return fail('Session expired. Please try again.');
 
     try {
       // Fetch dealer name for a realistic mock handle
@@ -185,38 +250,24 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         ? `@${dealer.name.toLowerCase().replace(/\s+/g, '').slice(0, 15)}`
         : '@dealershowroom';
 
-      await prisma.platformConnection.upsert({
-        where: { dealer_id_platform: { dealer_id: stateData.dealer_id, platform: 'twitter' } },
-        create: {
-          dealer_id: stateData.dealer_id,
-          platform: 'twitter',
-          platform_account_id: `tw_${stateData.dealer_id.slice(0, 8)}`,
-          platform_account_name: handle,
-          access_token: 'mock_twitter_access_token',
-          refresh_token: 'mock_twitter_refresh_token',
-          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
-          is_connected: true,
-        },
-        update: {
-          platform_account_name: handle,
-          access_token: 'mock_twitter_access_token',
-          refresh_token: 'mock_twitter_refresh_token',
-          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-          is_connected: true,
-        },
+      const outcome = await saveConnection(stateData.dealer_id, {
+        platform: 'twitter',
+        platform_account_id: `tw_${stateData.dealer_id.slice(0, 8)}`,
+        platform_account_name: handle,
+        access_token: 'mock_twitter_access_token',
+        refresh_token: 'mock_twitter_refresh_token',
+        token_expires_at: new Date(Date.now() + 90 * DAY_MS),
       });
+      if (outcome.status === 'limit') return fail(ACCOUNT_LIMIT_MESSAGE);
 
-      return reply.redirect(`${frontendCallback}?success=1&platform=twitter&page_name=${encodeURIComponent(handle)}`);
+      return reply.redirect(`${frontendCallback}?success=1&platform=twitter&page_name=${encodeURIComponent(handle)}&${savedCountQuery([outcome.connection])}`);
     } catch (err) {
-      fastify.log.error(err, 'Twitter mock callback failed');
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Twitter connection failed')}&platform=twitter`);
+      fastify.log.error({ message: errorText(err) }, 'Twitter mock callback failed');
+      return fail('Twitter connection failed');
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // GET /v1/platforms/callback/youtube
-  // Mock YouTube OAuth callback — upserts a demo PlatformConnection.
-  // ─────────────────────────────────────────────────────────────────────────────
+  // GET /v1/platforms/callback/youtube: mock YouTube OAuth callback: saves a demo channel.
   fastify.get('/callback/youtube', async (request, reply) => {
     const { code, state, error: oauthError } = request.query as {
       code?: string;
@@ -225,62 +276,42 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     };
 
     const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=youtube`);
 
     if (mockPlatformsDisabled()) {
       return reply.code(501).send({ error: { code: 'NOT_AVAILABLE', message: 'youtube connections are not available yet' } });
     }
 
-    if (oauthError || !code || !state) {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'YouTube login cancelled')}&platform=youtube`);
-    }
+    if (oauthError || !code || !state) return fail(oauthError ?? 'YouTube login cancelled');
 
     const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
-    if (!stateData || stateData.platform !== 'youtube') {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=youtube`);
-    }
-
-    if (!stateData.dealer_id) {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=youtube`);
-    }
+    if (!stateData || stateData.platform !== 'youtube') return fail('Invalid state');
+    if (!stateData.dealer_id) return fail('Session expired. Please try again.');
 
     try {
       const dealer = await prisma.dealer.findUnique({ where: { id: stateData.dealer_id } });
       const channelName = dealer?.name ? `${dealer.name} Official` : 'Dealership Channel';
 
-      await prisma.platformConnection.upsert({
-        where: { dealer_id_platform: { dealer_id: stateData.dealer_id, platform: 'youtube' } },
-        create: {
-          dealer_id: stateData.dealer_id,
-          platform: 'youtube',
-          platform_account_id: `yt_${stateData.dealer_id.slice(0, 8)}`,
-          platform_account_name: channelName,
-          access_token: 'mock_youtube_access_token',
-          refresh_token: 'mock_youtube_refresh_token',
-          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-          is_connected: true,
-        },
-        update: {
-          platform_account_name: channelName,
-          access_token: 'mock_youtube_access_token',
-          refresh_token: 'mock_youtube_refresh_token',
-          token_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-          is_connected: true,
-        },
+      const outcome = await saveConnection(stateData.dealer_id, {
+        platform: 'youtube',
+        platform_account_id: `yt_${stateData.dealer_id.slice(0, 8)}`,
+        platform_account_name: channelName,
+        access_token: 'mock_youtube_access_token',
+        refresh_token: 'mock_youtube_refresh_token',
+        token_expires_at: new Date(Date.now() + 90 * DAY_MS),
       });
+      if (outcome.status === 'limit') return fail(ACCOUNT_LIMIT_MESSAGE);
 
-      return reply.redirect(`${frontendCallback}?success=1&platform=youtube&page_name=${encodeURIComponent(channelName)}`);
+      return reply.redirect(`${frontendCallback}?success=1&platform=youtube&page_name=${encodeURIComponent(channelName)}&${savedCountQuery([outcome.connection])}`);
     } catch (err) {
-      fastify.log.error(err, 'YouTube mock callback failed');
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('YouTube connection failed')}&platform=youtube`);
+      fastify.log.error({ message: errorText(err) }, 'YouTube mock callback failed');
+      return fail('YouTube connection failed');
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // GET /v1/platforms/callback/meta
-  // Facebook redirects the browser here after the user authorises the app.
-  // We exchange the code for tokens, save them, then redirect back to the
-  // frontend settings page with a success/error indicator.
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Facebook redirects the browser here after the user authorises the app. Every Page the user manages is
+  // saved, with the Instagram Business account linked to each; then the browser goes back to the web app.
   fastify.get('/callback/meta', async (request, reply) => {
     const { code, state, error: oauthError, error_description } = request.query as {
       code?: string;
@@ -290,31 +321,30 @@ export default async function platformRoutes(fastify: FastifyInstance) {
     };
 
     const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=facebook`);
 
     if (oauthError || !code || !state) {
-      const msg = oauthError ?? 'Missing code or state';
       fastify.log.warn({ oauthError, error_description }, 'Meta OAuth denied or missing params');
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(error_description ?? msg)}&platform=facebook`);
+      return fail(error_description ?? oauthError ?? 'Missing code or state');
     }
 
     const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
     if (!stateData || (stateData.platform !== 'facebook' && stateData.platform !== 'instagram')) {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state parameter')}&platform=facebook`);
+      return fail('Invalid state parameter');
     }
 
     try {
       let expiresAt: Date;
       let fbUser: { id: string; name: string; email?: string };
-      let page: { id: string; name: string };
-      let pageToken: string;
+      let pages: ManagedPage[];
+      let pagesTruncated = false;
 
       if (process.env['NODE_ENV'] !== 'production' && (code.startsWith('mock_') || code === 'test')) {
-        expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000); // 60 days
+        expiresAt = new Date(Date.now() + 60 * DAY_MS);
         fbUser = { id: 'mock_fb_user_id', name: 'Mock FB User', email: 'mock@facebook.com' };
-        page = { id: 'mock_fb_page_id', name: 'Mock Dealership Page' };
-        pageToken = 'mock_fb_page_token';
+        pages = MOCK_PAGES;
       } else {
-        // 1. Exchange auth code for short-lived user access token
+        // 1. Exchange the code for a short-lived user token, then for a long-lived one (60 days)
         const tokenRes = await axios.get<{ access_token: string }>('https://graph.facebook.com/v19.0/oauth/access_token', {
           params: {
             client_id: META_APP_ID,
@@ -322,50 +352,45 @@ export default async function platformRoutes(fastify: FastifyInstance) {
             redirect_uri: META_CALLBACK_URI,
             code,
           },
+          timeout: META_TIMEOUT_MS,
         });
-        const shortLivedToken = tokenRes.data.access_token;
-
-        // 2. Exchange for long-lived token (60 days)
-        const { access_token: longLivedToken, expires_in } = await exchangeForLongLivedToken(shortLivedToken);
+        const { access_token: longLivedToken, expires_in } = await exchangeForLongLivedToken(tokenRes.data.access_token);
         expiresAt = new Date(Date.now() + expires_in * 1000);
 
-        // 3. Fetch user info + Facebook Pages the user manages
-        const [meRes, pagesRes] = await Promise.all([
+        // 2. The user, and every Page they manage with its Page token
+        const [meRes, managed] = await Promise.all([
           axios.get<{ id: string; name: string; email?: string }>('https://graph.facebook.com/v19.0/me', {
             params: { fields: 'id,name,email', access_token: longLivedToken },
+            timeout: META_TIMEOUT_MS,
           }),
-          axios.get<{ data: Array<{ id: string; name: string }> }>('https://graph.facebook.com/v19.0/me/accounts', {
-            params: { access_token: longLivedToken },
-          }),
+          fetchManagedPages(longLivedToken, MAX_CONNECTED_ACCOUNTS),
         ]);
         fbUser = meRes.data;
-        page = pagesRes.data.data[0] as { id: string; name: string };
-
-        if (!page) {
-          const errMsg = stateData.signin
-            ? 'No Facebook Page found. Please create a Facebook Business Page first, then try again.'
-            : 'No Facebook Page found. Create a Facebook Page first.';
-          return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(errMsg)}&platform=facebook`);
-        }
-
-        // 4. Get non-expiring Page access token
-        pageToken = await getPageAccessToken(longLivedToken, page.id);
+        pages = managed.items;
+        pagesTruncated = managed.truncated;
       }
 
-      // ── Social Sign-In Mode: create or find a dealer account ─────────────────
+      const firstPage = pages[0];
+      if (!firstPage) {
+        return fail(stateData.signin
+          ? 'No Facebook Page found. Please create a Facebook Business Page first, then try again.'
+          : 'No Facebook Page found. Create a Facebook Page first.');
+      }
+
+      // Social sign-in mode: create or find a dealer account
       let dealerId = stateData.dealer_id;
       let accessTokenForJwt: string | null = null;
       let refreshTokenForJwt: string | null = null;
 
       if (stateData.signin) {
-        // Find existing dealer by FB user id or email, or create a new one
+        // Find existing dealer by FB user id, or create a new one
         const fbPhone = `fb_${fbUser.id}`;
         let dealer = await prisma.dealer.findFirst({ where: { phone: fbPhone } });
         if (!dealer) {
           dealer = await prisma.dealer.create({
             data: {
               phone: fbPhone,
-              name: page.name,
+              name: firstPage.name,
               city: '',
               contact_phone: '',
               onboarding_completed: false,
@@ -406,157 +431,34 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         refreshTokenForJwt = fastify.jwt.sign({ ...jwtPayload, typ: 'refresh' }, { expiresIn: '90d' });
       }
 
-      if (!dealerId) {
-        return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=facebook`);
-      }
+      if (!dealerId) return fail('Session expired. Please try again.');
 
-      // 5. Save Facebook connection
-      await prisma.platformConnection.upsert({
-        where: { dealer_id_platform: { dealer_id: dealerId, platform: 'facebook' } },
-        create: {
-          dealer_id: dealerId,
-          platform: 'facebook',
-          platform_account_id: page.id,
-          platform_account_name: page.name,
-          access_token: pageToken,
-          token_expires_at: expiresAt,
-          is_connected: true,
-        },
-        update: {
-          platform_account_id: page.id,
-          platform_account_name: page.name,
-          access_token: pageToken,
-          token_expires_at: expiresAt,
-          is_connected: true,
-        },
-      });
-
-      // Also save to social_connections
-      await prisma.socialConnection.upsert({
-        where: { dealer_id_platform: { dealer_id: dealerId, platform: 'facebook' } },
-        create: {
-          dealer_id: dealerId,
-          platform: 'facebook',
-          account_id: page.id,
-          account_name: page.name,
-          access_token: pageToken,
-          token_expires_at: expiresAt,
-          is_active: true,
-        },
-        update: {
-          account_id: page.id,
-          account_name: page.name,
-          access_token: pageToken,
-          token_expires_at: expiresAt,
-          is_active: true,
-        },
-      });
-
-      // 6. Check for connected Instagram Business account and save it too
-      let igConnected = false;
-      if (process.env['NODE_ENV'] !== 'production' && (code.startsWith('mock_') || code === 'test')) {
-        const igId = 'mock_ig_user_id';
-        const igUsername = 'mock_dealership_instagram';
-        await prisma.platformConnection.upsert({
-          where: { dealer_id_platform: { dealer_id: dealerId, platform: 'instagram' } },
-          create: {
-            dealer_id: dealerId,
-            platform: 'instagram',
-            platform_account_id: igId,
-            platform_account_name: `@${igUsername}`,
-            access_token: pageToken,
-            token_expires_at: expiresAt,
-            is_connected: true,
-          },
-          update: {
-            platform_account_id: igId,
-            platform_account_name: `@${igUsername}`,
-            access_token: pageToken,
-            token_expires_at: expiresAt,
-            is_connected: true,
-          },
-        });
-
-        await prisma.socialConnection.upsert({
-          where: { dealer_id_platform: { dealer_id: dealerId, platform: 'instagram' } },
-          create: {
-            dealer_id: dealerId,
-            platform: 'instagram',
-            account_id: igId,
-            account_name: `@${igUsername}`,
-            access_token: pageToken,
-            token_expires_at: expiresAt,
-            is_active: true,
-          },
-          update: {
-            account_id: igId,
-            account_name: `@${igUsername}`,
-            access_token: pageToken,
-            token_expires_at: expiresAt,
-            is_active: true,
-          },
-        });
-        igConnected = true;
-      } else {
+      // 3. Every Page, and the Instagram Business account linked to each. Pages beyond the cap can never be
+      // saved, so their Instagram lookup is skipped; the rest run with bounded concurrency (a browser is
+      // waiting on this redirect) but stay in Page order in the saved list.
+      const pagesForDiscovery = pages.slice(0, MAX_CONNECTED_ACCOUNTS);
+      const instagrams = await mapWithConcurrency(pagesForDiscovery, DISCOVERY_CONCURRENCY, async (page) => {
         try {
-          const igRes = await axios.get<{ instagram_business_account?: { id: string } }>(
-            `https://graph.facebook.com/v19.0/${page.id}`,
-            { params: { fields: 'instagram_business_account', access_token: pageToken } },
-          );
-          const igId = igRes.data.instagram_business_account?.id;
-          if (igId) {
-            const igNameRes = await axios.get<{ username: string }>(
-              `https://graph.facebook.com/v19.0/${igId}`,
-              { params: { fields: 'username', access_token: pageToken } },
-            );
-            await prisma.platformConnection.upsert({
-              where: { dealer_id_platform: { dealer_id: dealerId, platform: 'instagram' } },
-              create: {
-                dealer_id: dealerId,
-                platform: 'instagram',
-                platform_account_id: igId,
-                platform_account_name: `@${igNameRes.data.username}`,
-                access_token: pageToken,
-                token_expires_at: expiresAt,
-                is_connected: true,
-              },
-              update: {
-                platform_account_id: igId,
-                platform_account_name: `@${igNameRes.data.username}`,
-                access_token: pageToken,
-                token_expires_at: expiresAt,
-                is_connected: true,
-              },
-            });
-
-            // Also save to social_connections
-            await prisma.socialConnection.upsert({
-              where: { dealer_id_platform: { dealer_id: dealerId, platform: 'instagram' } },
-              create: {
-                dealer_id: dealerId,
-                platform: 'instagram',
-                account_id: igId,
-                account_name: `@${igNameRes.data.username}`,
-                access_token: pageToken,
-                token_expires_at: expiresAt,
-                is_active: true,
-              },
-              update: {
-                account_id: igId,
-                account_name: `@${igNameRes.data.username}`,
-                access_token: pageToken,
-                token_expires_at: expiresAt,
-                is_active: true,
-              },
-            });
-            igConnected = true;
-          }
-        } catch (igErr) {
-          fastify.log.warn(igErr, 'Could not fetch Instagram Business account');
+          return await discoverInstagram(page.id, page.access_token);
+        } catch (err) {
+          fastify.log.warn({ message: errorText(err) }, 'Could not read the Instagram account linked to a Facebook Page');
+          return null;
         }
-      }
-
-      const connected = igConnected ? 'facebook,instagram' : 'facebook';
+      });
+      const accounts: ConnectionInput[] = [];
+      pages.forEach((page, index) => {
+        accounts.push({
+          platform: 'facebook',
+          platform_account_id: page.id,
+          platform_account_name: page.name,
+          access_token: page.access_token,
+          token_expires_at: expiresAt,
+        });
+        const ig = instagrams[index];
+        if (ig) accounts.push(instagramConnection(ig, page.access_token, expiresAt));
+      });
+      const { saved, limitReached } = await saveConnections(dealerId, accounts);
+      const connected = [...new Set(saved.map((c) => c.platform))].join(',') || 'facebook';
 
       // For social sign-in: hand the JWTs to the frontend through a one-time code
       // (redeemed via POST /v1/auth/oauth/exchange) so they never appear in a URL
@@ -566,23 +468,56 @@ export default async function platformRoutes(fastify: FastifyInstance) {
           refreshToken: refreshTokenForJwt ?? '',
         } satisfies SessionHandoff);
         return reply.redirect(
-          `${FRONTEND_URL}/auth/callback?code=${handoffCode}&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(page.name)}`
+          `${FRONTEND_URL}/auth/callback?code=${handoffCode}&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(firstPage.name)}`
         );
       }
 
-      return reply.redirect(`${frontendCallback}?success=1&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(page.name)}`);
-
+      if (limitReached || pagesTruncated) return fail(ACCOUNT_LIMIT_MESSAGE);
+      return reply.redirect(
+        `${frontendCallback}?success=1&platform=${encodeURIComponent(connected)}&page_name=${encodeURIComponent(firstPage.name)}&${savedCountQuery(saved)}`
+      );
     } catch (err) {
-      fastify.log.error(err, 'Meta OAuth callback failed');
+      fastify.log.error({ message: errorText(err) }, 'Meta OAuth callback failed');
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? 'Connection failed';
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(msg)}&platform=facebook`);
+      return fail(msg);
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // The YouTube half of /callback/google: saves every channel the Google account owns.
+  async function saveYouTubeChannels(code: string, dealerId: string | null, reply: FastifyReply) {
+    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=youtube`);
+    if (!dealerId) return fail('Session expired. Please try again.');
+    try {
+      const tokens = await exchangeGoogleCode(code);
+      // Granular consent lets the dealer untick the upload scope and keep only youtube.readonly; a token
+      // response with no `scope` field at all is not a denial, so only a present-but-narrower scope blocks.
+      if (tokens.scope !== undefined && !tokens.scope.split(' ').includes('https://www.googleapis.com/auth/youtube.upload')) {
+        return fail(YOUTUBE_UPLOAD_SCOPE_MISSING);
+      }
+      const channels = await fetchYouTubeChannels(tokens.access_token);
+      const [first] = channels;
+      if (!first) return fail(NO_YOUTUBE_CHANNEL);
+      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+      const { saved, limitReached } = await saveConnections(dealerId, channels.map((channel) => ({
+        platform: 'youtube',
+        platform_account_id: channel.id,
+        platform_account_name: channel.title,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token, // undefined on a reconnect keeps the stored one
+        token_expires_at: expiresAt,
+      })));
+      if (limitReached) return fail(ACCOUNT_LIMIT_MESSAGE);
+      return reply.redirect(`${frontendCallback}?success=1&platform=youtube&page_name=${encodeURIComponent(first.title)}&${savedCountQuery(saved)}`);
+    } catch (err) {
+      fastify.log.error({ message: errorText(err) }, 'YouTube OAuth callback failed');
+      return fail('YouTube connection failed');
+    }
+  }
+
   // GET /v1/platforms/callback/google
-  // Google redirects the browser here after consent.
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Google redirects the browser here after consent: every Business Profile location is saved for a `gmb`
+  // state, or every YouTube channel for a `youtube` state (see saveYouTubeChannels above).
   fastify.get('/callback/google', async (request, reply) => {
     const { code, state, error: oauthError } = request.query as {
       code?: string;
@@ -590,59 +525,45 @@ export default async function platformRoutes(fastify: FastifyInstance) {
       error?: string;
     };
 
-    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
-
-    if (oauthError || !code || !state) {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent(oauthError ?? 'Google login cancelled')}&platform=google`);
-    }
-
+    // Verified before the error/cancel check, so a denied or cancelled consent is still labelled by the
+    // platform the dealer started (state comes back on Google's own error redirect too; verifyOAuthState
+    // is null-safe for a missing/malformed state).
     const stateData = verifyOAuthState<PlatformState>(fastify, state, 'platform_oauth');
-    if (!stateData || stateData.platform !== 'gmb') {
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Invalid state')}&platform=google`);
-    }
+    const platformLabel = stateData?.platform === 'youtube' ? 'youtube' : 'google';
+    const frontendCallback = `${FRONTEND_URL}/oauth/callback`;
+    const fail = (message: string) => reply.redirect(`${frontendCallback}?error=${encodeURIComponent(message)}&platform=${platformLabel}`);
+
+    if (oauthError || !code || !state) return fail(oauthError ?? 'Google login cancelled');
+
+    if (!stateData || (stateData.platform !== 'gmb' && stateData.platform !== 'youtube')) return fail('Invalid state');
+    if (stateData.platform === 'youtube') return saveYouTubeChannels(code, stateData.dealer_id, reply);
 
     try {
-      const tokenRes = await axios.post<{ access_token: string; refresh_token?: string; expires_in: number }>(
-        'https://oauth2.googleapis.com/token',
-        {
-          code,
-          client_id: GOOGLE_CLIENT_ID,
-          client_secret: GOOGLE_CLIENT_SECRET,
-          redirect_uri: GOOGLE_CALLBACK_URI,
-          grant_type: 'authorization_code',
-        },
-      );
-      const { access_token, refresh_token, expires_in } = tokenRes.data;
+      const { access_token, refresh_token, expires_in } = await exchangeGoogleCode(code);
+      const expiresAt = new Date(Date.now() + expires_in * 1000);
 
-      // Fetch Google user info (for sign-in mode)
+      // Google user info (for sign-in mode)
       const googleUserRes = await axios.get<{ id: string; name: string; email?: string }>(
         'https://www.googleapis.com/oauth2/v2/userinfo',
-        { headers: { Authorization: `Bearer ${access_token}` } },
+        { headers: { Authorization: `Bearer ${access_token}` }, timeout: GOOGLE_TIMEOUT_MS },
       ).catch(() => ({ data: { id: '', name: 'Google User', email: undefined } }));
       const googleUser = googleUserRes.data;
 
-      // Fetch GMB account
-      const accountsRes = await axios.get<{ accounts: Array<{ name: string; accountName: string }> }>(
-        'https://mybusiness.googleapis.com/v4/accounts',
-        { headers: { Authorization: `Bearer ${access_token}` } },
-      ).catch(() => ({ data: { accounts: [] } }));
-      const account = accountsRes.data.accounts?.[0];
-
-      // Fetch first location
-      let locationName = account?.name ?? `google_${googleUser.id}`;
-      let displayName = account?.accountName ?? googleUser.name;
-      if (account) {
-        try {
-          const locRes = await axios.get<{ locations: Array<{ name: string; locationName: string }> }>(
-            `https://mybusiness.googleapis.com/v4/${account.name}/locations`,
-            { headers: { Authorization: `Bearer ${access_token}` } },
-          );
-          const loc = locRes.data.locations?.[0];
-          if (loc) { locationName = loc.name; displayName = loc.locationName; }
-        } catch { /* ignore — account-level fallback */ }
+      // Every location across the user's Business Profile accounts
+      let locations: GmbLocation[] = [];
+      let locationsTruncated = false;
+      let lookupFailed = false;
+      try {
+        const result = await fetchGmbLocations(access_token, MAX_CONNECTED_ACCOUNTS);
+        locations = result.items;
+        locationsTruncated = result.truncated;
+      } catch (err) {
+        lookupFailed = true;
+        fastify.log.warn({ message: errorText(err) }, 'Could not list Google Business Profile locations');
       }
+      const displayName = locations[0]?.title ?? googleUser.name;
 
-      // ── Social Sign-In Mode: create or find dealer account ───────────────────
+      // Social sign-in mode: create or find dealer account
       let dealerId = stateData.dealer_id;
       let jwtToken: string | null = null;
       let jwtRefresh: string | null = null;
@@ -692,28 +613,16 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         jwtRefresh = fastify.jwt.sign({ ...jwtPayload, typ: 'refresh' }, { expiresIn: '90d' });
       }
 
-      if (!dealerId) {
-        return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Session expired. Please try again.')}&platform=google`);
-      }
+      if (!dealerId) return fail('Session expired. Please try again.');
 
-      if (account) {
-        await prisma.platformConnection.upsert({
-          where: { dealer_id_platform: { dealer_id: dealerId, platform: 'gmb' } },
-          create: {
-            dealer_id: dealerId, platform: 'gmb',
-            platform_account_id: locationName, platform_account_name: displayName,
-            access_token, refresh_token: refresh_token ?? null,
-            token_expires_at: new Date(Date.now() + expires_in * 1000),
-            is_connected: true,
-          },
-          update: {
-            platform_account_id: locationName, platform_account_name: displayName,
-            access_token, ...(refresh_token ? { refresh_token } : {}),
-            token_expires_at: new Date(Date.now() + expires_in * 1000),
-            is_connected: true,
-          },
-        });
-      }
+      const { saved, limitReached } = await saveConnections(dealerId, locations.map((location) => ({
+        platform: 'gmb',
+        platform_account_id: location.name,
+        platform_account_name: location.title,
+        access_token,
+        refresh_token,
+        token_expires_at: expiresAt,
+      })));
 
       if (stateData.signin && jwtToken) {
         const handoffCode = await issueHandoffCode('session', {
@@ -725,15 +634,57 @@ export default async function platformRoutes(fastify: FastifyInstance) {
         );
       }
 
-      return reply.redirect(`${frontendCallback}?success=1&platform=google&page_name=${encodeURIComponent(displayName)}`);
-
+      if (lookupFailed) return fail(GBP_READ_FAILED);
+      if (locations.length === 0) return fail(NO_GBP_LOCATIONS);
+      if (limitReached || locationsTruncated) return fail(ACCOUNT_LIMIT_MESSAGE);
+      return reply.redirect(
+        `${frontendCallback}?success=1&platform=google&page_name=${encodeURIComponent(displayName)}&${savedCountQuery(saved)}`
+      );
     } catch (err) {
-      fastify.log.error(err, 'Google OAuth callback failed');
-      return reply.redirect(`${frontendCallback}?error=${encodeURIComponent('Google connection failed')}&platform=google`);
+      fastify.log.error({ message: errorText(err) }, 'Google OAuth callback failed');
+      return fail('Google connection failed');
     }
   });
 
-  // DELETE /v1/platforms/:platform  — disconnect
+  // POST /v1/platforms/sync-instagram: links the Instagram Business accounts of the connected Facebook Pages
+  fastify.post('/sync-instagram', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const dealerId = request.user.dealer_id;
+    if (!dealerId) {
+      return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'Sign in to a dealership account first.' } });
+    }
+
+    const pages = (await prisma.platformConnection.findMany({
+      where: { dealer_id: dealerId, platform: 'facebook', is_connected: true },
+    })).sort(byAge);
+    let failures = 0;
+    const found = (await mapWithConcurrency(pages, DISCOVERY_CONCURRENCY, async (page) => {
+      try {
+        const ig = await discoverInstagram(page.platform_account_id, page.access_token);
+        return ig ? instagramConnection(ig, page.access_token, page.token_expires_at) : null;
+      } catch (err) {
+        failures++;
+        request.log.warn({ message: errorText(err) }, '[platforms] Instagram discovery failed for a Page');
+        return null;
+      }
+    })).filter((input): input is ConnectionInput => input !== null);
+    if (found.length === 0) {
+      // Every lookup threw (a bad Page token, a Graph outage): say so, rather than the wrong "not linked".
+      if (pages.length > 0 && failures === pages.length) {
+        return reply.code(502).send({ error: { code: 'INSTAGRAM_LOOKUP_FAILED', message: INSTAGRAM_LOOKUP_FAILED } });
+      }
+      return reply.code(404).send({ error: { code: 'NO_INSTAGRAM', message: NO_INSTAGRAM } });
+    }
+
+    // Instagram found here rides along with its already-connected Facebook Page, the same as the Meta
+    // connect callback's auto-link above; no plan-limit check (only MAX_CONNECTED_ACCOUNTS applies).
+    const { saved, limitReached } = await saveConnections(dealerId, found);
+    if (saved.length === 0 && limitReached) {
+      return reply.code(409).send({ error: { code: 'ACCOUNT_LIMIT', message: ACCOUNT_LIMIT_MESSAGE } });
+    }
+    return { found: saved.length, accountName: saved[0]?.platform_account_name ?? null };
+  });
+
+  // DELETE /v1/platforms/:platform: disconnect every account of a platform
   fastify.delete('/:platform', {
     preHandler: [fastify.authenticate],
   }, async (request, _reply) => {

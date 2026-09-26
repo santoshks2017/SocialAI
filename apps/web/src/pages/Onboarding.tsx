@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Building2, Palette, Sparkles, Check, 
-  ArrowRight, ArrowLeft, Lightbulb, CheckCircle2 
+import {
+  Building2, Palette, Sparkles, Check,
+  ArrowRight, ArrowLeft, Lightbulb, CheckCircle2, LoaderCircle
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input';
 import { useDealerProfile } from '../contexts/DealerProfileContext';
 import { useToast } from '../components/ui/Toast';
 import api from '../services/api';
+import { startConnect } from '../utils/connectPlatform';
 
 const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -49,12 +50,34 @@ const TONES = [
   { id: 'friendly', label: 'Friendly', desc: 'Warm, approachable & community-focused', emoji: '🤝' },
 ];
 
+// Coming back from a connect flow reopens the "Connect your showroom accounts" step.
+const RESUME_STEP_KEY = 'onboarding_resume_step';
+
+function takeResumeStep(): number | null {
+  try {
+    const value = sessionStorage.getItem(RESUME_STEP_KEY);
+    sessionStorage.removeItem(RESUME_STEP_KEY);
+    return value === '2' ? 2 : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberResumeStep(step: number | null): void {
+  try {
+    if (step === null) sessionStorage.removeItem(RESUME_STEP_KEY);
+    else sessionStorage.setItem(RESUME_STEP_KEY, String(step));
+  } catch {
+    // Storage blocked: the wizard starts at step 1.
+  }
+}
+
 export default function Onboarding() {
   const navigate = useNavigate();
   const { profile, reload } = useDealerProfile();
   const { addToast } = useToast();
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => takeResumeStep() ?? 1);
   const [loading, setLoading] = useState(false);
 
   // Step 1: Profile Info
@@ -64,8 +87,9 @@ export default function Onboarding() {
   const [showroomType, setShowroomType] = useState('new'); // new, pre-owned, multi-brand
   const [selectedOem, setSelectedOem] = useState('');
 
-  // Step 2: Account Link — real connection status; connecting happens on /accounts after setup
+  // Step 2: Account Link: real connection status; Facebook and Google connect from here
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
+  const [connecting, setConnecting] = useState<string | null>(null);
 
   // Step 3: Brand Identity
   const [primaryColor, setPrimaryColor] = useState('#1877F2');
@@ -79,7 +103,7 @@ export default function Onboarding() {
   const [selectedPostIdx, setSelectedPostIdx] = useState(0);
 
   useEffect(() => {
-    api.get<{ accounts?: Array<{ platform: string }> }>('/platform-accounts')
+    api.get<{ accounts?: Array<{ platform: string }> }>('/platform-accounts', { verify: 0 })
       .then((res) => setConnectedPlatforms((res.accounts ?? []).map((a) => (a.platform === 'google' ? 'gmb' : a.platform))))
       .catch(() => setConnectedPlatforms([]));
   }, []);
@@ -115,6 +139,23 @@ export default function Onboarding() {
         type: 'info',
         title: 'OEM Brand Selected',
         message: `Applying brand presets: Primary (${oem.primary}) and Secondary (${oem.secondary}).`
+      });
+    }
+  };
+
+  // Leaves for the provider's consent screen; /oauth/callback brings the dealer back to step 2.
+  const connectFrom = async (rowId: string, platform: 'facebook' | 'gmb') => {
+    setConnecting(rowId);
+    rememberResumeStep(2);
+    try {
+      await startConnect(platform, '/onboarding');
+    } catch (err) {
+      rememberResumeStep(null);
+      setConnecting(null);
+      addToast({
+        type: 'error',
+        title: 'Connection failed',
+        message: err instanceof Error && err.message && err.message !== 'Network error' ? err.message : 'Could not start OAuth. Check API configuration.',
       });
     }
   };
@@ -470,16 +511,17 @@ export default function Onboarding() {
                     <GlobeIcon className="w-5 h-5 text-orange-400" />
                     Connect your showroom accounts
                   </h2>
-                  <p className="text-slate-400 text-xs mt-1">You can connect your social accounts after setup from the Accounts page. Publishing needs at least one connected account.</p>
+                  <p className="text-slate-400 text-xs mt-1">Connect now, or later from the Accounts page. Publishing needs at least one connected account.</p>
                 </div>
 
                 <div className="space-y-3">
                   {[
-                    { id: 'facebook', name: 'Facebook Page', icon: <FacebookIcon className="w-5 h-5 text-blue-500" />, desc: 'Publish visual posts directly to your official page feed' },
-                    { id: 'instagram', name: 'Instagram Business', icon: <InstagramIcon className="w-5 h-5 text-pink-500" />, desc: 'Schedule reels, car photos, and local launch promotions' },
-                    { id: 'gmb', name: 'Google My Business', icon: <GlobeIcon className="w-5 h-5 text-orange-500" />, desc: 'Automatically showcase vehicle updates on Google Maps' },
+                    { id: 'facebook', name: 'Facebook Page', icon: <FacebookIcon className="w-5 h-5 text-blue-500" />, desc: 'Publish visual posts directly to your official page feed', connect: 'facebook' as const },
+                    { id: 'instagram', name: 'Instagram Business', icon: <InstagramIcon className="w-5 h-5 text-pink-500" />, desc: 'Schedule reels, car photos, and local launch promotions', connect: null },
+                    { id: 'gmb', name: 'Google My Business', icon: <GlobeIcon className="w-5 h-5 text-orange-500" />, desc: 'Automatically showcase vehicle updates on Google Maps', connect: 'gmb' as const },
                   ].map((plat) => {
                     const connected = connectedPlatforms.includes(plat.id);
+                    const target = plat.connect;
                     return (
                       <div key={plat.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-950/40 border border-slate-850 rounded-2xl gap-3 hover:border-slate-800 transition-colors">
                         <div className="flex items-start gap-3">
@@ -496,9 +538,19 @@ export default function Onboarding() {
                             <span className="flex items-center gap-1.5 text-xs text-teal-400 bg-teal-500/10 px-3 py-1.5 rounded-full border border-teal-500/20 font-semibold">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Connected
                             </span>
+                          ) : target ? (
+                            <Button
+                              variant="secondary"
+                              disabled={connecting !== null}
+                              onClick={() => { void connectFrom(plat.id, target); }}
+                              className="bg-slate-800 hover:bg-slate-700 text-white border-slate-800 h-8 text-xs"
+                            >
+                              {connecting === plat.id && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />}
+                              Connect
+                            </Button>
                           ) : (
                             <span className="text-xs text-slate-400 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700 font-semibold">
-                              Connect after setup
+                              via Facebook
                             </span>
                           )}
                         </div>

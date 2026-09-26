@@ -115,6 +115,35 @@ describe('GET /v1/inbox', () => {
     assert.deepEqual(items[0]!.replies, []);
   });
 
+  it("links to the post on the Page that received the message, else to the platform's post", async () => {
+    const dealerId = await newDealer();
+    const at = '2026-09-20T10:00:00.000Z';
+    const pageA = { account_name: 'Apex Motors', post_id: 'a_1', url: 'https://facebook.com/a/posts/1', published_at: at };
+    const pageB = { account_name: 'Apex Used', post_id: 'b_2', url: 'https://facebook.com/b/posts/2', published_at: at };
+    const post = await prisma.post.create({
+      data: {
+        dealer_id: dealerId, prompt_text: 'Two Pages', caption_hashtags: [], platforms: ['facebook'], status: 'published',
+        publish_results: {
+          facebook: {
+            post_id: 'a_1', url: 'https://facebook.com/a/posts/1', published_at: at,
+            accounts: { 'conn-a': pageA, 'conn-b': pageB, 'conn-c': { account_name: 'Apex Old', error: 'Token expired', failed_at: at } },
+          },
+        },
+      },
+    });
+    const onB = await newMessage(dealerId, { post_id: post.id, connection_id: 'conn-b', received_at: new Date(Date.now() - 1000) });
+    const onC = await newMessage(dealerId, { post_id: post.id, connection_id: 'conn-c', received_at: new Date(Date.now() - 2000) });
+    const legacy = await newMessage(dealerId, { post_id: post.id, received_at: new Date(Date.now() - 3000) });
+
+    const { items } = (await fastify.inject({ method: 'GET', url: '/v1/inbox?pageSize=50', headers: headers(dealerId) })).json() as { items: Item[] };
+    const link = (id: string) => items.find((i) => i.id === id)?.postExternalUrl;
+
+    assert.deepEqual(
+      [link(onB.id), link(onC.id), link(legacy.id)],
+      ['https://facebook.com/b/posts/2', 'https://facebook.com/a/posts/1', 'https://facebook.com/a/posts/1'],
+    );
+  });
+
   it('reports the inbox-wide total and unread count on every page', async () => {
     const dealerId = await newDealer();
     await newMessage(dealerId, { is_read: true, received_at: new Date(Date.now() - 60_000) });

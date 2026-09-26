@@ -4,6 +4,7 @@ import axios from 'axios';
 import { validateRazorpaySignature } from '../lib/webhookSecurity.js';
 import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
+import { connectedPlatformCount } from '../lib/connectionStore.js';
 
 export default async function billingRoutes(fastify: FastifyInstance) {
   const canViewBilling = requirePermissionHook(PERMISSIONS.VIEW_BILLING);
@@ -55,13 +56,8 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // 2. Connected platforms
-    const platformsConnected = await prisma.platformConnection.count({
-      where: {
-        dealer_id: dealerId,
-        is_connected: true,
-      },
-    });
+    // 2. Connected platforms (several Pages or locations of one platform count once)
+    const platformsConnected = await connectedPlatformCount(dealerId);
 
     return {
       success: true,

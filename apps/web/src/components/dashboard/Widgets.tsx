@@ -249,6 +249,7 @@ const ACCOUNT_STYLE: Record<string, { color: string; label: string }> = {
   facebook: { color: '#1877F2', label: 'Facebook' },
   instagram: { color: '#E1306C', label: 'Instagram' },
   google: { color: '#4285F4', label: 'Google' },
+  youtube: { color: '#FF0000', label: 'YouTube' },
 };
 
 export function ConnectedAccounts() {

@@ -60,11 +60,6 @@ export const createStudioService = {
   platformSpecs: async (): Promise<PlatformSpecs> =>
     (await api.get<{ success: boolean; data: PlatformSpecs }>('/platform-specs')).data,
 
-  connectedPlatforms: async (): Promise<string[]> => {
-    const res = await api.get<{ platforms?: Array<{ platform: string; is_connected: boolean }> }>('/platforms');
-    return (res.platforms ?? []).filter((p) => p.is_connected).map((p) => p.platform);
-  },
-
   searchCarModels: async (q: string): Promise<CarModelMatch[]> =>
     (await api.get<{ success: boolean; models: CarModelMatch[] }>('/creatives/car-models', { q })).models,
 

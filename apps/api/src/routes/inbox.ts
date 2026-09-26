@@ -7,6 +7,7 @@ import { replyToGmbReview } from "../services/gmb.js"
 import { dealerReplyContext, draftTestimonial, suggestReplies } from "../lib/inboxReplies.js"
 import { mapMessages, truncateText } from "../lib/inboxView.js"
 import { ingestInboxMessage, resolvePostId } from "../lib/inboxIngest.js"
+import { replyConnection } from "../lib/connectionStore.js"
 import { can, PERMISSIONS, requirePermissionHook } from "../lib/permissions.js"
 import { isMockConnection, isMockId } from "../lib/platformMock.js"
 import { resolveAccessToken } from "../lib/publishDirect.js"
@@ -184,7 +185,8 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
     if (!message) return reply.code(404).send({ error: "Not found" })
 
     const text = replyText.trim()
-    const connection = await prisma.platformConnection.findFirst({ where: { dealer_id, platform: message.platform, is_connected: true } })
+    // The Page / account that received the message, else the platform's primary account
+    const connection = await replyConnection(dealer_id, message)
     const delivered = connection ? await sendReplyToPlatform(message, text, connection) : false
 
     const updated = await prisma.inboxMessage.update({ where: { id }, data: { reply_text: text, replied_at: new Date() } })
@@ -278,6 +280,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
           const { created } = await ingestInboxMessage({
             dealer_id,
             platform,
+            connection_id: connection.id,
             message_type: "dm",
             platform_message_id: messageId,
             message_text: text,
@@ -304,6 +307,7 @@ export default async function inboxRoutes(fastify: FastifyInstance) {
           const { created } = await ingestInboxMessage({
             dealer_id,
             platform,
+            connection_id: connection.id,
             message_type: "comment",
             platform_message_id: messageId,
             message_text: text,

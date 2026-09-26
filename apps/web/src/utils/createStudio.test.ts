@@ -1,9 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addHashtag, dealerInitials, defaultPlatforms, deliveryRows, initialLanguage, instagramHandle, keepPreloadedCaption, limitIssues, limitMessage, mergeHashtags,
-  outputFormat, outputFormatNote, parseAspect, platformOptions, reelErrorMessage, reelHandle, scheduleFromQuery, shouldFallBackToQuickRender,
-  togglePlatform, truncateText, type FormatSpec, type PlatformSpecs,
+  accountSelection, addHashtag, connectedPlatformIds, dealerInitials, defaultPlatforms, deliveryRows, initialLanguage, instagramHandle, keepPreloadedCaption,
+  limitIssues, limitMessage, mergeHashtags, outputFormat, outputFormatNote, parseAspect, platformAccounts, platformOptions, reelErrorMessage, reelHandle,
+  scheduleFromQuery, selectedConnectionIds, shouldFallBackToQuickRender, toggleAccount, togglePlatform, truncateText, type FormatSpec, type PlatformSpecs,
 } from './createStudio.js';
 
 const spec = (overrides: Partial<FormatSpec>): FormatSpec => ({
@@ -26,10 +26,45 @@ describe('language and platforms', () => {
 
   it("offers only connected platforms, in the type’s order", () => {
     const connected = ['instagram', 'youtube', 'gmb'];
-    assert.deepEqual(platformOptions('image', connected).map((p) => p.id), ['instagram', 'gmb']);
+    assert.deepEqual(platformOptions('image', connected).map((p) => p.id), ['instagram', 'gmb', 'youtube']);
     assert.deepEqual(defaultPlatforms('reel', connected), ['youtube', 'instagram']);
     assert.deepEqual(togglePlatform(['facebook'], 'gmb'), ['facebook', 'gmb']);
     assert.deepEqual(togglePlatform(['facebook', 'gmb'], 'facebook'), ['gmb']);
+  });
+});
+
+describe('accounts per platform', () => {
+  const accounts = [
+    { id: 'fb-new', platform: 'facebook', accountName: 'Apex Used', createdAt: '2026-09-02T00:00:00.000Z' },
+    { id: 'fb-old', platform: 'facebook', accountName: 'Apex Motors', createdAt: '2026-09-01T00:00:00.000Z' },
+    { id: 'g-1', platform: 'google', accountName: 'Apex Bandra', createdAt: '2026-09-01T00:00:00.000Z' },
+    { id: 'yt-1', platform: 'youtube', accountName: 'Apex TV', createdAt: '2026-09-03T00:00:00.000Z' },
+  ];
+
+  it('lists connected platforms with Google as gmb, and each platform primary first', () => {
+    assert.deepEqual(connectedPlatformIds(accounts), ['facebook', 'gmb', 'youtube']);
+    assert.deepEqual(platformAccounts(accounts, 'facebook').map((a) => a.id), ['fb-old', 'fb-new']);
+  });
+
+  it('offers account chips only where a platform has several accounts, with the primary preselected', () => {
+    assert.deepEqual(accountSelection(accounts, ['facebook', 'gmb'], null), { facebook: ['fb-old'] });
+    assert.deepEqual(accountSelection(accounts, ['facebook'], ['fb-new', 'g-1']), { facebook: ['fb-new'] });
+    assert.deepEqual(accountSelection(accounts, ['gmb'], ['fb-new']), {});
+  });
+
+  it('keeps at least one account selected per platform', () => {
+    assert.deepEqual(toggleAccount({ facebook: ['fb-old'] }, 'facebook', 'fb-new'), ['fb-old', 'fb-new']);
+    assert.deepEqual(toggleAccount({ facebook: ['fb-old'] }, 'facebook', 'fb-old'), ['fb-old']);
+    assert.deepEqual(toggleAccount({ facebook: ['fb-old', 'fb-new'] }, 'facebook', 'fb-old'), ['fb-new']);
+    assert.deepEqual(selectedConnectionIds({ facebook: ['fb-old', 'fb-new'], instagram: ['ig-2'] }), ['fb-old', 'fb-new', 'ig-2']);
+  });
+
+  it('shows YouTube as a disabled chip on image posts', () => {
+    assert.deepEqual(platformOptions('image', ['facebook', 'youtube']).find((o) => o.id === 'youtube'), {
+      id: 'youtube', label: 'YouTube', disabled: true, hint: 'YouTube takes video (Shorts) only',
+    });
+    assert.deepEqual(defaultPlatforms('image', ['facebook', 'youtube']), ['facebook']);
+    assert.equal(platformOptions('reel', ['youtube'])[0]?.disabled, undefined);
   });
 });
 

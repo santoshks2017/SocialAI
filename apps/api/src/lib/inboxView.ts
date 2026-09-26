@@ -18,14 +18,27 @@ export function firstCreativeUrl(value: unknown): string | undefined {
 
 export type PostContextSource = Pick<Post, 'caption_text' | 'prompt_text' | 'thumbnail_url' | 'creative_urls' | 'publish_results' | 'platforms'>;
 
-/** The live link on the message's platform, else the post's first live link. Mock publishes have none. */
-function externalUrl(post: PostContextSource, platform: string): string | undefined {
+/** A result entry's live link: a success with a real (not mock) post id and a url. */
+function liveUrl(entry: unknown): string | undefined {
+  if (!isSuccessfulResult(entry)) return undefined;
+  const { post_id, url } = entry as { post_id: string; url?: unknown };
+  return !isMockId(post_id) && typeof url === 'string' && url ? url : undefined;
+}
+
+/**
+ * The live link of the post on the account that received the message, else on the message's platform, else
+ * the post's first live link. Mock publishes have none.
+ */
+function externalUrl(post: PostContextSource, platform: string, connectionId: string | null): string | undefined {
   const results = (post.publish_results ?? {}) as Record<string, unknown>;
+  const accounts = (results[platform] as { accounts?: unknown } | null | undefined)?.accounts;
+  if (connectionId && accounts && typeof accounts === 'object') {
+    const own = liveUrl((accounts as Record<string, unknown>)[connectionId]);
+    if (own) return own;
+  }
   for (const p of [platform, ...(post.platforms ?? []).filter((name) => name !== platform)]) {
-    const entry = results[p];
-    if (!isSuccessfulResult(entry)) continue;
-    const { post_id, url } = entry as { post_id: string; url?: unknown };
-    if (!isMockId(post_id) && typeof url === 'string' && url) return url;
+    const url = liveUrl(results[p]);
+    if (url) return url;
   }
   return undefined;
 }
@@ -34,7 +47,7 @@ function externalUrl(post: PostContextSource, platform: string): string | undefi
 export function mapMessage(m: InboxMessage, post?: PostContextSource | null) {
   const postContext = post ? truncateText(post.caption_text || post.prompt_text || '', POST_CONTEXT_MAX) : '';
   const postThumbnail = post ? post.thumbnail_url || firstCreativeUrl(post.creative_urls) : undefined;
-  const postExternalUrl = post ? externalUrl(post, m.platform) : undefined;
+  const postExternalUrl = post ? externalUrl(post, m.platform, m.connection_id ?? null) : undefined;
   return {
     id: m.id,
     dealerId: m.dealer_id,

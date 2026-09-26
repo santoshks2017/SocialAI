@@ -178,6 +178,7 @@ describe('platform connections', () => {
 
   it('turns off the mock Twitter/YouTube integrations in production', async () => {
     process.env['NODE_ENV'] = 'production';
+    delete process.env['GOOGLE_CLIENT_ID']; // with a Google client, YouTube is real OAuth (next test)
     const dealerId = await newDealer('mock-platform-dealer');
     for (const platform of ['twitter', 'youtube']) {
       const connect = await fastify.inject({
@@ -191,6 +192,17 @@ describe('platform connections', () => {
       assert.equal(callback.statusCode, 501);
     }
     assert.equal(await prisma.platformConnection.findFirst({ where: { dealer_id: dealerId } }), null);
+  });
+
+  it('sends YouTube to Google OAuth in production once Google is configured', async () => {
+    process.env['NODE_ENV'] = 'production';
+    process.env['GOOGLE_CLIENT_ID'] = 'prod-client-id';
+    const dealerId = await newDealer('youtube-prod-dealer', 'growth');
+    const res = await fastify.inject({
+      method: 'GET', url: '/v1/platforms/connect/youtube?mock=true', headers: bearer(token(dealerId)),
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(new URL(res.json().redirect_url).host, 'accounts.google.com');
   });
 });
 

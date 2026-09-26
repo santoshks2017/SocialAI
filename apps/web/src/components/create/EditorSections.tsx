@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import { Check, Film, Image as ImageIcon, Info, LoaderCircle, Upload, Wand2, X } from 'lucide-react';
 import { cn } from '../ui/Button';
 import { PlatformIcon } from '../ui/PlatformIcon';
-import { outputFormatNote, type CreateType, type VisualSource } from '../../utils/createStudio';
+import { outputFormatNote, type CreateType, type PlatformOption, type StudioAccount, type VisualSource } from '../../utils/createStudio';
 import type { CarModelMatch } from '../../services/createStudio';
 import { FIELD_CLASS, LABEL_CLASS } from './fieldStyles';
 
@@ -49,16 +49,26 @@ export function TypePicker({ value, onChange }: { value: CreateType; onChange: (
   );
 }
 
+interface AccountChoice {
+  platform: string;
+  accounts: StudioAccount[];
+  selected: string[];
+}
+
 interface PlatformPickerProps {
   type: CreateType;
-  options: Array<{ id: string; label: string }>;
+  options: PlatformOption[];
   selected: string[];
   format: string;
+  /** Account chips for each selected platform that has several connected accounts. */
+  accountChoices: AccountChoice[];
   onToggle: (id: string) => void;
+  onToggleAccount: (platform: string, accountId: string) => void;
   onConnect: () => void;
 }
 
-export function PlatformPicker({ type, options, selected, format, onToggle, onConnect }: PlatformPickerProps) {
+export function PlatformPicker({ type, options, selected, format, accountChoices, onToggle, onToggleAccount, onConnect }: PlatformPickerProps) {
+  const hints = options.flatMap((p) => (p.disabled && p.hint ? [p.hint] : []));
   return (
     <div>
       <label className={LABEL_CLASS}>Post to</label>
@@ -76,8 +86,14 @@ export function PlatformPicker({ type, options, selected, format, onToggle, onCo
                 key={p.id}
                 type="button"
                 aria-pressed={active}
+                disabled={p.disabled}
+                title={p.hint}
                 onClick={() => onToggle(p.id)}
-                className={cn('inline-flex items-center gap-2 rounded-xl border px-3 py-2 transition-all', active ? 'border-orange-400 bg-orange-50 shadow-sm' : 'border-zinc-200 hover:bg-zinc-50')}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-xl border px-3 py-2 transition-all',
+                  active ? 'border-orange-400 bg-orange-50 shadow-sm' : 'border-zinc-200 hover:bg-zinc-50',
+                  p.disabled && 'opacity-50 cursor-not-allowed hover:bg-transparent',
+                )}
               >
                 <PlatformIcon platform={p.id as IconPlatform} size="sm" />
                 <span className={cn('text-sm font-semibold', active ? 'text-orange-700' : 'text-zinc-700')}>{p.label}</span>
@@ -85,6 +101,38 @@ export function PlatformPicker({ type, options, selected, format, onToggle, onCo
               </button>
             );
           })}
+        </div>
+      )}
+      {hints.map((hint) => (
+        <p key={hint} className="text-[11px] text-zinc-400 mt-1.5 flex items-start gap-1">
+          <Info className="w-3 h-3 mt-0.5 shrink-0" /> {hint}
+        </p>
+      ))}
+      {accountChoices.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {accountChoices.map((choice) => (
+            <div key={choice.platform} className="flex flex-wrap items-center gap-1.5">
+              <PlatformIcon platform={choice.platform as IconPlatform} size="sm" />
+              {choice.accounts.map((account) => {
+                const on = choice.selected.includes(account.id);
+                return (
+                  <button
+                    key={account.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => onToggleAccount(choice.platform, account.id)}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-all',
+                      on ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50',
+                    )}
+                  >
+                    {on && <Check className="w-3 h-3" />}
+                    {account.accountName}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
       {selected.length > 0 && (

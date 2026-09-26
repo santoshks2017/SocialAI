@@ -1,4 +1,5 @@
 import { Queue } from 'bullmq';
+import type { PublishDirectData } from '../lib/publishDirect.js';
 
 const REDIS_URL = process.env['REDIS_URL']?.replace(/^["']|["']$/g, '');
 // Only create queues if Redis is configured and we're not in test mode
@@ -25,21 +26,8 @@ export const captionQueue = hasRedis ? new Queue('caption', { connection: redisC
 
 // ─── Job type definitions ──────────────────────────────────────────────────────
 
-export interface PublishJobData {
-  post_id: string;
-  dealer_id: string;
-  platform: 'facebook' | 'instagram' | 'gmb';
-  image_url: string;
-  caption: string;
-  page_id?: string;
-  ig_user_id?: string;
-  gmb_location_name?: string;
-  access_token: string;
-  dealer_phone?: string;
-  dealer_whatsapp?: string;
-  media_type: 'image' | 'video';
-  video_url: string;
-}
+/** One publish job: one post to one account (lib/publishDirect.ts). */
+export type PublishJobData = PublishDirectData;
 
 export interface MetricsJobData {
   post_id: string;

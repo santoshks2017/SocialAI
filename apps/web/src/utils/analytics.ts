@@ -19,7 +19,7 @@ export interface PerformanceBag extends MetricsBag {
   inboxMessages: number;
 }
 
-export type AnalyticsPlatform = 'facebook' | 'instagram' | 'gmb';
+export type AnalyticsPlatform = 'facebook' | 'instagram' | 'gmb' | 'youtube';
 
 /** GET /v1/dealer/analytics/posts → posts[] */
 export interface PostMetric extends PerformanceBag {
@@ -59,6 +59,7 @@ export const PLATFORM_PILLS: Array<{ id: 'all' | AnalyticsPlatform; label: strin
   { id: 'facebook', label: 'Facebook' },
   { id: 'instagram', label: 'Instagram' },
   { id: 'gmb', label: 'GMB' },
+  { id: 'youtube', label: 'YouTube' },
 ];
 
 export const POST_SORTS: Array<{ id: PostSort; label: string }> = [
@@ -88,7 +89,7 @@ export function formatPercent(rate: number | null): string {
 }
 
 const NAMES: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', gmb: 'GMB', youtube: 'YouTube' };
-const ABBREVIATIONS: Record<string, string> = { facebook: 'FB', instagram: 'IG', gmb: 'GMB' };
+const ABBREVIATIONS: Record<string, string> = { facebook: 'FB', instagram: 'IG', gmb: 'GMB', youtube: 'YT' };
 
 export function platformName(platform: string): string {
   return NAMES[platform] ?? platform.toUpperCase();

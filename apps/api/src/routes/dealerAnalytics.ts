@@ -31,7 +31,7 @@ export default async function dealerAnalyticsRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // GET /v1/dealer/analytics/posts?days=7|30|90&platform=facebook|instagram|gmb — per-post reach and engagement
+  // GET /v1/dealer/analytics/posts?days=7|30|90&platform=facebook|instagram|gmb|youtube: per-post reach and engagement
   fastify.get('/analytics/posts', {
     preHandler: [fastify.authenticate, requirePermissionHook(PERMISSIONS.VIEW_REPORTS)],
   }, async (request, reply) => {
@@ -39,7 +39,7 @@ export default async function dealerAnalyticsRoutes(fastify: FastifyInstance) {
     const days = query.days === undefined ? 30 : Number(query.days);
     if (!(ANALYTICS_DAYS as readonly number[]).includes(days)) return reply.code(400).send(INVALID('days must be 7, 30 or 90'));
     const platform = query.platform === undefined ? undefined : isMetricPlatform(query.platform) ? query.platform : null;
-    if (platform === null) return reply.code(400).send(INVALID('platform must be facebook, instagram or gmb'));
+    if (platform === null) return reply.code(400).send(INVALID('platform must be facebook, instagram, gmb or youtube'));
 
     const dealer_id = request.user.dealer_id!;
     const since = new Date(Date.now() - days * DAY_MS);

@@ -24,7 +24,6 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ApiConnectionsPage from './pages/admin/ApiConnectionsPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
-import ConnectProfilesPage from './pages/ConnectProfilesPage';
 import type { UserInfo } from './lib/permissions';
 import { isGlobalOwner } from './lib/permissions';
 import ApprovePage from './pages/ApprovePage';
@@ -85,7 +84,7 @@ function AppRoutes() {
       <Route path="/report" element={<RequireAuth><ReportPage /></RequireAuth>} />
       <Route path="/boost" element={<RequireAuth><AppLayout><BoostPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts" element={<RequireAuth><AppLayout><AccountsPage /></AppLayout></RequireAuth>} />
-      <Route path="/accounts/create" element={<RequireAuth><AppLayout><ConnectProfilesPage /></AppLayout></RequireAuth>} />
+      <Route path="/accounts/create" element={<Navigate to="/accounts" replace />} />
       <Route path="/billing" element={<RequireAuth><AppLayout><BillingPage /></AppLayout></RequireAuth>} />
       <Route path="/admin" element={<RequireAuth><RequireGlobalOwner><AppLayout><AdminDashboard /></AppLayout></RequireGlobalOwner></RequireAuth>} />
       <Route path="/admin/apis" element={<RequireAuth><RequireGlobalOwner><AppLayout><ApiConnectionsPage /></AppLayout></RequireGlobalOwner></RequireAuth>} />

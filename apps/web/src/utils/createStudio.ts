@@ -1,4 +1,5 @@
 import { platformResults } from './posts.js';
+import type { ConnectedAccount } from './accounts.js';
 
 export type CreateType = 'image' | 'reel';
 export type VisualSource = 'generate_scratch' | 'add_inspiration' | 'add_creative';
@@ -20,12 +21,28 @@ export const REEL_PLATFORMS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'youtube', label: 'YouTube' }, { id: 'instagram', label: 'Instagram' }, { id: 'facebook', label: 'Facebook' },
 ];
 
-export function platformOptions(type: CreateType, connected: readonly string[]): Array<{ id: string; label: string }> {
-  return (type === 'reel' ? REEL_PLATFORMS : IMAGE_PLATFORMS).filter((p) => connected.includes(p.id));
+export interface PlatformOption {
+  id: string;
+  label: string;
+  /** Shown but not selectable; `hint` says why (YouTube on image posts). */
+  disabled?: boolean;
+  hint?: string;
+}
+
+export const YOUTUBE_VIDEO_ONLY_HINT = 'YouTube takes video (Shorts) only';
+
+export function platformOptions(type: CreateType, connected: readonly string[]): PlatformOption[] {
+  const options: PlatformOption[] = (type === 'reel' ? REEL_PLATFORMS : IMAGE_PLATFORMS)
+    .filter((p) => connected.includes(p.id))
+    .map((p) => ({ ...p }));
+  if (type === 'image' && connected.includes('youtube')) {
+    options.push({ id: 'youtube', label: 'YouTube', disabled: true, hint: YOUTUBE_VIDEO_ONLY_HINT });
+  }
+  return options;
 }
 
 export function defaultPlatforms(type: CreateType, connected: readonly string[]): string[] {
-  return platformOptions(type, connected).map((p) => p.id);
+  return platformOptions(type, connected).filter((p) => !p.disabled).map((p) => p.id);
 }
 
 export function togglePlatform(selected: readonly string[], id: string): string[] {
@@ -34,6 +51,58 @@ export function togglePlatform(selected: readonly string[], id: string): string[
 
 export function platformLabel(id: string): string {
   return [...IMAGE_PLATFORMS, ...REEL_PLATFORMS].find((p) => p.id === id)?.label ?? id;
+}
+
+export type StudioAccount = Pick<ConnectedAccount, 'id' | 'platform' | 'accountName' | 'createdAt'>;
+
+/** Posts call Google Business Profile `gmb`; the account list calls it `google`. */
+export function postPlatform(platform: string): string {
+  return platform === 'google' ? 'gmb' : platform;
+}
+
+/** The platforms with a connected account, in the list's order. */
+export function connectedPlatformIds(accounts: readonly StudioAccount[]): string[] {
+  return [...new Set(accounts.map((a) => postPlatform(a.platform)))];
+}
+
+/** A platform's accounts, primary first: the oldest, ties by id (as the API picks it). */
+export function platformAccounts<T extends StudioAccount>(accounts: readonly T[], platform: string): T[] {
+  return accounts
+    .filter((a) => postPlatform(a.platform) === platform)
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
+ * The chosen accounts of each selected platform that has several. Platforms with one account are left out
+ * (the server sends those to their primary). With nothing chosen yet, the primary is preselected.
+ */
+export function accountSelection(
+  accounts: readonly StudioAccount[],
+  platforms: readonly string[],
+  picked: readonly string[] | null,
+): Record<string, string[]> {
+  const selection: Record<string, string[]> = {};
+  for (const platform of platforms) {
+    const mine = platformAccounts(accounts, platform);
+    const primary = mine[0];
+    if (!primary || mine.length < 2) continue;
+    const chosen = mine.filter((a) => picked?.includes(a.id)).map((a) => a.id);
+    selection[platform] = chosen.length > 0 ? chosen : [primary.id];
+  }
+  return selection;
+}
+
+/** Toggles one account of a platform, keeping at least one selected; returns every chosen id. */
+export function toggleAccount(selection: Readonly<Record<string, readonly string[]>>, platform: string, id: string): string[] {
+  const current = selection[platform] ?? [];
+  const next = current.includes(id)
+    ? (current.length > 1 ? current.filter((x) => x !== id) : [...current])
+    : [...current, id];
+  return Object.entries({ ...selection, [platform]: next }).flatMap(([, ids]) => [...ids]);
+}
+
+export function selectedConnectionIds(selection: Readonly<Record<string, readonly string[]>>): string[] {
+  return Object.values(selection).flat();
 }
 
 export interface FormatSpec {

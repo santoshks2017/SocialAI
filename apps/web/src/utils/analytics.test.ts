@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   captionEventFor, costPerLead, emptyPerformance, engagementRate, formatDuration, formatINR, formatPercent, metricParts,
-  monthLabel, platformAbbrev, platformName, relativeWidth, responseRateColor, signed, sortPosts, topPlatform, topPosts, topPostsEmptyCopy, topPostsSubtitle, type PostMetric,
+  monthLabel, PLATFORM_PILLS, platformAbbrev, platformName, relativeWidth, responseRateColor, signed, sortPosts, topPlatform, topPosts, topPostsEmptyCopy, topPostsSubtitle, type PostMetric,
 } from './analytics.js';
 
 const post = (id: string, over: Partial<PostMetric> = {}): PostMetric => ({
@@ -23,6 +23,8 @@ describe('rates and platforms', () => {
     assert.equal(platformName('facebook'), 'Facebook');
     assert.equal(platformAbbrev('instagram'), 'IG');
     assert.equal(platformAbbrev('x'), 'X');
+    assert.equal(platformAbbrev('youtube'), 'YT');
+    assert.equal(platformName('youtube'), 'YouTube');
     const zero = emptyPerformance().totals;
     assert.deepEqual(topPlatform({ facebook: { ...zero, reach: 90 }, gmb: { ...zero, reach: 120 } }), { platform: 'gmb', reach: 120 });
     assert.equal(topPlatform({ facebook: zero }), null);
@@ -92,6 +94,12 @@ describe('top posts', () => {
     assert.equal(topPostsSubtitle('all'), 'Ranked by reach across all platforms');
     assert.equal(topPostsSubtitle('instagram'), 'Ranked by reach on Instagram');
     assert.equal(topPostsSubtitle('gmb'), 'Ranked by reach on GMB');
+    assert.equal(topPostsSubtitle('youtube'), 'Ranked by reach on YouTube');
+  });
+
+  it('offers a filter pill for every platform the analytics API accepts', () => {
+    assert.deepEqual(PLATFORM_PILLS.map((p) => p.id), ['all', 'facebook', 'instagram', 'gmb', 'youtube']);
+    assert.equal(PLATFORM_PILLS.at(-1)?.label, 'YouTube');
   });
 
   it('tells no posts yet from posts with no reach yet', () => {

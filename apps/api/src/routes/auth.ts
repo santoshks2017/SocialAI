@@ -7,7 +7,6 @@ import { storeOtp, verifyOtp } from "../lib/otpStore.js"
 import { isAccessToken } from "../plugins/jwt.js"
 import { signOAuthState, verifyOAuthState } from "../lib/oauthState.js"
 import { SEED_PAGES, scrapePublicPage, extractPatterns } from "../services/socialScraper.js"
-import { saveAccount } from "../services/platformConnections.js"
 import { getFrontendUrl } from "../lib/frontendUrl.js"
 import { issueHandoffCode, redeemHandoffCode, stashMetaPageSelection } from "../lib/oauthHandoff.js"
 import type { MetaPageSelection, SessionHandoff } from "../lib/oauthHandoff.js"
@@ -814,7 +813,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // POST /v1/auth/facebook/pages — redeem the code from /facebook/callback for the
   // Pages and Instagram accounts the user can connect. The tokens are parked under
-  // the caller's dealer for POST /v1/platform-accounts to pick up by account id.
+  // the caller's dealer. Nothing redeems them since the manual account save was
+  // removed; connects go through /v1/platforms/connect/:platform instead.
   fastify.post('/facebook/pages', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const dealerId = request.user.dealer_id;
     if (!dealerId) {

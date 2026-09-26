@@ -11,8 +11,9 @@ export function needsReconnect(
   },
   now: Date = new Date(),
 ): boolean {
-  // is_connected is only ever set to false by the dealer's own disconnect or
-  // remove action, so that is not something to prompt them to reconnect.
+  // is_connected is set to false by the dealer's own disconnect or remove action, and by a
+  // revoked Google/YouTube grant (lib/connectionStore.ts disconnectRevokedConnection, which
+  // tells the team with a bell notification instead). Neither belongs in this reconnect banner.
   if (conn.is_connected === false) return false;
   if (!conn.token_expires_at) return false;
   if (new Date(conn.token_expires_at).getTime() > now.getTime()) return false;
