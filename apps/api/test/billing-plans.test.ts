@@ -1,0 +1,335 @@
+import { describe, it, before, after, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { createHmac, randomUUID } from 'node:crypto';
+import axios from 'axios';
+import { fastify } from '../src/index.js';
+import { prisma } from '../src/db/prisma.js';
+import { resolvePermissions, type JwtUser, type Role } from '../src/lib/permissions.js';
+import { ACCOUNT_PLATFORMS } from '../src/lib/connections.js';
+import {
+  BILLING_CYCLES, BILLING_PLANS, PLAN_LIMITS, PLAN_TIERS, UNLIMITED, annualDiscountPercent, billingCycleForPlan, hasLiveSubscription,
+  paymentsEnabled, planFeatures, planLimits, razorpayPlanEnvKey, razorpayPlanId, tierForRazorpayPlan,
+} from '../src/lib/billingPlans.js';
+
+// apps/api/.env may hold real Razorpay values: every test starts with none.
+const savedEnv: Record<string, string | undefined> = {};
+const razorpayKeys = () => Object.keys(process.env).filter((k) => k.startsWith('RAZORPAY_'));
+
+// Plan ids that don't contain a tier name, so only the configured mapping can resolve them.
+const PLAN_IDS: Record<string, string> = Object.fromEntries(
+  PLAN_TIERS.flatMap((tier, t) => BILLING_CYCLES.map((cycle, c) => [razorpayPlanEnvKey(tier, cycle), `plan_Z${t}${c}`])),
+);
+const CONFIGURED: Record<string, string> = {
+  RAZORPAY_KEY_ID: 'rzp_test_key', RAZORPAY_KEY_SECRET: 'test_secret', RAZORPAY_WEBHOOK_SECRET: 'test_webhook', ...PLAN_IDS,
+};
+
+before(async () => {
+  for (const key of razorpayKeys()) { savedEnv[key] = process.env[key]; delete process.env[key]; }
+  await fastify.ready();
+});
+afterEach(() => { for (const key of razorpayKeys()) delete process.env[key]; });
+after(async () => {
+  for (const [key, value] of Object.entries(savedEnv)) if (value !== undefined) process.env[key] = value;
+  await fastify.close();
+});
+
+async function newDealer(plan = 'starter'): Promise<string> {
+  return (await prisma.dealer.create({ data: { name: 'Plan Motors', city: 'Pune', phone: `phone-${randomUUID()}`, plan } })).id;
+}
+
+function headers(dealerId: string, role: Role = 'admin') {
+  const payload: JwtUser = {
+    dealer_user_id: `u-${randomUUID()}`, dealer_id: dealerId, role, phone: '+910000000000',
+    permissions: resolvePermissions(role), typ: 'access',
+  };
+  return { authorization: `Bearer ${fastify.jwt.sign(payload)}` };
+}
+
+describe('billingPlans', () => {
+  it('holds the limits the gate enforces', () => {
+    assert.deepEqual(PLAN_LIMITS.starter, { postsPerMonth: 30, platforms: 2, blockedFeatures: ['inbox', 'boost', 'inventory'] });
+    assert.equal(PLAN_LIMITS.growth.postsPerMonth, null);
+    // Growth and Enterprise both get every connectable platform — neither is capped below the other.
+    assert.equal(PLAN_LIMITS.growth.platforms, ACCOUNT_PLATFORMS.length);
+    assert.equal(PLAN_LIMITS.enterprise.platforms, ACCOUNT_PLATFORMS.length);
+    assert.equal(planLimits('mystery'), PLAN_LIMITS.starter);
+    assert.equal(planLimits(null), PLAN_LIMITS.starter);
+  });
+
+  it('serves the prices and features the web page used to hard-code', () => {
+    assert.deepEqual(BILLING_PLANS.map((p) => [p.id, p.monthlyPrice, p.annualPrice, p.trialDays]), [
+      ['starter', 999, 9588, 0], ['growth', 2999, 28788, 0], ['enterprise', 9999, 95988, 0],
+    ]);
+    assert.equal(annualDiscountPercent(), 20);
+    const starter = planFeatures('starter');
+    assert.deepEqual(starter.slice(0, 2), [
+      { label: 'Up to 30 posts / month', included: true },
+      { label: 'Up to 2 platforms', included: true },
+    ]);
+    assert.deepEqual(starter.filter((f) => !f.included).map((f) => f.label), ['AI Auto-Reply Review Inbox', 'Boost campaigns', 'CSV Batch Inventory Mapper & grounding']);
+    assert.equal(planFeatures('growth')[0]?.label, 'Unlimited posts');
+    assert.equal(planFeatures('growth')[1]?.label, 'All platforms');
+    assert.equal(planFeatures('enterprise')[1]?.label, 'All platforms');
+    assert.ok(planFeatures('growth').every((f) => f.included));
+  });
+
+  it('turns payments on only with the keys, the webhook secret and every plan id', () => {
+    assert.equal(paymentsEnabled({}), false);
+    assert.equal(paymentsEnabled(CONFIGURED), true);
+    const noWebhook = { ...CONFIGURED };
+    delete noWebhook['RAZORPAY_WEBHOOK_SECRET'];
+    assert.equal(paymentsEnabled(noWebhook), false);
+    assert.equal(paymentsEnabled({ ...CONFIGURED, [razorpayPlanEnvKey('growth', 'annual')]: ' ' }), false);
+    assert.equal(razorpayPlanId('growth', 'monthly', CONFIGURED), 'plan_Z10');
+  });
+
+  it('maps a webhook plan id to its tier', () => {
+    assert.equal(tierForRazorpayPlan('plan_Z11', CONFIGURED), 'growth');
+    assert.equal(tierForRazorpayPlan('plan_Z20', CONFIGURED), 'enterprise');
+    // No real plan ids configured: the old "plan_growth_monthly" substring guess still applies.
+    assert.equal(tierForRazorpayPlan('plan_growth_monthly', {}), 'growth');
+    assert.equal(tierForRazorpayPlan('plan_enterprise_annual', {}), 'enterprise');
+    assert.equal(tierForRazorpayPlan('something-else', {}), 'starter');
+    assert.equal(tierForRazorpayPlan(null, {}), 'starter');
+  });
+
+  it('leaves an unmatched plan id unresolved once real plan ids are configured, instead of guessing', () => {
+    // The substring guess is a dev/test convenience for when no real plan ids exist. Once payments are
+    // configured, a plan id that isn't one of the six configured ones is unresolved (null), not Starter —
+    // it's more likely a since-rotated RAZORPAY_PLAN_* value than an actual downgrade.
+    assert.equal(tierForRazorpayPlan('plan_growth_monthly', CONFIGURED), null);
+    assert.equal(tierForRazorpayPlan('plan_enterprise_annual', CONFIGURED), null);
+    assert.equal(tierForRazorpayPlan('something-else', CONFIGURED), null);
+    assert.equal(tierForRazorpayPlan(null, CONFIGURED), null);
+  });
+});
+
+describe('live subscriptions', () => {
+  it('counts a Razorpay subscription as live until it ends, but not an unpaid link', () => {
+    for (const status of ['authenticated', 'active', 'pending', 'halted', 'paused']) {
+      assert.equal(hasLiveSubscription({ status, razorpaySubscriptionId: 'sub_1' }), true, status);
+    }
+    for (const status of ['created', 'cancelled', 'completed', 'expired']) {
+      assert.equal(hasLiveSubscription({ status, razorpaySubscriptionId: 'sub_1' }), false, status);
+    }
+    assert.equal(hasLiveSubscription({ status: 'active', razorpaySubscriptionId: null }), false);
+    assert.equal(hasLiveSubscription(null), false);
+  });
+
+  it('reads the cycle from the configured plan ids only', () => {
+    assert.equal(billingCycleForPlan('plan_Z10', CONFIGURED), 'monthly');
+    assert.equal(billingCycleForPlan('plan_Z11', CONFIGURED), 'annual');
+    assert.equal(billingCycleForPlan('plan_growth_monthly', CONFIGURED), null);
+    assert.equal(billingCycleForPlan(null, CONFIGURED), null);
+  });
+});
+
+describe('GET /v1/billing/plans and /status', () => {
+  it('lists the plans with payments off', async () => {
+    const res = await fastify.inject({ method: 'GET', url: '/v1/billing/plans', headers: headers(await newDealer()) });
+    assert.equal(res.statusCode, 200);
+    const body = res.json() as { plans: Array<{ id: string }>; payments_enabled: boolean; annual_discount_percent: number };
+    assert.deepEqual(body.plans.map((p) => p.id), ['starter', 'growth', 'enterprise']);
+    assert.equal(body.payments_enabled, false);
+    assert.equal(body.annual_discount_percent, 20);
+  });
+
+  it('reports payments on when Razorpay is configured', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const res = await fastify.inject({ method: 'GET', url: '/v1/billing/plans', headers: headers(await newDealer()) });
+    assert.equal(res.json().payments_enabled, true);
+  });
+
+  it('reports limits from the same table', async () => {
+    const status = async (plan: string) =>
+      (await fastify.inject({ method: 'GET', url: '/v1/billing/status', headers: headers(await newDealer(plan)) })).json().limits;
+    const starter = await status('starter');
+    assert.deepEqual([starter.postsLimit, starter.platformsLimit, starter.featuresBlocked], [30, 2, ['inbox', 'boost', 'inventory']]);
+    const enterprise = await status('enterprise');
+    assert.deepEqual([enterprise.postsLimit, enterprise.platformsLimit, enterprise.featuresBlocked], [UNLIMITED, ACCOUNT_PLATFORMS.length, []]);
+  });
+});
+
+describe('POST /v1/billing/subscribe', () => {
+  it('refuses while payments are off and creates nothing', async () => {
+    const dealerId = await newDealer();
+    const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'growth', cycle: 'monthly' } });
+    assert.equal(res.statusCode, 503);
+    assert.equal(res.json().error.code, 'BILLING_NOT_CONFIGURED');
+    assert.equal(await prisma.subscription.findUnique({ where: { dealer_id: dealerId } }), null);
+  });
+
+  it('checks the tier and cycle', async () => {
+    Object.assign(process.env, CONFIGURED);
+    for (const payload of [{ tier: 'gold', cycle: 'monthly' }, { tier: 'growth', cycle: 'weekly' }, { planId: 'plan_growth_monthly' }]) {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(await newDealer()), payload });
+      assert.equal(res.statusCode, 400, JSON.stringify(payload));
+      assert.equal(res.json().error.code, 'INVALID_INPUT');
+    }
+  });
+
+  it('subscribes to the configured Razorpay plan', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const original = axios.post;
+    axios.post = (async (url: string, body: unknown) => {
+      calls.push({ url, body });
+      return { data: { id: 'sub_test_1', short_url: 'https://rzp.io/i/test' } };
+    }) as unknown as typeof axios.post;
+    try {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'growth', cycle: 'annual' } });
+      assert.equal(res.statusCode, 200, res.body);
+      assert.deepEqual(res.json(), { success: true, subscriptionId: 'sub_test_1', paymentLink: 'https://rzp.io/i/test' });
+      assert.equal(calls[0]?.url, 'https://api.razorpay.com/v1/subscriptions');
+      assert.equal((calls[0]?.body as { plan_id: string }).plan_id, 'plan_Z11');
+      const sub = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
+      assert.deepEqual([sub?.planId, sub?.status, sub?.razorpaySubscriptionId], ['plan_Z11', 'created', 'sub_test_1']);
+    } finally {
+      axios.post = original;
+    }
+  });
+
+  it('refuses a second subscription while one is live, and reports it on /status', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer('growth');
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: `sub_${randomUUID()}`, planId: 'plan_Z10', status: 'active' } });
+    const original = axios.post;
+    let calls = 0;
+    axios.post = (async () => {
+      calls += 1;
+      return { data: { id: 'sub_second', short_url: 'https://rzp.io/i/second' } };
+    }) as unknown as typeof axios.post;
+    try {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'enterprise', cycle: 'monthly' } });
+      assert.equal(res.statusCode, 409, res.body);
+      assert.deepEqual(res.json(), { error: { code: 'ALREADY_SUBSCRIBED', message: 'You already have an active plan. Contact us to change plans.' } });
+      assert.equal(calls, 0);
+      assert.equal((await prisma.subscription.findUnique({ where: { dealer_id: dealerId } }))?.status, 'active');
+
+      const status = (await fastify.inject({ method: 'GET', url: '/v1/billing/status', headers: headers(dealerId) })).json();
+      assert.deepEqual([status.subscription.live, status.subscription.cycle], [true, 'monthly']);
+    } finally {
+      axios.post = original;
+    }
+  });
+
+  it('lets a dealer whose payment link went unpaid subscribe again', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: `sub_${randomUUID()}`, planId: 'plan_Z10', status: 'created' } });
+    const original = axios.post;
+    axios.post = (async () => ({ data: { id: 'sub_retry', short_url: 'https://rzp.io/i/retry' } })) as unknown as typeof axios.post;
+    try {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'growth', cycle: 'monthly' } });
+      assert.equal(res.statusCode, 200, res.body);
+      assert.equal((await prisma.subscription.findUnique({ where: { dealer_id: dealerId } }))?.razorpaySubscriptionId, 'sub_retry');
+    } finally {
+      axios.post = original;
+    }
+  });
+
+  it('creates no subscription record when the payment gateway call fails', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const original = axios.post;
+    axios.post = (async () => {
+      const err = new Error('Request failed with status code 400') as Error & { response?: { data?: { error?: { description?: string } } } };
+      err.response = { data: { error: { description: 'The plan_id provided does not exist' } } };
+      throw err;
+    }) as unknown as typeof axios.post;
+    try {
+      const res = await fastify.inject({ method: 'POST', url: '/v1/billing/subscribe', headers: headers(dealerId), payload: { tier: 'growth', cycle: 'monthly' } });
+      assert.equal(res.statusCode, 502, res.body);
+      assert.equal(res.json().error.code, 'PAYMENT_GATEWAY_ERROR');
+      assert.equal(await prisma.subscription.findUnique({ where: { dealer_id: dealerId } }), null);
+    } finally {
+      axios.post = original;
+    }
+  });
+});
+
+describe('POST /v1/billing/webhook', () => {
+  it('activates the tier the configured plan id pays for', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const subId = `sub_${randomUUID()}`;
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: subId, planId: 'plan_Z20', status: 'created' } });
+    const now = Math.floor(Date.now() / 1000);
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/billing/webhook',
+      payload: { event: 'subscription.activated', payload: { subscription: { entity: { id: subId, plan_id: 'plan_Z20', status: 'active', current_start: now, current_end: now + 30 * 86400 } } } },
+    });
+
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal((await prisma.dealer.findUnique({ where: { id: dealerId } }))?.plan, 'enterprise');
+  });
+
+  it('accepts a correctly signed body with no signature bypass', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const subId = `sub_${randomUUID()}`;
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: subId, planId: 'plan_Z20', status: 'created' } });
+    const now = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      event: 'subscription.activated',
+      payload: { subscription: { entity: { id: subId, plan_id: 'plan_Z20', status: 'active', current_start: now, current_end: now + 30 * 86400 } } },
+    });
+    // A real, correctly-computed signature — supplying it takes the route past the (!signature || !secret)
+    // dev bypass and into validateRazorpaySignature itself, unlike the other tests in this file.
+    const signature = createHmac('sha256', CONFIGURED['RAZORPAY_WEBHOOK_SECRET']!).update(body).digest('hex');
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/billing/webhook',
+      headers: { 'content-type': 'application/json', 'x-razorpay-signature': signature },
+      payload: body,
+    });
+
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal((await prisma.dealer.findUnique({ where: { id: dealerId } }))?.plan, 'enterprise');
+  });
+
+  it('rejects a body whose signature does not match', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer();
+    const subId = `sub_${randomUUID()}`;
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: subId, planId: 'plan_Z20', status: 'created' } });
+    const now = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      event: 'subscription.activated',
+      payload: { subscription: { entity: { id: subId, plan_id: 'plan_Z20', status: 'active', current_start: now, current_end: now + 30 * 86400 } } },
+    });
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/billing/webhook',
+      headers: { 'content-type': 'application/json', 'x-razorpay-signature': createHmac('sha256', 'wrong-secret').update(body).digest('hex') },
+      payload: body,
+    });
+
+    assert.equal(res.statusCode, 400, res.body);
+    assert.equal((await prisma.dealer.findUnique({ where: { id: dealerId } }))?.plan, 'starter');
+  });
+
+  it('keeps the dealer on their current plan when a charged webhook carries an unconfigured plan id', async () => {
+    Object.assign(process.env, CONFIGURED);
+    const dealerId = await newDealer('growth');
+    const subId = `sub_${randomUUID()}`;
+    // planId no longer matches any of the six currently-configured RAZORPAY_PLAN_* values (e.g. rotated).
+    await prisma.subscription.create({ data: { dealer_id: dealerId, razorpaySubscriptionId: subId, planId: 'plan_since_rotated', status: 'active' } });
+    const now = Math.floor(Date.now() / 1000);
+
+    const res = await fastify.inject({
+      method: 'POST', url: '/v1/billing/webhook',
+      payload: { event: 'subscription.charged', payload: { subscription: { entity: { id: subId, plan_id: 'plan_since_rotated', status: 'active', current_start: now, current_end: now + 30 * 86400 } } } },
+    });
+
+    assert.equal(res.statusCode, 200, res.body);
+    const dealer = await prisma.dealer.findUnique({ where: { id: dealerId } });
+    assert.equal(dealer?.plan, 'growth');
+    // The renewal still records: the subscription's period rolls forward even though the tier is unresolved.
+    const sub = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
+    assert.equal(sub?.status, 'active');
+    assert.equal(sub?.currentPeriodEnd?.toISOString(), new Date((now + 30 * 86400) * 1000).toISOString());
+  });
+});

@@ -51,6 +51,21 @@ describe('notify()', () => {
     const rows = await prisma.notification.findMany({ where: { dealer_id: dealerId } });
     assert.deepEqual(rows.map((r) => r.user_id), [users[2]!.id]);
   });
+
+  it('skips people who turned that notification type off', async () => {
+    const { dealerId, users } = await newDealerWithUsers(2);
+    await prisma.dealerUser.update({ where: { id: users[0]!.id }, data: { notification_prefs: { post_published: false } } });
+
+    assert.equal(await notify({ dealerId, type: 'post_published', title: 'Post published' }), 1);
+    assert.equal(await notify({ dealerId, type: 'post_published', title: 'Post published', userIds: [users[0]!.id] }), 0);
+    assert.equal(await notify({ dealerId, type: 'post_failed', title: 'Post failed to publish', userIds: [users[0]!.id] }), 1);
+
+    const rows = await prisma.notification.findMany({ where: { dealer_id: dealerId } });
+    assert.deepEqual(
+      rows.map((r) => `${r.user_id}:${r.type}`).sort(),
+      [`${users[0]!.id}:post_failed`, `${users[1]!.id}:post_published`].sort(),
+    );
+  });
 });
 
 describe('GET/POST /v1/notifications', () => {

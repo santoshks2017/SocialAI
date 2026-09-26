@@ -1,10 +1,15 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { prisma } from '../db/prisma.js';
-import { getUpcomingFestivals } from '../services/festivalCalendar.js';
+import { festivalRange, festivalsBetween, getUpcomingFestivals } from '../services/festivalCalendar.js';
 import { totalReach as postReach } from '../lib/postMetrics.js';
+import { uploadFile } from '../lib/storage.js';
+import { safeFileId } from '../lib/uploadPaths.js';
+import { LOGO_MAX_BYTES, logoContentType, logoStorageKey, logoTypeFor } from '../lib/dealerLogo.js';
+import { LOGOS_DIR } from './upload.js';
 
-
-
+const apiError = (code: string, message: string) => ({ error: { code, message } });
 
 export default async function dealerRoutes(fastify: FastifyInstance) {
   // GET /v1/dealer/profile
@@ -28,7 +33,7 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: 'No dealer associated with this user account.' } });
     }
 
-    const body = request.body as {
+    const body = (request.body ?? {}) as {
       name?: string;
       city?: string;
       state?: string;
@@ -43,7 +48,11 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
       font?: string;
       address?: string;
       showroom_type?: string[];
+      use_brand_theme?: unknown;
     };
+    if (body.use_brand_theme !== undefined && typeof body.use_brand_theme !== 'boolean') {
+      return reply.code(400).send(apiError('INVALID_INPUT', 'use_brand_theme must be true or false'));
+    }
 
     try {
       const updated = await prisma.dealer.update({
@@ -63,26 +72,55 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
           ...(body.font !== undefined ? { font: body.font } : {}),
           ...(body.address !== undefined ? { address: body.address } : {}),
           ...(body.showroom_type !== undefined ? { showroom_type: body.showroom_type } : {}),
+          ...(typeof body.use_brand_theme === 'boolean' ? { use_brand_theme: body.use_brand_theme } : {}),
         },
       });
 
       if (body.brands !== undefined && body.brands.length > 0) {
         const { syncDealerModels } = await import('../services/modelSync.js');
-        void syncDealerModels(dealer_id, body.brands).catch(err => {
-          fastify.log.error(err, 'Failed to background sync models on profile update');
+        void syncDealerModels(dealer_id, body.brands).catch((err: unknown) => {
+          fastify.log.error(`Failed to background sync models on profile update: ${err instanceof Error ? err.message : String(err)}`);
         });
       }
 
       return { success: true, profile: updated };
-    } catch (err: any) {
-      fastify.log.error(err, 'Failed to update dealer profile');
-      return reply.code(500).send({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: err.message || 'Could not update profile details.'
-        }
-      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      fastify.log.error(`Failed to update dealer profile: ${message}`);
+      return reply.code(500).send(apiError('INTERNAL_ERROR', message || 'Could not update profile details.'));
     }
+  });
+
+  // POST /v1/dealer/logo: multipart field "logo" (PNG, JPEG or WebP, 2 MB at most). Stores it at
+  // logos/{dealer_id}/{uuid}.{ext}, sets dealer.logo_url and returns { logo_url }. Same access as PUT /profile.
+  fastify.post('/logo', {
+    preHandler: [fastify.authenticate],
+  }, async (request, reply) => {
+    const dealerId = request.user.dealer_id;
+    if (!dealerId) return reply.code(400).send(apiError('BAD_REQUEST', 'No dealer associated with this user account.'));
+    if (!request.isMultipart()) return reply.code(400).send(apiError('INVALID_INPUT', 'Send the logo as multipart form data in the "logo" field.'));
+
+    const file = await request.file({ limits: { fileSize: LOGO_MAX_BYTES, files: 1 } });
+    if (!file) return reply.code(400).send(apiError('INVALID_INPUT', 'Send the logo in the "logo" field.'));
+
+    let buffer: Buffer;
+    try {
+      buffer = await file.toBuffer();
+    } catch (err) {
+      if ((err as { code?: unknown }).code === 'FST_REQ_FILE_TOO_LARGE') {
+        return reply.code(413).send(apiError('LOGO_TOO_LARGE', 'The logo must be 2 MB or smaller.'));
+      }
+      throw err;
+    }
+    if (file.fieldname !== 'logo') return reply.code(400).send(apiError('INVALID_INPUT', 'Send the logo in the "logo" field.'));
+
+    const type = logoTypeFor(file.mimetype, buffer);
+    if (!type) return reply.code(400).send(apiError('UNSUPPORTED_TYPE', 'Upload a PNG, JPG or WebP image.'));
+
+    const folder = safeFileId(dealerId);
+    const logo_url = await uploadFile(buffer, logoStorageKey(folder, randomUUID(), type), logoContentType(type), path.join(LOGOS_DIR, folder));
+    await prisma.dealer.update({ where: { id: dealerId }, data: { logo_url } });
+    return { logo_url };
   });
 
   // POST /v1/dealer/onboarding/complete
@@ -190,16 +228,23 @@ export default async function dealerRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // GET /v1/dealer/festivals — list upcoming festivals with regional filter
+  // GET /v1/dealer/festivals — upcoming festivals for the dealer's region (?limit=), or, for the Calendar,
+  // every festival date in a range (?from=YYYY-MM-DD&to=YYYY-MM-DD, end exclusive, at most 1100 days).
   fastify.get('/festivals', {
     preHandler: [fastify.authenticate],
-  }, async (request) => {
+  }, async (request, reply) => {
     const dealer_id = request.user.dealer_id!;
+    const { limit = '10', from, to } = request.query as { limit?: string; from?: string; to?: string };
+    const ranged = from !== undefined || to !== undefined;
+    const range = ranged ? festivalRange(from, to) : null;
+    if (ranged && !range) {
+      return reply.code(400).send(apiError('INVALID_INPUT', 'from and to must be YYYY-MM-DD dates, from before to, at most 1100 days apart'));
+    }
     const dealer = await prisma.dealer.findUnique({
       where: { id: dealer_id },
       select: { city: true, state: true },
     });
-    const { limit = '10' } = request.query as { limit?: string };
+    if (range) return { success: true, festivals: festivalsBetween(dealer?.city, dealer?.state, range.from, range.to) };
     const upcoming = getUpcomingFestivals(
       dealer?.city,
       dealer?.state,

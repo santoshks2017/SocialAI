@@ -19,7 +19,6 @@ import AccountsPage from './pages/AccountsPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import PostsPage from './pages/PostsPage';
 import Onboarding from './pages/Onboarding';
-import BillingPage from './pages/BillingPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ApiConnectionsPage from './pages/admin/ApiConnectionsPage';
 import LoginPage from './pages/LoginPage';
@@ -85,7 +84,7 @@ function AppRoutes() {
       <Route path="/boost" element={<RequireAuth><AppLayout><BoostPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts" element={<RequireAuth><AppLayout><AccountsPage /></AppLayout></RequireAuth>} />
       <Route path="/accounts/create" element={<Navigate to="/accounts" replace />} />
-      <Route path="/billing" element={<RequireAuth><AppLayout><BillingPage /></AppLayout></RequireAuth>} />
+      <Route path="/billing" element={<Navigate to="/settings?tab=billing" replace />} />
       <Route path="/admin" element={<RequireAuth><RequireGlobalOwner><AppLayout><AdminDashboard /></AppLayout></RequireGlobalOwner></RequireAuth>} />
       <Route path="/admin/apis" element={<RequireAuth><RequireGlobalOwner><AppLayout><ApiConnectionsPage /></AppLayout></RequireGlobalOwner></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>} />

@@ -2,9 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
 import axios from 'axios';
 import { validateRazorpaySignature } from '../lib/webhookSecurity.js';
-import { getFrontendUrl } from '../lib/frontendUrl.js';
 import { PERMISSIONS, requirePermissionHook } from '../lib/permissions.js';
 import { connectedPlatformCount } from '../lib/connectionStore.js';
+import {
+  ALREADY_SUBSCRIBED_MESSAGE, BILLING_PLANS, PAYMENTS_OFF_MESSAGE, UNLIMITED, annualDiscountPercent, billingCycleForPlan,
+  hasLiveSubscription, isBillingCycle, isPlanTier, paymentsEnabled, planLimits, razorpayPlanId, tierForRazorpayPlan,
+} from '../lib/billingPlans.js';
 
 export default async function billingRoutes(fastify: FastifyInstance) {
   const canViewBilling = requirePermissionHook(PERMISSIONS.VIEW_BILLING);
@@ -28,20 +31,11 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     const activePlan = dealer.plan ?? 'starter';
     const expiresAt = dealer.plan_expires_at ? dealer.plan_expires_at.toISOString() : null;
 
-    // Define tier limits
-    let postsLimit = 30;
-    let platformsLimit = 2;
-    let featuresBlocked: string[] = ['inbox', 'boost', 'inventory'];
-
-    if (activePlan === 'growth') {
-      postsLimit = 999999; // Unlimited
-      platformsLimit = 5;
-      featuresBlocked = [];
-    } else if (activePlan === 'enterprise') {
-      postsLimit = 999999; // Unlimited
-      platformsLimit = 99; // Virtually unlimited
-      featuresBlocked = [];
-    }
+    // Limits come from lib/billingPlans.ts, the same table the plan gate enforces.
+    const limits = planLimits(activePlan);
+    const postsLimit = limits.postsPerMonth ?? UNLIMITED;
+    const platformsLimit = limits.platforms;
+    const featuresBlocked = [...limits.blockedFeatures];
 
     // Query active usage:
     // 1. Posts in the current billing period or calendar month
@@ -68,6 +62,10 @@ export default async function billingRoutes(fastify: FastifyInstance) {
         status: dealer.subscription.status,
         planId: dealer.subscription.planId,
         currentPeriodEnd: dealer.subscription.currentPeriodEnd?.toISOString() ?? null,
+        // live: a Razorpay subscription that can still charge (subscribe answers 409 while it is);
+        // cycle: what its plan id is configured as, or null when it isn't one of the configured ids.
+        live: hasLiveSubscription(dealer.subscription),
+        cycle: billingCycleForPlan(dealer.subscription.planId),
       } : null,
       limits: {
         postsLimit,
@@ -79,90 +77,61 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // POST /v1/billing/subscribe — Initiate subscription
+  // GET /v1/billing/plans — the plan catalogue, and whether online payment is available
+  fastify.get('/plans', { preHandler: [fastify.authenticate, canViewBilling] }, async () => ({
+    plans: BILLING_PLANS,
+    payments_enabled: paymentsEnabled(),
+    annual_discount_percent: annualDiscountPercent(),
+  }));
+
+  // POST /v1/billing/subscribe { tier, cycle } — starts a Razorpay subscription on the configured plan id.
+  // Until Razorpay is configured (paymentsEnabled) it answers 503 BILLING_NOT_CONFIGURED and creates nothing;
+  // while the dealer has a live subscription it answers 409 ALREADY_SUBSCRIBED.
   fastify.post('/subscribe', { preHandler: [fastify.authenticate, canViewBilling] }, async (request, reply) => {
     const dealerId = request.user.dealer_id;
     if (!dealerId) {
-      return reply.code(400).send({ error: 'Not authenticated with a dealer' });
+      return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: 'Not authenticated with a dealer' } });
     }
 
-    const { planId } = request.body as { planId: string };
-    if (!planId) {
-      return reply.code(400).send({ error: 'planId is required' });
+    const { tier, cycle } = (request.body ?? {}) as { tier?: unknown; cycle?: unknown };
+    if (!isPlanTier(tier) || !isBillingCycle(cycle)) {
+      return reply.code(400).send({ error: { code: 'INVALID_INPUT', message: 'tier must be starter, growth or enterprise, and cycle monthly or annual' } });
+    }
+    const planId = razorpayPlanId(tier, cycle);
+    if (!paymentsEnabled() || !planId) {
+      return reply.code(503).send({ error: { code: 'BILLING_NOT_CONFIGURED', message: PAYMENTS_OFF_MESSAGE } });
+    }
+    // A second subscription would charge alongside the first, and the upsert below would orphan the
+    // first one's webhooks. Until plan changes cancel or update the old one, they go through us.
+    const existing = await prisma.subscription.findUnique({ where: { dealer_id: dealerId } });
+    if (hasLiveSubscription(existing)) {
+      return reply.code(409).send({ error: { code: 'ALREADY_SUBSCRIBED', message: ALREADY_SUBSCRIBED_MESSAGE } });
     }
 
-    // Retrieve or create subscription record
-    let sub = await prisma.subscription.findUnique({
-      where: { dealer_id: dealerId },
-    });
-
-    const keyId = process.env['RAZORPAY_KEY_ID'];
-    const keySecret = process.env['RAZORPAY_KEY_SECRET'];
-
-    let razorpaySubscriptionId = '';
-    let shortUrl = '';
-
-    if (keyId && keySecret) {
-      try {
-        // Construct Razorpay payload
-        // We charge starting immediately. For monthly plans, total_count is 12.
-        const response = await axios.post(
-          'https://api.razorpay.com/v1/subscriptions',
-          {
-            plan_id: planId,
-            total_count: 12,
-            quantity: 1,
-            customer_notify: 1,
-          },
-          {
-            auth: {
-              username: keyId,
-              password: keySecret,
-            },
-          }
-        );
-
-        razorpaySubscriptionId = response.data.id;
-        shortUrl = response.data.short_url;
-      } catch (err: any) {
-        fastify.log.error(err.response?.data || err.message, 'Razorpay Subscription Error');
-        return reply.code(500).send({
-          error: 'Failed to create subscription with payment gateway',
-          details: err.response?.data ?? err.message,
-        });
-      }
-    } else {
-      // Mock mode
-      fastify.log.warn('Razorpay credentials missing. Generating mock subscription ID.');
-      razorpaySubscriptionId = `mock_sub_${Math.random().toString(36).substring(2, 15)}`;
-      shortUrl = `${getFrontendUrl()}/billing/success?subscription_id=${razorpaySubscriptionId}`;
-    }
-
-    if (sub) {
-      sub = await prisma.subscription.update({
-        where: { dealer_id: dealerId },
-        data: {
-          razorpaySubscriptionId,
-          planId,
-          status: 'created',
-        },
-      });
-    } else {
-      sub = await prisma.subscription.create({
-        data: {
-          dealer_id: dealerId,
-          razorpaySubscriptionId,
-          planId,
-          status: 'created',
-        },
+    let subscriptionId: string;
+    let paymentLink: string;
+    try {
+      const response = await axios.post<{ id: string; short_url: string }>(
+        'https://api.razorpay.com/v1/subscriptions',
+        { plan_id: planId, total_count: 12, quantity: 1, customer_notify: 1 },
+        { auth: { username: process.env['RAZORPAY_KEY_ID']!, password: process.env['RAZORPAY_KEY_SECRET']! }, timeout: 15_000 },
+      );
+      subscriptionId = response.data.id;
+      paymentLink = response.data.short_url;
+    } catch (err) {
+      // Razorpay's error.description is the actionable detail (e.g. a misconfigured plan id); include it when present.
+      const description = (err as { response?: { data?: { error?: { description?: unknown } } } } | null)?.response?.data?.error?.description;
+      const detail = typeof description === 'string' ? ` (${description})` : '';
+      fastify.log.error(`[billing] Razorpay subscription failed: ${err instanceof Error ? err.message : String(err)}${detail}`);
+      return reply.code(502).send({
+        error: { code: 'PAYMENT_GATEWAY_ERROR', message: 'Could not start the subscription with the payment gateway. Please try again.' },
       });
     }
 
-    return {
-      success: true,
-      subscriptionId: razorpaySubscriptionId,
-      paymentLink: shortUrl,
-    };
+    const data = { razorpaySubscriptionId: subscriptionId, planId, status: 'created' };
+    await prisma.subscription.upsert({ where: { dealer_id: dealerId }, create: { dealer_id: dealerId, ...data }, update: data });
+
+    return { success: true, subscriptionId, paymentLink };
   });
 
   // POST /v1/billing/webhook — Handle Razorpay payment gateway webhooks
@@ -201,15 +170,9 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     const planId = subscriptionEntity.plan_id;
     const status = subscriptionEntity.status; // authenticated, active, cancelled, expired, etc.
 
-    // Map plan ID to tier
-    let planTier = 'starter';
-    if (planId?.includes('growth') || planId?.includes('premium')) {
-      planTier = 'growth';
-    } else if (planId?.includes('enterprise')) {
-      planTier = 'enterprise';
-    } else if (planId?.includes('starter')) {
-      planTier = 'starter';
-    }
+    // The configured Razorpay plan id first; null when payments are configured but this id isn't one of
+    // them (e.g. a since-rotated RAZORPAY_PLAN_* value) — that must not downgrade the dealer to Starter.
+    const planTier = tierForRazorpayPlan(planId);
 
     const currentPeriodStart = subscriptionEntity.current_start ? new Date(subscriptionEntity.current_start * 1000) : null;
     const currentPeriodEnd = subscriptionEntity.current_end ? new Date(subscriptionEntity.current_end * 1000) : null;
@@ -237,12 +200,14 @@ export default async function billingRoutes(fastify: FastifyInstance) {
         prisma.dealer.update({
           where: { id: sub.dealer_id },
           data: {
-            plan: planTier,
+            // planTier is null only when this id isn't one of the configured plan ids; keep the dealer's
+            // current plan rather than resetting a paying subscriber to Starter.
+            ...(planTier ? { plan: planTier } : {}),
             plan_expires_at: currentPeriodEnd,
           },
         }),
       ]);
-      fastify.log.info({ dealer_id: sub.dealer_id, planTier }, 'Subscription activated / updated successfully');
+      fastify.log.info({ dealer_id: sub.dealer_id, planTier: planTier ?? '(unresolved plan id; plan unchanged)' }, 'Subscription activated / updated successfully');
     } else if (event === 'subscription.cancelled' || event === 'subscription.expired' || status === 'cancelled' || status === 'expired') {
       await prisma.$transaction([
         prisma.subscription.update({

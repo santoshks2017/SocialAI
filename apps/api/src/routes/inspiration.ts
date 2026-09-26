@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db/prisma.js';
-import { safeFetchBuffer } from '../lib/safeUrl.js';
+import { isHttpUrl, safeFetchBuffer } from '../lib/safeUrl.js';
 
 // Simple URL scraper: fetches page HTML and extracts visible text snippets as a
 // best-effort post cache (works for publicly accessible pages, no Graph API needed).
@@ -71,6 +71,10 @@ export default async function inspirationRoutes(fastify: FastifyInstance) {
     }
     if (!['facebook', 'instagram'].includes(platform)) {
       return reply.status(400).send({ error: 'platform must be "facebook" or "instagram"' });
+    }
+    // A reference page must be a web link: Settings renders it as one.
+    if (!isHttpUrl(handle_url)) {
+      return reply.status(400).send({ error: { code: 'INVALID_INPUT', message: 'handle_url must be an http:// or https:// link' } });
     }
 
     // Upsert: if same dealer+url exists, update; otherwise create

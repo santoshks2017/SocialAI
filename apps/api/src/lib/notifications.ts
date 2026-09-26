@@ -1,13 +1,30 @@
 import { prisma } from '../db/prisma.js';
 
-export type NotificationType =
-  | 'post_published'
-  | 'post_failed'
-  | 'approval_requested'
-  | 'approval_decided'
-  | 'reel_ready'
-  | 'platform_disconnected'
-  | 'inbox_message';
+export const NOTIFICATION_TYPES = [
+  'post_published',
+  'post_failed',
+  'approval_requested',
+  'approval_decided',
+  'reel_ready',
+  'platform_disconnected',
+  'inbox_message',
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+export type NotificationPrefs = Record<NotificationType, boolean>;
+
+export function isNotificationType(value: unknown): value is NotificationType {
+  return typeof value === 'string' && (NOTIFICATION_TYPES as readonly string[]).includes(value);
+}
+
+/** A person's stored choices (Settings → Preferences) as a full map: only an explicit false turns a type off. */
+export function notificationPrefsOf(raw: unknown): NotificationPrefs {
+  const stored = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  return Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, stored[type] !== false])) as NotificationPrefs;
+}
+
+export function wantsNotification(raw: unknown, type: NotificationType): boolean {
+  return notificationPrefsOf(raw)[type];
+}
 
 /** Rows are kept this long; a Firestore TTL policy on expires_at deletes them afterwards. */
 export const NOTIFICATION_TTL_DAYS = 90;
@@ -19,7 +36,7 @@ export interface NotifyInput {
   body?: string;
   /** App-relative path the bell opens, e.g. "/posts?status=failed". */
   link?: string;
-  /** Recipients (DealerUser ids). Only active users of the dealership are notified. Omit to notify all of them. */
+  /** Recipients (DealerUser ids). Only active users of the dealership who haven't turned this type off are notified. Omit to notify all of them. */
   userIds?: string[];
 }
 
@@ -35,7 +52,8 @@ export async function notify(input: NotifyInput): Promise<number> {
   }
 
   const active = await prisma.dealerUser.findMany({ where: { dealer_id: input.dealerId, is_active: true } });
-  const activeIds = new Set(active.map((u) => u.id));
+  // Settings → Preferences: people who turned this type off are skipped, whether targeted or dealer-wide.
+  const activeIds = new Set(active.filter((u) => wantsNotification(u.notification_prefs, input.type)).map((u) => u.id));
   const userIds = input.userIds ? [...new Set(input.userIds)].filter((id) => activeIds.has(id)) : [...activeIds];
   if (userIds.length === 0) return 0;
 

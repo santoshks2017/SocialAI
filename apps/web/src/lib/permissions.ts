@@ -54,8 +54,5 @@ export function isAtLeast(user: UserInfo | null, role: Role): boolean {
   return rank[user.role] >= rank[role];
 }
 
-export const ROLE_LABELS: Record<Role, string> = {
-  owner:  'Product Owner',
-  admin:  'Admin',
-  user:   'User',
-};
+// One vocabulary for roles (Owner, Manager, Creator): utils/roleLabel.ts.
+export { ROLE_LABELS } from '../utils/roleLabel';

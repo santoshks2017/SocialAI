@@ -1,7 +1,7 @@
 import path from 'path';
 import { readStoredFile } from './storage.js';
 import { safeFetchBuffer, type SafeFetchOptions, type SafeFetchResult } from './safeUrl.js';
-import { ORIGINALS_DIR, CREATIVES_DIR } from '../routes/upload.js';
+import { ORIGINALS_DIR, CREATIVES_DIR, LOGOS_DIR } from '../routes/upload.js';
 
 export class InvalidFileIdError extends Error {
   readonly code = 'INVALID_FILE_ID';
@@ -36,7 +36,15 @@ function storedUploadRef(raw: string): { key: string; dir: string; name: string 
   const apiBase = process.env['API_BASE_URL'];
   const ours = url.origin === 'http://relative.invalid'
     || (!!apiBase && URL.canParse(apiBase) && new URL(apiBase).origin === url.origin);
-  const match = ours ? /^\/uploads\/(originals|creatives)\/([^/]+)$/.exec(url.pathname) : null;
+  if (!ours) return null;
+  // Dealer logos: /uploads/logos/{dealerId}/{file} (POST /v1/dealer/logo).
+  const logo = /^\/uploads\/logos\/([^/]+)\/([^/]+)$/.exec(url.pathname);
+  if (logo) {
+    const dealer = safeFileId(decodeURIComponent(logo[1]!));
+    const name = safeFileId(decodeURIComponent(logo[2]!));
+    return { key: `logos/${dealer}/${name}`, dir: path.join(LOGOS_DIR, dealer), name };
+  }
+  const match = /^\/uploads\/(originals|creatives)\/([^/]+)$/.exec(url.pathname);
   if (!match) return null;
   const name = safeFileId(decodeURIComponent(match[2]!));
   return { key: `${match[1]}/${name}`, dir: match[1] === 'originals' ? ORIGINALS_DIR : CREATIVES_DIR, name };
@@ -51,11 +59,27 @@ export async function loadImageFromUrl(url: string, options?: SafeFetchOptions):
   return safeFetchBuffer(url, options);
 }
 
-/** A dealer logo: uploaded logos are read back from storage, external URLs go through the SSRF guard. */
-export async function loadDealerLogo(logoUrl: string): Promise<Buffer> {
+/** Logos from POST /v1/dealer/logo are stored under logos/{dealer}/ (locally or in a bucket), never in originals/. */
+function isLogoUpload(logoUrl: string): boolean {
   try {
-    return await readOriginalUpload(path.basename(logoUrl));
+    return new URL(logoUrl, 'http://relative.invalid').pathname.includes('/logos/');
   } catch {
-    return (await loadImageFromUrl(logoUrl, { timeoutMs: 10000 })).buffer;
+    return false;
   }
+}
+
+/**
+ * A dealer logo: uploaded logos are read back from storage, external URLs go through the SSRF guard.
+ * Older logos were uploaded as originals, so other URLs try originals/{name} first; a logos/ URL
+ * skips that lookup, which would only miss (a 404 download on a bucket) before every render.
+ */
+export async function loadDealerLogo(logoUrl: string): Promise<Buffer> {
+  if (!isLogoUpload(logoUrl)) {
+    try {
+      return await readOriginalUpload(path.basename(logoUrl));
+    } catch {
+      // not an originals upload: load it by URL below
+    }
+  }
+  return (await loadImageFromUrl(logoUrl, { timeoutMs: 10000 })).buffer;
 }

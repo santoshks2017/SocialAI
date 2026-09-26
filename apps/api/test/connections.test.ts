@@ -5,7 +5,7 @@ import axios from 'axios';
 import { fastify } from '../src/index.js';
 import { prisma } from '../src/db/prisma.js';
 import { resolvePermissions, type JwtUser } from '../src/lib/permissions.js';
-import { MAX_CONNECTED_ACCOUNTS, byAge, platformLabel, primaryConnection, resolveTargets } from '../src/lib/connections.js';
+import { ACCOUNT_PLATFORMS, MAX_CONNECTED_ACCOUNTS, byAge, platformLabel, primaryConnection, resolveTargets } from '../src/lib/connections.js';
 import { connectedPlatformCount, connectionDocId, saveConnection, saveConnections } from '../src/lib/connectionStore.js';
 
 before(async () => { await fastify.ready(); });
@@ -215,6 +215,28 @@ describe('platform plan limit', () => {
     assert.equal(res.statusCode, 403);
     assert.equal((res.json() as { error: { code: string } }).error.code, 'PLAN_LIMIT_REACHED');
   });
+
+  // Growth and Enterprise both read their limit from PLAN_LIMITS (lib/billingPlans.ts), which gives them
+  // ACCOUNT_PLATFORMS.length each — every connectable platform, so neither is capped below the other.
+  const connectTwitter = (dealerId: string) => fastify.inject({ method: 'GET', url: '/v1/platforms/connect/twitter', headers: headers(dealerId) });
+
+  for (const plan of ['growth', 'enterprise'] as const) {
+    it(`lets a ${plan} dealer connect every platform, then stops at the table's limit`, async () => {
+      const dealerId = await newDealer(plan);
+      await connect(dealerId, 'facebook', 'fb-1');
+      await connect(dealerId, 'instagram', 'ig-1');
+      await connect(dealerId, 'gmb', 'accounts/9/locations/1');
+      // A 4th (real) platform still fits: connected count (3) is below the limit (ACCOUNT_PLATFORMS.length).
+      const fourth = await fastify.inject({ method: 'GET', url: '/v1/platforms/connect/youtube?mock=true', headers: headers(dealerId) });
+      assert.equal(fourth.statusCode, 200, fourth.body);
+      await connect(dealerId, 'youtube', 'UC-1');
+
+      // A 5th platform (mock-only Twitter) is blocked: connected count (4) has met the limit (4).
+      const res = await connectTwitter(dealerId);
+      assert.equal(res.statusCode, 403);
+      assert.equal((res.json() as { error: { code: string } }).error.code, 'PLAN_LIMIT_REACHED');
+    });
+  }
 });
 
 describe('/v1/platform-accounts', () => {

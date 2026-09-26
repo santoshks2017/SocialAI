@@ -19,7 +19,7 @@ export interface InviteRequest {
   phone: string;
   name?: string;
   email?: string;
-  role?: 'admin' | 'user';
+  role?: Role;
   permissions?: Record<string, boolean>;
 }
 
@@ -41,6 +41,10 @@ export const userService = {
 
   setActive: (id: string, isActive: boolean) =>
     api.patch<{ user: TeamMember }>(`/users/${id}/status`, { isActive }),
+
+  // PATCH /users/:id/account — name, email or phone (we sign in by phone OTP; there are no passwords).
+  updateAccount: (id: string, change: { name?: string; email?: string; phone?: string }) =>
+    api.patch<{ user: TeamMember }>(`/users/${id}/account`, change),
 
   remove: (id: string) =>
     api.delete<{ success: boolean }>(`/users/${id}`),

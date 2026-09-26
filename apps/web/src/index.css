@@ -101,6 +101,12 @@ h1, h2, h3, h4 { letter-spacing: -.014em; }
   --color-orange-900: #f6d6d2; --color-orange-950: #fbeae8;
   --color-emerald-50: #1e3228;  --color-emerald-100: #264034; --color-emerald-500: #5fae84;
   --color-emerald-600: #6fbf92; --color-emerald-700: #8fd0aa;
+
+  /* Warning (amber), info (blue) and Owner (violet) tints that read on the dark surface. */
+  --color-amber-50: #33291a;  --color-amber-100: #45361c; --color-amber-200: #5c4520;
+  --color-amber-700: #f2c46d; --color-amber-800: #f6d38f;
+  --color-blue-50: #1d2635;   --color-blue-100: #243049;  --color-blue-700: #9cc3f5;
+  --color-violet-50: #2a2336; --color-violet-100: #352b47; --color-violet-700: #c9b6f5;
 }
 .dark body { background-color: var(--color-canvas); color: #f1ecea; }
 .dark .text-white { color: #fafafa; }
@@ -113,10 +119,13 @@ h1, h2, h3, h4 { letter-spacing: -.014em; }
    dark ink instead, as the AV app does. */
 .dark .from-orange-600.text-white, .dark .bg-orange-600.text-white { color: #2a100d; }
 
-/* Readable red tints in dark mode (the banner): the reference leaves them light. */
+/* Readable red tints in dark mode (the banner, error pills and remove buttons): the reference leaves them light. */
 .dark .bg-red-50 { background-color: color-mix(in oklab, #ef4444 14%, #221e1e); }
 .dark .border-red-200 { border-color: color-mix(in oklab, #ef4444 35%, #221e1e); }
-.dark .text-red-800 { color: #fca5a5; }
+.dark .ring-red-100 { --tw-ring-color: color-mix(in oklab, #ef4444 24%, #221e1e); }
+.dark .text-red-600, .dark .text-red-700, .dark .text-red-800 { color: #fca5a5; }
+.dark .hover\:text-red-600:hover { color: #fca5a5; }
+.dark .hover\:bg-red-50:hover { background-color: color-mix(in oklab, #ef4444 14%, #221e1e); }
 .dark .hover\:bg-red-100:hover { background-color: color-mix(in oklab, #ef4444 24%, #221e1e); }
 
 /* ── Vinyl disc spin animation (YouTube Shorts preview) ──────────────────── */

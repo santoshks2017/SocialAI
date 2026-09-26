@@ -44,6 +44,17 @@ function isBlockedHostname(hostname: string): boolean {
   return BLOCKED_HOSTNAMES.has(host) || host.endsWith('.localhost') || host.endsWith('.internal');
 }
 
+/** Whether `value` parses as an http: or https: URL (no network or address checks). */
+export function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Parses `raw` and throws UnsafeUrlError unless it is an http(s) URL whose host
  * resolves only to public addresses.

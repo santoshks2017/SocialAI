@@ -221,14 +221,15 @@ describe('permission checks', () => {
 
   it('view_billing gates billing', async () => {
     const dealerId = await newDealer('billing-dealer');
-    for (const [method, url] of [['GET', '/v1/billing/status'], ['POST', '/v1/billing/subscribe']] as const) {
-      const res = await fastify.inject({ method, url, headers: bearer(token(dealerId, 'user')), payload: { planId: 'growth' } });
+    for (const [method, url] of [['GET', '/v1/billing/status'], ['GET', '/v1/billing/plans'], ['POST', '/v1/billing/subscribe']] as const) {
+      const res = await fastify.inject({ method, url, headers: bearer(token(dealerId, 'user')), payload: { tier: 'growth', cycle: 'monthly' } });
       assert.equal(res.statusCode, 403, url);
     }
   });
 
   it('run_boost gates creating and resuming campaigns', async () => {
     const dealerId = await newDealer('boost-dealer', 'growth');
+    const post = await prisma.post.create({ data: { dealer_id: dealerId, prompt_text: 'Creta festive offer', caption_hashtags: [], platforms: ['facebook'] } });
     const noBoost = bearer(token(dealerId, 'user', { run_boost: false }));
     const create = await fastify.inject({
       method: 'POST', url: '/v1/boost', headers: noBoost, payload: { postId: 'p1', dailyBudget: 500, durationDays: 3 },
@@ -239,7 +240,7 @@ describe('permission checks', () => {
     assert.equal(resume.statusCode, 403);
 
     const allowed = await fastify.inject({
-      method: 'POST', url: '/v1/boost', headers: bearer(token(dealerId, 'user')), payload: { postId: 'p1', dailyBudget: 500, durationDays: 3 },
+      method: 'POST', url: '/v1/boost', headers: bearer(token(dealerId, 'user')), payload: { postId: post.id, dailyBudget: 500, durationDays: 3 },
     });
     assert.equal(allowed.statusCode, 201);
   });

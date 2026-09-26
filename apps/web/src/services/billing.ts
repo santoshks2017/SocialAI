@@ -1,5 +1,8 @@
 import api from './api';
 
+export type PlanTier = 'starter' | 'growth' | 'enterprise';
+export type BillingCycle = 'monthly' | 'annual';
+
 export interface BillingStatus {
   success: boolean;
   plan: string;
@@ -9,6 +12,10 @@ export interface BillingStatus {
     status: string;
     planId: string;
     currentPeriodEnd: string | null;
+    /** A Razorpay subscription that can still charge: POST /billing/subscribe answers 409 ALREADY_SUBSCRIBED meanwhile. */
+    live: boolean;
+    /** The cycle its plan id is configured as; null when the API can't tell. */
+    cycle: BillingCycle | null;
   } | null;
   limits: {
     postsLimit: number;
@@ -19,6 +26,28 @@ export interface BillingStatus {
   };
 }
 
+export interface PlanFeature {
+  label: string;
+  included: boolean;
+}
+
+/** GET /billing/plans: prices in ₹; annualPrice is per year. */
+export interface BillingPlan {
+  id: PlanTier;
+  name: string;
+  description: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  trialDays: number;
+  features: PlanFeature[];
+}
+
+export interface BillingPlans {
+  plans: BillingPlan[];
+  payments_enabled: boolean;
+  annual_discount_percent: number;
+}
+
 export interface SubscribeResponse {
   success: boolean;
   subscriptionId: string;
@@ -27,24 +56,6 @@ export interface SubscribeResponse {
 
 export const billingService = {
   getStatus: () => api.get<BillingStatus>('/billing/status'),
-  
-  subscribe: (planId: string) => api.post<SubscribeResponse>('/billing/subscribe', { planId }),
-  
-  simulateWebhook: (subscriptionId: string, planId: string) => {
-    const payload = {
-      event: 'subscription.activated',
-      payload: {
-        subscription: {
-          entity: {
-            id: subscriptionId,
-            plan_id: planId,
-            status: 'active',
-            current_start: Math.floor(Date.now() / 1000),
-            current_end: Math.floor((Date.now() + 30 * 24 * 3600 * 1000) / 1000),
-          },
-        },
-      },
-    };
-    return api.post<{ success: boolean }>('/billing/webhook', payload);
-  },
+  getPlans: () => api.get<BillingPlans>('/billing/plans'),
+  subscribe: (tier: PlanTier, cycle: BillingCycle) => api.post<SubscribeResponse>('/billing/subscribe', { tier, cycle }),
 };
